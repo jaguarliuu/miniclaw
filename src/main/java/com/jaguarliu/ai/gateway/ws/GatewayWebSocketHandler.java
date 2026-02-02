@@ -32,6 +32,7 @@ public class GatewayWebSocketHandler implements WebSocketHandler {
         connectionManager.register(connectionId, session);
 
         // 处理接收到的消息并发送响应
+        // agent.run 等需要排队的请求会立即返回 runId，结果通过事件推送
         Flux<WebSocketMessage> output = session.receive()
                 .filter(message -> message.getType() == WebSocketMessage.Type.TEXT)
                 .flatMap(message -> handleMessage(connectionId, session, message))

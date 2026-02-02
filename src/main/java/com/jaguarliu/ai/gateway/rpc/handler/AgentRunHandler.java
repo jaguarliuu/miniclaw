@@ -1,10 +1,13 @@
 package com.jaguarliu.ai.gateway.rpc.handler;
 
+import com.jaguarliu.ai.gateway.events.AgentEvent;
+import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
+import com.jaguarliu.ai.runtime.SessionLaneManager;
 import com.jaguarliu.ai.session.RunService;
 import com.jaguarliu.ai.session.RunStatus;
 import com.jaguarliu.ai.session.SessionService;
@@ -14,14 +17,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * agent.run 处理器
- * 创建 run 并执行 LLM 调用
+ * 创建 run 并通过 SessionLane 串行执行 LLM 调用
+ * 执行过程中通过 EventBus 推送流式事件
  */
 @Slf4j
 @Component
@@ -31,6 +35,13 @@ public class AgentRunHandler implements RpcHandler {
     private final SessionService sessionService;
     private final RunService runService;
     private final LlmClient llmClient;
+    private final SessionLaneManager sessionLaneManager;
+    private final EventBus eventBus;
+
+    /**
+     * 每个 session 的锁对象，用于保证创建 run 和获取序号的原子性
+     */
+    private final Map<String, Object> sessionLocks = new ConcurrentHashMap<>();
 
     @Override
     public String getMethod() {
@@ -46,64 +57,95 @@ public class AgentRunHandler implements RpcHandler {
             return Mono.just(RpcResponse.error(request.getId(), "INVALID_PARAMS", "Missing prompt"));
         }
 
-        return Mono.fromCallable(() -> {
-            // 如果没有 sessionId，自动创建一个
-            if (sessionId == null || sessionId.isBlank()) {
-                SessionEntity session = sessionService.create("New Session");
-                return executeRun(session.getId(), prompt, request.getId());
-            }
+        // 同步创建 run 并获取序号，确保顺序
+        PrepareResult result = prepareRun(sessionId, prompt, request.getId());
+        if (result.error != null) {
+            return Mono.just(result.error);
+        }
 
-            // 检查 session 是否存在
-            if (sessionService.get(sessionId).isEmpty()) {
-                return RpcResponse.error(request.getId(), "NOT_FOUND", "Session not found: " + sessionId);
-            }
+        // 立即返回 runId，LLM 执行结果通过事件推送
+        RpcResponse response = RpcResponse.success(request.getId(), Map.of(
+                "runId", result.run.getId(),
+                "sessionId", result.sessionId,
+                "status", RunStatus.QUEUED.getValue()
+        ));
 
-            return executeRun(sessionId, prompt, request.getId());
-        }).subscribeOn(Schedulers.boundedElastic());
+        // 提交到 SessionLane 异步执行
+        sessionLaneManager.submit(
+                result.sessionId,
+                result.run.getId(),
+                result.sequence,
+                () -> {
+                    executeRun(connectionId, result.run);
+                    return null;
+                }
+        ).subscribe();
+
+        return Mono.just(response);
     }
 
-    private RpcResponse executeRun(String sessionId, String prompt, String requestId) {
-        // 1. 创建 run（状态为 queued）
-        RunEntity run = runService.create(sessionId, prompt);
+    /**
+     * 同步准备 run（创建 run + 获取序号）
+     */
+    private PrepareResult prepareRun(String sessionId, String prompt, String requestId) {
+        String resolvedSessionId;
+        if (sessionId == null || sessionId.isBlank()) {
+            SessionEntity session = sessionService.create("New Session");
+            resolvedSessionId = session.getId();
+        } else {
+            if (sessionService.get(sessionId).isEmpty()) {
+                return new PrepareResult(null, null, 0,
+                        RpcResponse.error(requestId, "NOT_FOUND", "Session not found: " + sessionId));
+            }
+            resolvedSessionId = sessionId;
+        }
+
+        Object lock = sessionLocks.computeIfAbsent(resolvedSessionId, k -> new Object());
+        synchronized (lock) {
+            long sequence = sessionLaneManager.nextSequence(resolvedSessionId);
+            RunEntity run = runService.create(resolvedSessionId, prompt);
+            log.info("Prepared run: sessionId={}, runId={}, seq={}", resolvedSessionId, run.getId(), sequence);
+            return new PrepareResult(resolvedSessionId, run, sequence, null);
+        }
+    }
+
+    /**
+     * 执行 run（在 SessionLane 中串行调用）
+     * 通过 EventBus 推送流式事件
+     */
+    private void executeRun(String connectionId, RunEntity run) {
+        String runId = run.getId();
 
         try {
-            // 2. 更新状态为 running
-            runService.updateStatus(run.getId(), RunStatus.RUNNING);
+            // 1. lifecycle.start
+            runService.updateStatus(runId, RunStatus.RUNNING);
+            eventBus.publish(AgentEvent.lifecycleStart(connectionId, runId));
 
-            // 3. 调用 LLM（流式收集）
-            StringBuilder content = new StringBuilder();
+            // 2. 调用 LLM，每个 chunk 推送 assistant.delta
             LlmRequest llmRequest = LlmRequest.builder()
-                    .messages(List.of(LlmRequest.Message.user(prompt)))
+                    .messages(List.of(LlmRequest.Message.user(run.getPrompt())))
                     .build();
 
             llmClient.stream(llmRequest)
                     .doOnNext(chunk -> {
                         if (chunk.getDelta() != null) {
-                            content.append(chunk.getDelta());
+                            eventBus.publish(AgentEvent.assistantDelta(connectionId, runId, chunk.getDelta()));
                         }
                     })
                     .blockLast();
 
-            // 4. 更新状态为 done
-            runService.updateStatus(run.getId(), RunStatus.DONE);
+            // 3. lifecycle.end
+            runService.updateStatus(runId, RunStatus.DONE);
+            eventBus.publish(AgentEvent.lifecycleEnd(connectionId, runId));
 
-            log.info("Run completed: id={}, content length={}", run.getId(), content.length());
-
-            return RpcResponse.success(requestId, Map.of(
-                    "runId", run.getId(),
-                    "sessionId", sessionId,
-                    "status", RunStatus.DONE.getValue(),
-                    "content", content.toString()
-            ));
+            log.info("Run completed: id={}", runId);
 
         } catch (Exception e) {
-            log.error("Run failed: id={}", run.getId(), e);
-            // 更新状态为 error
+            log.error("Run failed: id={}", runId, e);
             try {
-                runService.updateStatus(run.getId(), RunStatus.ERROR);
+                runService.updateStatus(runId, RunStatus.ERROR);
             } catch (Exception ignored) {}
-
-            return RpcResponse.error(requestId, "RUN_ERROR", e.getMessage());
+            eventBus.publish(AgentEvent.lifecycleError(connectionId, runId, e.getMessage()));
         }
     }
 
@@ -122,4 +164,6 @@ public class AgentRunHandler implements RpcHandler {
         }
         return null;
     }
+
+    private record PrepareResult(String sessionId, RunEntity run, long sequence, RpcResponse error) {}
 }
