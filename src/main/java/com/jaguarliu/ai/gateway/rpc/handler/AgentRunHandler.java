@@ -9,16 +9,20 @@ import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.runtime.ContextBuilder;
 import com.jaguarliu.ai.runtime.SessionLaneManager;
+import com.jaguarliu.ai.session.MessageService;
 import com.jaguarliu.ai.session.RunService;
 import com.jaguarliu.ai.session.RunStatus;
 import com.jaguarliu.ai.session.SessionService;
+import com.jaguarliu.ai.storage.entity.MessageEntity;
 import com.jaguarliu.ai.storage.entity.RunEntity;
 import com.jaguarliu.ai.storage.entity.SessionEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * agent.run 处理器
  * 创建 run 并通过 SessionLane 串行执行 LLM 调用
  * 执行过程中通过 EventBus 推送流式事件
+ * 支持多轮对话历史
  */
 @Slf4j
 @Component
@@ -34,13 +39,20 @@ public class AgentRunHandler implements RpcHandler {
 
     private final SessionService sessionService;
     private final RunService runService;
+    private final MessageService messageService;
     private final LlmClient llmClient;
     private final SessionLaneManager sessionLaneManager;
     private final EventBus eventBus;
     private final ContextBuilder contextBuilder;
 
     /**
-     * 每个 session 的锁对象，用于保证创建 run 和获取序号的原子性
+     * 历史消息数量限制（避免上下文过长）
+     */
+    @Value("${agent.max-history-messages:20}")
+    private int maxHistoryMessages;
+
+    /**
+     * 每个 session 的锁对象
      */
     private final Map<String, Object> sessionLocks = new ConcurrentHashMap<>();
 
@@ -58,13 +70,13 @@ public class AgentRunHandler implements RpcHandler {
             return Mono.just(RpcResponse.error(request.getId(), "INVALID_PARAMS", "Missing prompt"));
         }
 
-        // 同步创建 run 并获取序号，确保顺序
+        // 同步创建 run 并获取序号
         PrepareResult result = prepareRun(sessionId, prompt, request.getId());
         if (result.error != null) {
             return Mono.just(result.error);
         }
 
-        // 立即返回 runId，LLM 执行结果通过事件推送
+        // 立即返回 runId
         RpcResponse response = RpcResponse.success(request.getId(), Map.of(
                 "runId", result.run.getId(),
                 "sessionId", result.sessionId,
@@ -85,9 +97,6 @@ public class AgentRunHandler implements RpcHandler {
         return Mono.just(response);
     }
 
-    /**
-     * 同步准备 run（创建 run + 获取序号）
-     */
     private PrepareResult prepareRun(String sessionId, String prompt, String requestId) {
         String resolvedSessionId;
         if (sessionId == null || sessionId.isBlank()) {
@@ -111,34 +120,51 @@ public class AgentRunHandler implements RpcHandler {
     }
 
     /**
-     * 执行 run（在 SessionLane 中串行调用）
-     * 通过 EventBus 推送流式事件
+     * 执行 run
      */
     private void executeRun(String connectionId, RunEntity run) {
         String runId = run.getId();
+        String sessionId = run.getSessionId();
+        String prompt = run.getPrompt();
 
         try {
             // 1. lifecycle.start
             runService.updateStatus(runId, RunStatus.RUNNING);
             eventBus.publish(AgentEvent.lifecycleStart(connectionId, runId));
 
-            // 2. 使用 ContextBuilder 构建请求
-            LlmRequest llmRequest = contextBuilder.build(run.getPrompt());
+            // 2. 保存用户消息
+            messageService.saveUserMessage(sessionId, runId, prompt);
 
-            // 3. 调用 LLM，每个 chunk 推送 assistant.delta
+            // 3. 获取历史消息并构建上下文
+            List<MessageEntity> history = messageService.getSessionHistory(sessionId, maxHistoryMessages);
+            // 排除刚保存的这条用户消息（会在 ContextBuilder 中添加）
+            List<LlmRequest.Message> historyMessages = history.stream()
+                    .filter(m -> !m.getRunId().equals(runId))
+                    .map(m -> new LlmRequest.Message(m.getRole(), m.getContent()))
+                    .toList();
+
+            LlmRequest llmRequest = contextBuilder.buildWithHistory(historyMessages, prompt);
+            log.debug("Context built: history={} messages", historyMessages.size());
+
+            // 4. 调用 LLM，收集响应并推送事件
+            StringBuilder content = new StringBuilder();
             llmClient.stream(llmRequest)
                     .doOnNext(chunk -> {
                         if (chunk.getDelta() != null) {
+                            content.append(chunk.getDelta());
                             eventBus.publish(AgentEvent.assistantDelta(connectionId, runId, chunk.getDelta()));
                         }
                     })
                     .blockLast();
 
-            // 4. lifecycle.end
+            // 5. 保存助手消息
+            messageService.saveAssistantMessage(sessionId, runId, content.toString());
+
+            // 6. lifecycle.end
             runService.updateStatus(runId, RunStatus.DONE);
             eventBus.publish(AgentEvent.lifecycleEnd(connectionId, runId));
 
-            log.info("Run completed: id={}", runId);
+            log.info("Run completed: id={}, response length={}", runId, content.length());
 
         } catch (Exception e) {
             log.error("Run failed: id={}", runId, e);
