@@ -82,8 +82,75 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
     @Override
     public Flux<LlmChunk> stream(LlmRequest request) {
-        // P1-06 实现
-        throw new UnsupportedOperationException("Streaming not implemented yet");
+        ChatCompletionRequest apiRequest = buildApiRequest(request, true);
+
+        return webClient.post()
+                .uri("/chat/completions")
+                .bodyValue(apiRequest)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .timeout(Duration.ofSeconds(properties.getTimeout()))
+                .filter(line -> !line.isBlank())
+                .flatMap(this::parseSseChunk)
+                .doOnError(e -> log.error("Stream error", e));
+    }
+
+    /**
+     * 解析 SSE 数据块
+     * 格式: data: {"choices":[{"delta":{"content":"xxx"},"finish_reason":null}]}
+     */
+    private Flux<LlmChunk> parseSseChunk(String line) {
+        // 处理 SSE 格式，可能是 "data: {...}" 或直接是 JSON
+        String data = line;
+        if (line.startsWith("data:")) {
+            data = line.substring(5).trim();
+        }
+
+        // 处理结束标记
+        if (data.equals("[DONE]") || data.isEmpty()) {
+            return Flux.just(LlmChunk.builder().done(true).build());
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(data);
+            JsonNode choices = root.get("choices");
+
+            if (choices == null || choices.isEmpty()) {
+                return Flux.empty();
+            }
+
+            JsonNode firstChoice = choices.get(0);
+            JsonNode delta = firstChoice.get("delta");
+            JsonNode finishReasonNode = firstChoice.get("finish_reason");
+
+            String content = null;
+            if (delta != null && delta.has("content")) {
+                content = delta.get("content").asText();
+            }
+
+            String finishReason = null;
+            if (finishReasonNode != null && !finishReasonNode.isNull()) {
+                finishReason = finishReasonNode.asText();
+            }
+
+            boolean isDone = finishReason != null;
+
+            // 如果没有内容且不是结束，跳过
+            if (content == null && !isDone) {
+                return Flux.empty();
+            }
+
+            return Flux.just(LlmChunk.builder()
+                    .delta(content)
+                    .finishReason(finishReason)
+                    .done(isDone)
+                    .build());
+
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse SSE chunk: {}", data, e);
+            return Flux.empty();
+        }
     }
 
     /**

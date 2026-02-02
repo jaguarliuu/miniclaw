@@ -38,25 +38,42 @@ public class LlmTestHandler implements RpcHandler {
                 prompt = "你好，请简单介绍一下你自己。";
             }
 
-            log.info("Testing LLM with prompt: {}", prompt);
+            boolean stream = extractStream(request.getPayload());
+
+            log.info("Testing LLM with prompt: {}, stream: {}", prompt, stream);
 
             LlmRequest llmRequest = LlmRequest.builder()
                     .messages(List.of(LlmRequest.Message.user(prompt)))
                     .build();
 
-            LlmResponse response = llmClient.chat(llmRequest);
+            if (stream) {
+                // 流式测试：收集所有内容后返回
+                StringBuilder content = new StringBuilder();
+                llmClient.stream(llmRequest)
+                        .doOnNext(chunk -> {
+                            if (chunk.getDelta() != null) {
+                                content.append(chunk.getDelta());
+                                log.info("Stream chunk: {}", chunk.getDelta());
+                            }
+                        })
+                        .blockLast();
 
-            log.info("LLM response: {}", response.getContent());
+                return RpcResponse.success(request.getId(), Map.of(
+                        "content", content.toString(),
+                        "mode", "stream"
+                ));
+            } else {
+                // 同步测试
+                LlmResponse response = llmClient.chat(llmRequest);
 
-            return RpcResponse.success(request.getId(), Map.of(
-                    "content", response.getContent(),
-                    "finishReason", response.getFinishReason() != null ? response.getFinishReason() : "unknown",
-                    "usage", response.getUsage() != null ? Map.of(
-                            "promptTokens", response.getUsage().getPromptTokens(),
-                            "completionTokens", response.getUsage().getCompletionTokens(),
-                            "totalTokens", response.getUsage().getTotalTokens()
-                    ) : null
-            ));
+                log.info("LLM response: {}", response.getContent());
+
+                return RpcResponse.success(request.getId(), Map.of(
+                        "content", response.getContent(),
+                        "finishReason", response.getFinishReason() != null ? response.getFinishReason() : "unknown",
+                        "mode", "sync"
+                ));
+            }
         }).subscribeOn(Schedulers.boundedElastic())
           .onErrorResume(e -> {
               log.error("LLM test failed", e);
@@ -70,5 +87,13 @@ public class LlmTestHandler implements RpcHandler {
             return prompt != null ? prompt.toString() : null;
         }
         return null;
+    }
+
+    private boolean extractStream(Object payload) {
+        if (payload instanceof Map) {
+            Object stream = ((Map<?, ?>) payload).get("stream");
+            return Boolean.TRUE.equals(stream) || "true".equals(String.valueOf(stream));
+        }
+        return false;
     }
 }
