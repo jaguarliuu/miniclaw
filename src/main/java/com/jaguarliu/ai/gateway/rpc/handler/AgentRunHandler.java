@@ -7,6 +7,7 @@ import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
+import com.jaguarliu.ai.runtime.ContextBuilder;
 import com.jaguarliu.ai.runtime.SessionLaneManager;
 import com.jaguarliu.ai.session.RunService;
 import com.jaguarliu.ai.session.RunStatus;
@@ -18,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,6 +37,7 @@ public class AgentRunHandler implements RpcHandler {
     private final LlmClient llmClient;
     private final SessionLaneManager sessionLaneManager;
     private final EventBus eventBus;
+    private final ContextBuilder contextBuilder;
 
     /**
      * 每个 session 的锁对象，用于保证创建 run 和获取序号的原子性
@@ -121,11 +122,10 @@ public class AgentRunHandler implements RpcHandler {
             runService.updateStatus(runId, RunStatus.RUNNING);
             eventBus.publish(AgentEvent.lifecycleStart(connectionId, runId));
 
-            // 2. 调用 LLM，每个 chunk 推送 assistant.delta
-            LlmRequest llmRequest = LlmRequest.builder()
-                    .messages(List.of(LlmRequest.Message.user(run.getPrompt())))
-                    .build();
+            // 2. 使用 ContextBuilder 构建请求
+            LlmRequest llmRequest = contextBuilder.build(run.getPrompt());
 
+            // 3. 调用 LLM，每个 chunk 推送 assistant.delta
             llmClient.stream(llmRequest)
                     .doOnNext(chunk -> {
                         if (chunk.getDelta() != null) {
@@ -134,7 +134,7 @@ public class AgentRunHandler implements RpcHandler {
                     })
                     .blockLast();
 
-            // 3. lifecycle.end
+            // 4. lifecycle.end
             runService.updateStatus(runId, RunStatus.DONE);
             eventBus.publish(AgentEvent.lifecycleEnd(connectionId, runId));
 
