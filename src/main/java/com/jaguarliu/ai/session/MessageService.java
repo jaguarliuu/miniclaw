@@ -78,7 +78,7 @@ public class MessageService {
      */
     public List<LlmRequest.Message> toRequestMessages(List<MessageEntity> messages) {
         return messages.stream()
-                .map(m -> new LlmRequest.Message(m.getRole(), m.getContent()))
+                .map(m -> LlmRequest.Message.builder().role(m.getRole()).content(m.getContent()).build())
                 .toList();
     }
 }

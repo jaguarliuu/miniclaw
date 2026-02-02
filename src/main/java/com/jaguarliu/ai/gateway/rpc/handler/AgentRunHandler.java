@@ -140,7 +140,7 @@ public class AgentRunHandler implements RpcHandler {
             // 排除刚保存的这条用户消息（会在 ContextBuilder 中添加）
             List<LlmRequest.Message> historyMessages = history.stream()
                     .filter(m -> !m.getRunId().equals(runId))
-                    .map(m -> new LlmRequest.Message(m.getRole(), m.getContent()))
+                    .map(m -> LlmRequest.Message.builder().role(m.getRole()).content(m.getContent()).build())
                     .toList();
 
             LlmRequest llmRequest = contextBuilder.buildWithHistory(historyMessages, prompt);

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jaguarliu.ai.llm.model.LlmChunk;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.LlmResponse;
+import com.jaguarliu.ai.llm.model.ToolCall;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -16,11 +17,15 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * OpenAI 兼容的 LLM 客户端
  * 支持 OpenAI、DeepSeek、通义千问、Ollama 等
+ * 支持 Function Calling
  */
 @Slf4j
 @Component
@@ -45,23 +50,15 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
     /**
      * 规范化 endpoint 路径
-     * - 如果以 /v* 结尾（如 /v1, /v4），保持不变
-     * - 否则自动追加 /v1
      */
     private String normalizeEndpoint(String endpoint) {
         if (endpoint == null || endpoint.isBlank()) {
             return "http://localhost:11434/v1";
         }
-
-        // 移除末尾的斜杠
         endpoint = endpoint.replaceAll("/+$", "");
-
-        // 检查是否已经以 /v + 数字 结尾
         if (endpoint.matches(".*?/v\\d+$")) {
             return endpoint;
         }
-
-        // 否则追加 /v1
         return endpoint + "/v1";
     }
 
@@ -84,6 +81,9 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     public Flux<LlmChunk> stream(LlmRequest request) {
         ChatCompletionRequest apiRequest = buildApiRequest(request, true);
 
+        // 用于累积 tool_calls（流式模式下 arguments 是分片到达的）
+        Map<Integer, ToolCallAccumulator> toolCallAccumulators = new HashMap<>();
+
         return webClient.post()
                 .uri("/chat/completions")
                 .bodyValue(apiRequest)
@@ -92,22 +92,19 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 .bodyToFlux(String.class)
                 .timeout(Duration.ofSeconds(properties.getTimeout()))
                 .filter(line -> !line.isBlank())
-                .flatMap(this::parseSseChunk)
+                .flatMap(line -> parseSseChunk(line, toolCallAccumulators))
                 .doOnError(e -> log.error("Stream error", e));
     }
 
     /**
      * 解析 SSE 数据块
-     * 格式: data: {"choices":[{"delta":{"content":"xxx"},"finish_reason":null}]}
      */
-    private Flux<LlmChunk> parseSseChunk(String line) {
-        // 处理 SSE 格式，可能是 "data: {...}" 或直接是 JSON
+    private Flux<LlmChunk> parseSseChunk(String line, Map<Integer, ToolCallAccumulator> accumulators) {
         String data = line;
         if (line.startsWith("data:")) {
             data = line.substring(5).trim();
         }
 
-        // 处理结束标记
         if (data.equals("[DONE]") || data.isEmpty()) {
             return Flux.just(LlmChunk.builder().done(true).build());
         }
@@ -125,8 +122,13 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             JsonNode finishReasonNode = firstChoice.get("finish_reason");
 
             String content = null;
-            if (delta != null && delta.has("content")) {
+            if (delta != null && delta.has("content") && !delta.get("content").isNull()) {
                 content = delta.get("content").asText();
+            }
+
+            // 解析 tool_calls delta
+            if (delta != null && delta.has("tool_calls")) {
+                parseToolCallsDelta(delta.get("tool_calls"), accumulators);
             }
 
             String finishReason = null;
@@ -136,16 +138,27 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
             boolean isDone = finishReason != null;
 
-            // 如果没有内容且不是结束，跳过
-            if (content == null && !isDone) {
+            // 构建 chunk
+            LlmChunk.LlmChunkBuilder chunkBuilder = LlmChunk.builder()
+                    .delta(content)
+                    .finishReason(finishReason)
+                    .done(isDone);
+
+            // 如果是 tool_calls 结束，附带完整的 tool_calls
+            if ("tool_calls".equals(finishReason) && !accumulators.isEmpty()) {
+                List<ToolCall> toolCalls = accumulators.values().stream()
+                        .map(ToolCallAccumulator::build)
+                        .toList();
+                chunkBuilder.toolCalls(toolCalls);
+                log.debug("Tool calls completed: {}", toolCalls.size());
+            }
+
+            // 如果没有内容、没有 tool_calls、不是结束，跳过
+            if (content == null && !isDone && accumulators.isEmpty()) {
                 return Flux.empty();
             }
 
-            return Flux.just(LlmChunk.builder()
-                    .delta(content)
-                    .finishReason(finishReason)
-                    .done(isDone)
-                    .build());
+            return Flux.just(chunkBuilder.build());
 
         } catch (JsonProcessingException e) {
             log.warn("Failed to parse SSE chunk: {}", data, e);
@@ -154,20 +167,84 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     }
 
     /**
+     * 解析 tool_calls 增量并累积
+     */
+    private void parseToolCallsDelta(JsonNode toolCallsNode, Map<Integer, ToolCallAccumulator> accumulators) {
+        for (JsonNode tcNode : toolCallsNode) {
+            int index = tcNode.has("index") ? tcNode.get("index").asInt() : 0;
+
+            ToolCallAccumulator acc = accumulators.computeIfAbsent(index, k -> new ToolCallAccumulator());
+
+            if (tcNode.has("id")) {
+                acc.id = tcNode.get("id").asText();
+            }
+            if (tcNode.has("type")) {
+                acc.type = tcNode.get("type").asText();
+            }
+            if (tcNode.has("function")) {
+                JsonNode funcNode = tcNode.get("function");
+                if (funcNode.has("name")) {
+                    acc.functionName = funcNode.get("name").asText();
+                }
+                if (funcNode.has("arguments")) {
+                    acc.arguments.append(funcNode.get("arguments").asText());
+                }
+            }
+        }
+    }
+
+    /**
      * 构建 API 请求
      */
     private ChatCompletionRequest buildApiRequest(LlmRequest request, boolean stream) {
         List<ChatMessage> messages = request.getMessages().stream()
-                .map(m -> new ChatMessage(m.getRole(), m.getContent()))
+                .map(this::convertMessage)
                 .toList();
 
-        return ChatCompletionRequest.builder()
+        ChatCompletionRequest.ChatCompletionRequestBuilder builder = ChatCompletionRequest.builder()
                 .model(request.getModel() != null ? request.getModel() : properties.getModel())
                 .messages(messages)
                 .temperature(request.getTemperature() != null ? request.getTemperature() : properties.getTemperature())
                 .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : properties.getMaxTokens())
-                .stream(stream)
-                .build();
+                .stream(stream);
+
+        // 添加 tools
+        if (request.getTools() != null && !request.getTools().isEmpty()) {
+            builder.tools(request.getTools());
+            builder.toolChoice(request.getToolChoice() != null ? request.getToolChoice() : "auto");
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 转换消息格式
+     */
+    private ChatMessage convertMessage(LlmRequest.Message m) {
+        ChatMessage msg = new ChatMessage();
+        msg.setRole(m.getRole());
+        msg.setContent(m.getContent());
+
+        // assistant 消息可能有 tool_calls
+        if (m.getToolCalls() != null && !m.getToolCalls().isEmpty()) {
+            List<ChatToolCall> chatToolCalls = m.getToolCalls().stream()
+                    .map(tc -> {
+                        ChatToolCall ctc = new ChatToolCall();
+                        ctc.setId(tc.getId());
+                        ctc.setType(tc.getType());
+                        ctc.setFunction(new ChatToolCall.Function(tc.getName(), tc.getArguments()));
+                        return ctc;
+                    })
+                    .toList();
+            msg.setToolCalls(chatToolCalls);
+        }
+
+        // tool 消息有 tool_call_id
+        if ("tool".equals(m.getRole())) {
+            msg.setToolCallId(m.getToolCallId());
+        }
+
+        return msg;
     }
 
     /**
@@ -184,9 +261,31 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
             JsonNode firstChoice = choices.get(0);
             JsonNode message = firstChoice.get("message");
-            String content = message.get("content").asText();
+
+            String content = null;
+            if (message.has("content") && !message.get("content").isNull()) {
+                content = message.get("content").asText();
+            }
+
             String finishReason = firstChoice.has("finish_reason") ?
                     firstChoice.get("finish_reason").asText() : null;
+
+            // 解析 tool_calls
+            List<ToolCall> toolCalls = null;
+            if (message.has("tool_calls")) {
+                toolCalls = new ArrayList<>();
+                for (JsonNode tcNode : message.get("tool_calls")) {
+                    ToolCall tc = ToolCall.builder()
+                            .id(tcNode.get("id").asText())
+                            .type(tcNode.has("type") ? tcNode.get("type").asText() : "function")
+                            .function(ToolCall.FunctionCall.builder()
+                                    .name(tcNode.get("function").get("name").asText())
+                                    .arguments(tcNode.get("function").get("arguments").asText())
+                                    .build())
+                            .build();
+                    toolCalls.add(tc);
+                }
+            }
 
             LlmResponse.Usage usage = null;
             if (root.has("usage")) {
@@ -200,12 +299,34 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
             return LlmResponse.builder()
                     .content(content)
+                    .toolCalls(toolCalls)
                     .finishReason(finishReason)
                     .usage(usage)
                     .build();
 
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to parse LLM response", e);
+        }
+    }
+
+    /**
+     * Tool Call 累积器（用于流式模式下累积分片的 arguments）
+     */
+    private static class ToolCallAccumulator {
+        String id;
+        String type = "function";
+        String functionName;
+        StringBuilder arguments = new StringBuilder();
+
+        ToolCall build() {
+            return ToolCall.builder()
+                    .id(id)
+                    .type(type)
+                    .function(ToolCall.FunctionCall.builder()
+                            .name(functionName)
+                            .arguments(arguments.toString())
+                            .build())
+                    .build();
         }
     }
 
@@ -222,12 +343,35 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         @JsonProperty("max_tokens")
         private Integer maxTokens;
         private Boolean stream;
+        private List<Map<String, Object>> tools;
+        @JsonProperty("tool_choice")
+        private String toolChoice;
     }
 
     @Data
-    @lombok.AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     static class ChatMessage {
         private String role;
         private String content;
+        @JsonProperty("tool_calls")
+        private List<ChatToolCall> toolCalls;
+        @JsonProperty("tool_call_id")
+        private String toolCallId;
+    }
+
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    static class ChatToolCall {
+        private String id;
+        private String type;
+        private Function function;
+
+        @Data
+        @lombok.AllArgsConstructor
+        @lombok.NoArgsConstructor
+        static class Function {
+            private String name;
+            private String arguments;
+        }
     }
 }
