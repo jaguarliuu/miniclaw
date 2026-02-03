@@ -27,3 +27,5 @@ logs/
 
 # Application
 application-local.yml
+
+docs/lessons/

@@ -5,8 +5,8 @@ import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
-import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
+import com.jaguarliu.ai.runtime.AgentRuntime;
 import com.jaguarliu.ai.runtime.ContextBuilder;
 import com.jaguarliu.ai.runtime.SessionLaneManager;
 import com.jaguarliu.ai.session.MessageService;
@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * agent.run 处理器
  * 创建 run 并通过 SessionLane 串行执行 LLM 调用
  * 执行过程中通过 EventBus 推送流式事件
- * 支持多轮对话历史
+ * 支持多轮对话历史和 ReAct 工具调用
  */
 @Slf4j
 @Component
@@ -40,10 +40,10 @@ public class AgentRunHandler implements RpcHandler {
     private final SessionService sessionService;
     private final RunService runService;
     private final MessageService messageService;
-    private final LlmClient llmClient;
     private final SessionLaneManager sessionLaneManager;
     private final EventBus eventBus;
     private final ContextBuilder contextBuilder;
+    private final AgentRuntime agentRuntime;
 
     /**
      * 历史消息数量限制（避免上下文过长）
@@ -120,7 +120,7 @@ public class AgentRunHandler implements RpcHandler {
     }
 
     /**
-     * 执行 run
+     * 执行 run（使用 AgentRuntime 支持 ReAct 工具调用）
      */
     private void executeRun(String connectionId, RunEntity run) {
         String runId = run.getId();
@@ -143,28 +143,20 @@ public class AgentRunHandler implements RpcHandler {
                     .map(m -> LlmRequest.Message.builder().role(m.getRole()).content(m.getContent()).build())
                     .toList();
 
-            LlmRequest llmRequest = contextBuilder.buildWithHistory(historyMessages, prompt);
+            // 4. 使用 AgentRuntime 执行（支持工具调用）
+            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt);
             log.debug("Context built: history={} messages", historyMessages.size());
 
-            // 4. 调用 LLM，收集响应并推送事件
-            StringBuilder content = new StringBuilder();
-            llmClient.stream(llmRequest)
-                    .doOnNext(chunk -> {
-                        if (chunk.getDelta() != null) {
-                            content.append(chunk.getDelta());
-                            eventBus.publish(AgentEvent.assistantDelta(connectionId, runId, chunk.getDelta()));
-                        }
-                    })
-                    .blockLast();
+            String response = agentRuntime.executeStep(connectionId, runId, messages);
 
             // 5. 保存助手消息
-            messageService.saveAssistantMessage(sessionId, runId, content.toString());
+            messageService.saveAssistantMessage(sessionId, runId, response);
 
             // 6. lifecycle.end
             runService.updateStatus(runId, RunStatus.DONE);
             eventBus.publish(AgentEvent.lifecycleEnd(connectionId, runId));
 
-            log.info("Run completed: id={}, response length={}", runId, content.length());
+            log.info("Run completed: id={}, response length={}", runId, response.length());
 
         } catch (Exception e) {
             log.error("Run failed: id={}", runId, e);
