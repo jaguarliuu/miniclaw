@@ -51,6 +51,10 @@ agent:
     你是一个有帮助的 AI 助手。请用中文回答用户的问题。
     回答要简洁、准确、有条理。
   max-history-messages: 20
+  loop:
+    max-steps: 10
+    run-timeout-seconds: 300
+    step-timeout-seconds: 120
 
 # Tools 配置
 tools:

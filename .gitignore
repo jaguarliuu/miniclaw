@@ -29,3 +29,5 @@ logs/
 application-local.yml
 
 docs/lessons/
+
+workspace/

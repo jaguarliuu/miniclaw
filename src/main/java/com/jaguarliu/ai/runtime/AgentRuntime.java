@@ -3,7 +3,6 @@ package com.jaguarliu.ai.runtime;
 import com.jaguarliu.ai.gateway.events.AgentEvent;
 import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.llm.LlmClient;
-import com.jaguarliu.ai.llm.model.LlmChunk;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.ToolCall;
 import com.jaguarliu.ai.tools.ToolDispatcher;
@@ -16,14 +15,16 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Agent 运行时
- * 负责 ReAct 循环的单步执行：
+ * 负责 ReAct 循环执行：
  * 1. 调用 LLM（带 tools）
  * 2. 如果返回 tool_calls → 执行工具
  * 3. 将工具结果追加到上下文
- * 4. 再次调用 LLM 获取最终回复
+ * 4. 循环直到模型收口或达到限制
  */
 @Slf4j
 @Component
@@ -34,68 +35,122 @@ public class AgentRuntime {
     private final ToolRegistry toolRegistry;
     private final ToolDispatcher toolDispatcher;
     private final EventBus eventBus;
+    private final LoopConfig loopConfig;
+    private final CancellationManager cancellationManager;
 
     /**
-     * 执行单步 ReAct
-     * 如果 LLM 返回 tool_calls，执行工具后再次调用 LLM
+     * 执行 ReAct 多步循环
      *
-     * @param connectionId 连接 ID（用于事件推送）
+     * @param connectionId 连接 ID
      * @param runId        运行 ID
-     * @param messages     当前上下文消息列表（会被修改，追加 assistant/tool 消息）
-     * @return 最终的 assistant 回复内容
+     * @param sessionId    会话 ID
+     * @param messages     初始消息列表（会被修改）
+     * @return 最终回复内容
+     * @throws CancellationException 如果被取消
+     * @throws TimeoutException      如果超时
      */
-    public String executeStep(String connectionId, String runId, List<LlmRequest.Message> messages) {
-        // 1. 构建带 tools 的请求
+    public String executeLoop(String connectionId, String runId, String sessionId,
+                              List<LlmRequest.Message> messages) throws TimeoutException {
+        // 1. 创建运行上下文
+        RunContext context = RunContext.create(runId, connectionId, sessionId,
+                loopConfig, cancellationManager);
+
+        // 2. 注册到取消管理器
+        cancellationManager.register(runId);
+
+        try {
+            return doExecuteLoop(context, messages);
+        } finally {
+            // 3. 清理取消标记
+            cancellationManager.clearCancellation(runId);
+        }
+    }
+
+    /**
+     * 执行循环核心逻辑
+     */
+    private String doExecuteLoop(RunContext context, List<LlmRequest.Message> messages) throws TimeoutException {
+        log.info("Starting ReAct loop: runId={}, maxSteps={}, timeout={}s",
+                context.getRunId(), context.getConfig().getMaxSteps(),
+                context.getConfig().getRunTimeoutSeconds());
+
+        while (!context.isMaxStepsReached()) {
+            // 检查取消
+            if (context.isAborted()) {
+                log.info("Loop aborted by cancellation: runId={}, step={}",
+                        context.getRunId(), context.getCurrentStep());
+                throw new CancellationException("Run cancelled by user");
+            }
+
+            // 检查超时
+            if (context.isTimedOut()) {
+                log.warn("Loop timed out: runId={}, elapsed={}s, limit={}s",
+                        context.getRunId(), context.getElapsedSeconds(),
+                        context.getConfig().getRunTimeoutSeconds());
+                throw new TimeoutException("ReAct loop timeout after " +
+                        context.getElapsedSeconds() + " seconds");
+            }
+
+            // 执行单步 LLM 调用
+            StepResult result = executeSingleStep(context, messages);
+
+            // 如果没有工具调用，正常结束
+            if (!result.hasToolCalls()) {
+                messages.add(LlmRequest.Message.assistant(result.content()));
+                log.info("Loop completed normally: runId={}, steps={}",
+                        context.getRunId(), context.getCurrentStep());
+                return result.content();
+            }
+
+            // 有工具调用，执行工具
+            log.info("Step {} has {} tool calls: runId={}",
+                    context.getCurrentStep(), result.toolCalls().size(), context.getRunId());
+
+            messages.add(LlmRequest.Message.assistantWithToolCalls(result.toolCalls()));
+
+            for (ToolCall toolCall : result.toolCalls()) {
+                // Hook 点：beforeToolCall（预留给 HITL）
+                ToolResult toolResult = executeToolCall(context, toolCall);
+                // Hook 点：afterToolCall
+                messages.add(LlmRequest.Message.toolResult(toolCall.getId(), toolResult.getContent()));
+            }
+
+            // 增加步数并发布事件
+            context.incrementStep();
+            eventBus.publish(AgentEvent.stepCompleted(
+                    context.getConnectionId(),
+                    context.getRunId(),
+                    context.getCurrentStep(),
+                    context.getConfig().getMaxSteps(),
+                    context.getElapsedSeconds()));
+
+            log.debug("Step completed: runId={}, step={}/{}",
+                    context.getRunId(), context.getCurrentStep(),
+                    context.getConfig().getMaxSteps());
+        }
+
+        // 达到最大步数
+        log.warn("Loop reached max steps: runId={}, maxSteps={}",
+                context.getRunId(), context.getConfig().getMaxSteps());
+
+        // 最后一次调用 LLM 获取总结
+        StepResult finalResult = executeSingleStep(context, messages);
+        messages.add(LlmRequest.Message.assistant(finalResult.content()));
+
+        return finalResult.content();
+    }
+
+    /**
+     * 执行单步（一次 LLM 调用）
+     */
+    private StepResult executeSingleStep(RunContext context, List<LlmRequest.Message> messages) {
         LlmRequest request = LlmRequest.builder()
                 .messages(messages)
                 .tools(toolRegistry.toOpenAiTools())
                 .toolChoice("auto")
                 .build();
 
-        log.debug("Executing step: runId={}, messageCount={}, toolCount={}",
-                runId, messages.size(), toolRegistry.size());
-
-        // 2. 调用 LLM（流式）
-        StepResult result = streamLlmCall(connectionId, runId, request);
-
-        // 3. 如果没有 tool_calls，直接返回内容
-        if (!result.hasToolCalls()) {
-            log.info("Step completed without tool calls: runId={}", runId);
-            // 追加 assistant 消息到上下文
-            messages.add(LlmRequest.Message.assistant(result.content));
-            return result.content;
-        }
-
-        // 4. 有 tool_calls，执行工具
-        log.info("Step has {} tool calls: runId={}", result.toolCalls.size(), runId);
-
-        // 追加带 tool_calls 的 assistant 消息
-        messages.add(LlmRequest.Message.assistantWithToolCalls(result.toolCalls));
-
-        // 5. 执行每个工具调用
-        for (ToolCall toolCall : result.toolCalls) {
-            ToolResult toolResult = executeToolCall(connectionId, runId, toolCall);
-
-            // 追加 tool 结果消息
-            messages.add(LlmRequest.Message.toolResult(toolCall.getId(), toolResult.getContent()));
-        }
-
-        // 6. 再次调用 LLM 获取最终回复
-        log.debug("Calling LLM again after tool execution: runId={}", runId);
-
-        LlmRequest followUpRequest = LlmRequest.builder()
-                .messages(messages)
-                .tools(toolRegistry.toOpenAiTools())
-                .toolChoice("auto")
-                .build();
-
-        StepResult followUpResult = streamLlmCall(connectionId, runId, followUpRequest);
-
-        // 追加最终 assistant 消息
-        messages.add(LlmRequest.Message.assistant(followUpResult.content));
-
-        log.info("Step completed after tool execution: runId={}", runId);
-        return followUpResult.content;
+        return streamLlmCall(context.getConnectionId(), context.getRunId(), request);
     }
 
     /**
@@ -124,25 +179,24 @@ public class AgentRuntime {
     }
 
     /**
-     * 执行单个工具调用
+     * 执行单个工具调用（使用 RunContext）
      */
-    private ToolResult executeToolCall(String connectionId, String runId, ToolCall toolCall) {
+    private ToolResult executeToolCall(RunContext context, ToolCall toolCall) {
         String toolName = toolCall.getName();
         String argumentsJson = toolCall.getArguments();
 
-        log.info("Executing tool: name={}, callId={}, runId={}", toolName, toolCall.getId(), runId);
+        log.info("Executing tool: name={}, callId={}, runId={}, step={}",
+                toolName, toolCall.getId(), context.getRunId(), context.getCurrentStep());
 
-        // 解析参数 JSON
         Map<String, Object> arguments = parseArguments(argumentsJson);
-
-        // 执行工具
         ToolResult result = toolDispatcher.dispatch(toolName, arguments).block();
 
         if (result == null) {
             result = ToolResult.error("Tool execution returned null");
         }
 
-        log.info("Tool executed: name={}, success={}, runId={}", toolName, result.isSuccess(), runId);
+        log.info("Tool executed: name={}, success={}, runId={}",
+                toolName, result.isSuccess(), context.getRunId());
         return result;
     }
 
@@ -155,7 +209,6 @@ public class AgentRuntime {
             return Map.of();
         }
         try {
-            // 使用简单的 JSON 解析（Jackson ObjectMapper 由 Spring 自动配置）
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             return mapper.readValue(argumentsJson, Map.class);
         } catch (Exception e) {

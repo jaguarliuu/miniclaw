@@ -41,7 +41,8 @@ public class AgentEvent {
         LIFECYCLE_START("lifecycle.start"),
         ASSISTANT_DELTA("assistant.delta"),
         LIFECYCLE_END("lifecycle.end"),
-        LIFECYCLE_ERROR("lifecycle.error");
+        LIFECYCLE_ERROR("lifecycle.error"),
+        STEP_COMPLETED("step.completed");
 
         private final String value;
 
@@ -100,6 +101,18 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 step.completed 事件
+     */
+    public static AgentEvent stepCompleted(String connectionId, String runId, int step, int maxSteps, long elapsedSeconds) {
+        return AgentEvent.builder()
+                .type(EventType.STEP_COMPLETED)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new StepData(step, maxSteps, elapsedSeconds))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -110,5 +123,13 @@ public class AgentEvent {
     @AllArgsConstructor
     public static class ErrorData {
         private String message;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class StepData {
+        private int step;
+        private int maxSteps;
+        private long elapsedSeconds;
     }
 }

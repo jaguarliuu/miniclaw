@@ -120,7 +120,7 @@ public class AgentRunHandler implements RpcHandler {
     }
 
     /**
-     * 执行 run（使用 AgentRuntime 支持 ReAct 工具调用）
+     * 执行 run（使用 AgentRuntime 支持 ReAct 多步循环）
      */
     private void executeRun(String connectionId, RunEntity run) {
         String runId = run.getId();
@@ -143,11 +143,11 @@ public class AgentRunHandler implements RpcHandler {
                     .map(m -> LlmRequest.Message.builder().role(m.getRole()).content(m.getContent()).build())
                     .toList();
 
-            // 4. 使用 AgentRuntime 执行（支持工具调用）
+            // 4. 使用 AgentRuntime 执行多步循环
             List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt);
             log.debug("Context built: history={} messages", historyMessages.size());
 
-            String response = agentRuntime.executeStep(connectionId, runId, messages);
+            String response = agentRuntime.executeLoop(connectionId, runId, sessionId, messages);
 
             // 5. 保存助手消息
             messageService.saveAssistantMessage(sessionId, runId, response);
@@ -158,6 +158,18 @@ public class AgentRunHandler implements RpcHandler {
 
             log.info("Run completed: id={}, response length={}", runId, response.length());
 
+        } catch (java.util.concurrent.CancellationException e) {
+            log.info("Run cancelled: id={}", runId);
+            try {
+                runService.updateStatus(runId, RunStatus.CANCELED);
+            } catch (Exception ignored) {}
+            eventBus.publish(AgentEvent.lifecycleError(connectionId, runId, "Cancelled by user"));
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("Run timed out: id={}", runId);
+            try {
+                runService.updateStatus(runId, RunStatus.ERROR);
+            } catch (Exception ignored) {}
+            eventBus.publish(AgentEvent.lifecycleError(connectionId, runId, e.getMessage()));
         } catch (Exception e) {
             log.error("Run failed: id={}", runId, e);
             try {
