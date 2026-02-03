@@ -1,19 +1,39 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import type { Message } from '@/types'
+import { ref, watch, nextTick, computed } from 'vue'
+import type { Message, StreamBlock } from '@/types'
+import { useMarkdown } from '@/composables/useMarkdown'
 import MessageItem from './MessageItem.vue'
+import ToolCallCard from './ToolCallCard.vue'
 
 const props = defineProps<{
   messages: Message[]
-  streamingContent: string
+  streamBlocks: StreamBlock[]
   isStreaming: boolean
+}>()
+
+const emit = defineEmits<{
+  confirm: [callId: string, decision: 'approve' | 'reject']
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
 
+const { render } = useMarkdown()
+
+// 渲染文本块的 Markdown
+function renderTextBlock(content: string | undefined): string {
+  return render(content || '')
+}
+
+// 检查是否有内容（用于显示 thinking 状态）
+const hasContent = computed(() => {
+  return props.streamBlocks.some(block =>
+    (block.type === 'text' && block.content) || block.type === 'tool'
+  )
+})
+
 // Auto-scroll on new content
 watch(
-  () => [props.messages.length, props.streamingContent],
+  () => [props.messages.length, props.streamBlocks.length, props.streamBlocks.map(b => b.type === 'text' ? b.content?.length : b.toolCall?.status).join(',')],
   async () => {
     await nextTick()
     if (containerRef.value) {
@@ -37,18 +57,37 @@ watch(
         v-for="message in messages"
         :key="message.id"
         :message="message"
+        @confirm="(callId, decision) => emit('confirm', callId, decision)"
       />
 
-      <!-- Streaming indicator -->
+      <!-- Streaming message with interleaved blocks -->
       <article v-if="isStreaming" class="message assistant streaming">
         <div class="message-meta">
           <span class="role">Assistant</span>
           <span class="streaming-indicator"></span>
         </div>
-        <div class="message-content">
-          <p v-if="streamingContent">{{ streamingContent }}</p>
-          <p v-else class="thinking">...</p>
+
+        <!-- Thinking state when no content yet -->
+        <div v-if="!hasContent" class="message-content">
+          <p class="thinking">...</p>
         </div>
+
+        <!-- Interleaved blocks -->
+        <template v-for="block in streamBlocks" :key="block.id">
+          <!-- Text block -->
+          <div
+            v-if="block.type === 'text' && block.content"
+            class="message-content markdown-body"
+            v-html="renderTextBlock(block.content)"
+          ></div>
+
+          <!-- Tool block -->
+          <ToolCallCard
+            v-else-if="block.type === 'tool' && block.toolCall"
+            :tool-call="block.toolCall"
+            @confirm="(callId, decision) => emit('confirm', callId, decision)"
+          />
+        </template>
       </article>
     </div>
   </div>
@@ -155,4 +194,9 @@ watch(
     opacity: 1;
   }
 }
+</style>
+
+<!-- Markdown styles (unscoped to apply to v-html content) -->
+<style>
+@import '@/styles/markdown.css';
 </style>

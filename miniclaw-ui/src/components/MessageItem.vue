@@ -1,9 +1,31 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Message } from '@/types'
+import { useMarkdown } from '@/composables/useMarkdown'
+import ToolCallCard from './ToolCallCard.vue'
 
-defineProps<{
+const props = defineProps<{
   message: Message
 }>()
+
+const emit = defineEmits<{
+  confirm: [callId: string, decision: 'approve' | 'reject']
+}>()
+
+const { render } = useMarkdown()
+
+// 是否有交错的 blocks（assistant 消息）
+const hasBlocks = computed(() =>
+  props.message.role === 'assistant' && props.message.blocks && props.message.blocks.length > 0
+)
+
+// 简单内容渲染（用于 user 消息或没有 blocks 的 assistant 消息）
+const renderedContent = computed(() => render(props.message.content))
+
+// 渲染文本块
+function renderTextBlock(content: string | undefined): string {
+  return render(content || '')
+}
 </script>
 
 <template>
@@ -12,11 +34,30 @@ defineProps<{
       <div class="message-meta">
         <span class="role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
       </div>
-      <div class="message-content">
-        <p v-for="(paragraph, i) in message.content.split('\n\n')" :key="i">
-          {{ paragraph }}
-        </p>
-      </div>
+
+      <!-- 有 blocks 的 assistant 消息：交错显示 -->
+      <template v-if="hasBlocks">
+        <template v-for="block in message.blocks" :key="block.id">
+          <!-- Text block -->
+          <div
+            v-if="block.type === 'text' && block.content"
+            class="message-content markdown-body"
+            v-html="renderTextBlock(block.content)"
+          ></div>
+
+          <!-- Tool block -->
+          <ToolCallCard
+            v-else-if="block.type === 'tool' && block.toolCall"
+            :tool-call="block.toolCall"
+            @confirm="(callId, decision) => emit('confirm', callId, decision)"
+          />
+        </template>
+      </template>
+
+      <!-- 简单消息：直接显示内容 -->
+      <template v-else>
+        <div class="message-content markdown-body" v-html="renderedContent"></div>
+      </template>
     </div>
   </article>
 </template>
@@ -54,14 +95,6 @@ defineProps<{
   line-height: 1.7;
 }
 
-.message-content p {
-  margin-bottom: 1em;
-}
-
-.message-content p:last-child {
-  margin-bottom: 0;
-}
-
 /* User messages - right aligned, compact */
 .message.user {
   display: flex;
@@ -82,4 +115,9 @@ defineProps<{
 .message.assistant .message-content {
   font-weight: 400;
 }
+</style>
+
+<!-- Markdown styles (unscoped to apply to v-html content) -->
+<style>
+@import '@/styles/markdown.css';
 </style>

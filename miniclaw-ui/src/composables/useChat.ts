@@ -1,13 +1,32 @@
 import { ref, computed } from 'vue'
 import { useWebSocket } from './useWebSocket'
-import type { Session, Message, Run, RpcEvent } from '@/types'
+import type {
+  Session,
+  Message,
+  Run,
+  RpcEvent,
+  ToolCall,
+  StreamBlock,
+  ToolCallPayload,
+  ToolResultPayload,
+  ToolConfirmRequestPayload
+} from '@/types'
 
 const sessions = ref<Session[]>([])
 const currentSessionId = ref<string | null>(null)
 const messages = ref<Message[]>([])
 const currentRun = ref<Run | null>(null)
-const streamingContent = ref<string>('')
 const isStreaming = ref(false)
+
+// 流式内容块（交错显示文本和工具调用）
+const streamBlocks = ref<StreamBlock[]>([])
+
+// 工具调用索引（用于快速查找和更新）- 使用普通对象避免 Map 的响应式问题
+const toolCallIndex = ref<Record<string, ToolCall>>({})
+
+// 事件监听器清理函数
+let eventCleanups: (() => void)[] = []
+let isSetup = false
 
 const { request, onEvent } = useWebSocket()
 
@@ -30,9 +49,10 @@ async function createSession(title?: string) {
 
 async function selectSession(sessionId: string) {
   currentSessionId.value = sessionId
-  streamingContent.value = ''
   isStreaming.value = false
   currentRun.value = null
+  streamBlocks.value = []
+  toolCallIndex.value = {}
 
   // Load session messages
   await loadMessages(sessionId)
@@ -75,7 +95,8 @@ async function sendMessage(prompt: string) {
 
   // Start streaming
   isStreaming.value = true
-  streamingContent.value = ''
+  streamBlocks.value = []
+  toolCallIndex.value = {}
 
   try {
     const result = await request<{ runId: string; sessionId: string; status: string }>(
@@ -97,40 +118,174 @@ async function sendMessage(prompt: string) {
   }
 }
 
+// HITL Confirmation
+async function confirmToolCall(callId: string, decision: 'approve' | 'reject') {
+  try {
+    await request('tool.confirm', { callId, decision })
+
+    // Update local state
+    const toolCall = toolCallIndex.value[callId]
+    if (toolCall) {
+      toolCall.status = decision === 'approve' ? 'confirmed' : 'rejected'
+      if (decision === 'reject') {
+        toolCall.result = 'Rejected by user'
+      }
+    }
+  } catch (e) {
+    console.error('Failed to confirm tool call:', e)
+  }
+}
+
+/**
+ * 获取或创建当前文本块
+ * 如果最后一个块是文本块，返回它；否则创建新的文本块
+ */
+function getOrCreateTextBlock(): StreamBlock {
+  const lastBlock = streamBlocks.value[streamBlocks.value.length - 1]
+  if (lastBlock && lastBlock.type === 'text') {
+    return lastBlock
+  }
+
+  // 创建新的文本块
+  const newBlock: StreamBlock = {
+    id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type: 'text',
+    content: ''
+  }
+  streamBlocks.value.push(newBlock)
+  return newBlock
+}
+
+/**
+ * 创建工具调用块
+ */
+function createToolBlock(toolCall: ToolCall): StreamBlock {
+  const block: StreamBlock = {
+    id: `tool-${toolCall.callId}`,
+    type: 'tool',
+    toolCall
+  }
+  streamBlocks.value.push(block)
+  toolCallIndex.value[toolCall.callId] = toolCall
+  return block
+}
+
+/**
+ * 查找工具块并更新
+ */
+function updateToolBlock(callId: string, updater: (toolCall: ToolCall) => void) {
+  const toolCall = toolCallIndex.value[callId]
+  if (toolCall) {
+    updater(toolCall)
+  }
+}
+
 // Setup event listeners
 function setupEventListeners() {
-  // Handle streaming deltas
-  // 后端事件: {"type":"event","event":"assistant.delta","runId":"xxx","payload":{"content":"..."}}
-  onEvent('assistant.delta', (event: RpcEvent) => {
-    if (event.payload && typeof event.payload === 'object' && 'content' in event.payload) {
-      streamingContent.value += (event.payload as { content: string }).content
-    }
-  })
+  // 防止重复注册
+  if (isSetup) {
+    return
+  }
+  isSetup = true
 
-  // Handle lifecycle end
-  onEvent('lifecycle.end', (event: RpcEvent) => {
+  // 清理之前的监听器（以防万一）
+  eventCleanups.forEach(cleanup => cleanup())
+  eventCleanups = []
+
+  // Handle streaming deltas - 追加到当前文本块
+  eventCleanups.push(onEvent('assistant.delta', (event: RpcEvent) => {
+    if (event.payload && typeof event.payload === 'object' && 'content' in event.payload) {
+      const content = (event.payload as { content: string }).content
+      const textBlock = getOrCreateTextBlock()
+      textBlock.content = (textBlock.content || '') + content
+    }
+  }))
+
+  // Handle tool.confirm_request (HITL tool needs approval) - 创建新的工具块
+  eventCleanups.push(onEvent('tool.confirm_request', (event: RpcEvent) => {
+    const payload = event.payload as ToolConfirmRequestPayload
+    if (payload) {
+      const toolCall: ToolCall = {
+        callId: payload.callId,
+        toolName: payload.toolName,
+        arguments: payload.arguments,
+        status: 'pending',
+        requiresConfirm: true
+      }
+      createToolBlock(toolCall)
+    }
+  }))
+
+  // Handle tool.call (tool execution started) - 创建或更新工具块
+  eventCleanups.push(onEvent('tool.call', (event: RpcEvent) => {
+    const payload = event.payload as ToolCallPayload
+    if (payload) {
+      const existingCall = toolCallIndex.value[payload.callId]
+      if (existingCall) {
+        // 已存在（HITL 工具已确认），更新状态
+        existingCall.status = 'executing'
+      } else {
+        // 新工具调用（非 HITL 工具）
+        const toolCall: ToolCall = {
+          callId: payload.callId,
+          toolName: payload.toolName,
+          arguments: payload.arguments,
+          status: 'executing',
+          requiresConfirm: false
+        }
+        createToolBlock(toolCall)
+      }
+    }
+  }))
+
+  // Handle tool.result - 更新工具块
+  eventCleanups.push(onEvent('tool.result', (event: RpcEvent) => {
+    const payload = event.payload as ToolResultPayload
+    if (payload) {
+      updateToolBlock(payload.callId, (toolCall) => {
+        toolCall.status = payload.success ? 'success' : 'error'
+        toolCall.result = payload.content
+      })
+    }
+  }))
+
+  // Handle lifecycle end - 保存到消息
+  eventCleanups.push(onEvent('lifecycle.end', (event: RpcEvent) => {
     if (currentRun.value && event.runId === currentRun.value.id) {
-      // Add assistant message
+      // 收集所有文本内容（用于简单显示和搜索）
+      const textContent = streamBlocks.value
+        .filter(b => b.type === 'text')
+        .map(b => b.content || '')
+        .join('')
+
+      // 复制 blocks 用于保存（深拷贝避免引用问题）
+      const savedBlocks = streamBlocks.value.map(block => ({
+        ...block,
+        toolCall: block.toolCall ? { ...block.toolCall } : undefined
+      }))
+
+      // Add assistant message with blocks
       const assistantMessage: Message = {
         id: `msg-${Date.now()}`,
         sessionId: currentRun.value.sessionId,
         runId: event.runId,
         role: 'assistant',
-        content: streamingContent.value,
-        createdAt: new Date().toISOString()
+        content: textContent,
+        createdAt: new Date().toISOString(),
+        blocks: savedBlocks.length > 0 ? savedBlocks : undefined
       }
       messages.value.push(assistantMessage)
 
       // Reset streaming state
       isStreaming.value = false
-      streamingContent.value = ''
+      streamBlocks.value = []
+      toolCallIndex.value = {}
       currentRun.value = null
     }
-  })
+  }))
 
   // Handle errors
-  // 后端 ErrorData: {"message":"..."}
-  onEvent('lifecycle.error', (event: RpcEvent) => {
+  eventCleanups.push(onEvent('lifecycle.error', (event: RpcEvent) => {
     if (currentRun.value && event.runId === currentRun.value.id) {
       const errorMsg = event.payload && typeof event.payload === 'object' && 'message' in event.payload
         ? (event.payload as { message: string }).message
@@ -148,10 +303,11 @@ function setupEventListeners() {
       messages.value.push(errorMessage)
 
       isStreaming.value = false
-      streamingContent.value = ''
+      streamBlocks.value = []
+      toolCallIndex.value = {}
       currentRun.value = null
     }
-  })
+  }))
 }
 
 export function useChat() {
@@ -161,7 +317,7 @@ export function useChat() {
     currentSession,
     currentSessionId,
     messages,
-    streamingContent,
+    streamBlocks,
     isStreaming,
 
     // Actions
@@ -170,6 +326,7 @@ export function useChat() {
     selectSession,
     loadMessages,
     sendMessage,
+    confirmToolCall,
     setupEventListeners
   }
 }

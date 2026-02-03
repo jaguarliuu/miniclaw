@@ -13,12 +13,13 @@ const {
   currentSession,
   currentSessionId,
   messages,
-  streamingContent,
+  streamBlocks,
   isStreaming,
   loadSessions,
   createSession,
   selectSession,
   sendMessage,
+  confirmToolCall,
   setupEventListeners
 } = useChat()
 
@@ -33,6 +34,10 @@ async function handleSelectSession(id: string) {
 
 function handleSend(prompt: string) {
   sendMessage(prompt)
+}
+
+function handleConfirmToolCall(callId: string, decision: 'approve' | 'reject') {
+  confirmToolCall(callId, decision)
 }
 
 onMounted(() => {
@@ -75,8 +80,9 @@ onUnmounted(() => {
 
       <MessageList
         :messages="messages"
-        :streaming-content="streamingContent"
+        :stream-blocks="streamBlocks"
         :is-streaming="isStreaming"
+        @confirm="handleConfirmToolCall"
       />
 
       <MessageInput
