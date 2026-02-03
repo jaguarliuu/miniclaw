@@ -1922,6 +1922,246 @@ git commit -m "feat(skills): [P3-11] add example skills"
 
 ---
 
+### Task P3-12: Skill 事件与 RPC Handler
+
+**目标：**
+- 运行时 skill 激活事件推送（让前端知道当前用了哪个 skill）
+- skills.list / skills.get API
+
+**Files:**
+- Modify: `src/main/java/com/jaguarliu/ai/gateway/events/AgentEvent.java` - 添加 SKILL_ACTIVATED 事件
+- Create: `src/main/java/com/jaguarliu/ai/gateway/rpc/handler/SkillListHandler.java`
+- Create: `src/main/java/com/jaguarliu/ai/gateway/rpc/handler/SkillGetHandler.java`
+
+**Step 1: 添加 Skill 激活事件类型**
+
+在 `AgentEvent.EventType` 中添加：
+
+```java
+SKILL_ACTIVATED("skill.activated");
+```
+
+添加工厂方法：
+
+```java
+/**
+ * 创建 skill.activated 事件
+ */
+public static AgentEvent skillActivated(String connectionId, String runId,
+        String skillName, String source) {
+    return AgentEvent.builder()
+            .type(EventType.SKILL_ACTIVATED)
+            .connectionId(connectionId)
+            .runId(runId)
+            .data(new SkillActivatedData(skillName, source))
+            .build();
+}
+
+@Data
+@AllArgsConstructor
+public static class SkillActivatedData {
+    private String skillName;
+    private String source;  // "manual" or "prompt"
+}
+```
+
+**Step 2: SkillListHandler**
+
+```java
+package com.jaguarliu.ai.gateway.rpc.handler;
+
+import com.jaguarliu.ai.gateway.rpc.RpcHandler;
+import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
+import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import com.jaguarliu.ai.skills.SkillRegistry;
+import com.jaguarliu.ai.skills.model.SkillEntry;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * skills.list - 获取所有 skill 列表
+ */
+@Component
+@RequiredArgsConstructor
+public class SkillListHandler implements RpcHandler {
+
+    private final SkillRegistry skillRegistry;
+
+    @Override
+    public String getMethod() {
+        return "skills.list";
+    }
+
+    @Override
+    public Mono<RpcResponse> handle(RpcRequest request, String connectionId) {
+        List<Map<String, Object>> skills = skillRegistry.listAll().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+
+        return Mono.just(RpcResponse.success(request.getId(), Map.of(
+                "skills", skills,
+                "version", skillRegistry.getSnapshotVersion()
+        )));
+    }
+
+    private Map<String, Object> toDto(SkillEntry entry) {
+        return Map.of(
+                "name", entry.getMetadata().getName(),
+                "description", entry.getMetadata().getDescription(),
+                "available", entry.isAvailable(),
+                "unavailableReason", entry.getUnavailableReason() != null ?
+                        entry.getUnavailableReason() : "",
+                "priority", entry.getMetadata().getPriority(),
+                "tokenCost", entry.getTokenCost()
+        );
+    }
+}
+```
+
+**Step 3: SkillGetHandler**
+
+```java
+package com.jaguarliu.ai.gateway.rpc.handler;
+
+import com.jaguarliu.ai.gateway.rpc.RpcHandler;
+import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
+import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import com.jaguarliu.ai.skills.SkillRegistry;
+import com.jaguarliu.ai.skills.model.LoadedSkill;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+import java.util.Map;
+
+/**
+ * skills.get - 获取 skill 详情（包含正文）
+ */
+@Component
+@RequiredArgsConstructor
+public class SkillGetHandler implements RpcHandler {
+
+    private final SkillRegistry skillRegistry;
+
+    @Override
+    public String getMethod() {
+        return "skills.get";
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Mono<RpcResponse> handle(RpcRequest request, String connectionId) {
+        Map<String, Object> payload = (Map<String, Object>) request.getPayload();
+        String name = (String) payload.get("name");
+
+        if (name == null || name.isBlank()) {
+            return Mono.just(RpcResponse.error(request.getId(), "Missing required field: name"));
+        }
+
+        return skillRegistry.load(name)
+                .map(skill -> RpcResponse.success(request.getId(), toDto(skill)))
+                .orElseGet(() -> RpcResponse.error(request.getId(), "Skill not found: " + name));
+    }
+
+    private Map<String, Object> toDto(LoadedSkill skill) {
+        return Map.of(
+                "name", skill.getName(),
+                "description", skill.getDescription(),
+                "body", skill.getBody(),
+                "allowedTools", skill.getAllowedTools() != null ? skill.getAllowedTools() : List.of(),
+                "confirmBefore", skill.getConfirmBefore() != null ? skill.getConfirmBefore() : List.of()
+        );
+    }
+}
+```
+
+**Step 4: 在 AgentRuntime 中发送 skill.activated 事件**
+
+在 skill 激活时调用：
+
+```java
+eventBus.publish(AgentEvent.skillActivated(
+    ctx.getConnectionId(),
+    ctx.getRunId(),
+    selection.getSkillName(),
+    selection.getSource().name().toLowerCase()
+));
+```
+
+**Commit:**
+
+```bash
+git add src/main/java/com/jaguarliu/ai/gateway/
+git commit -m "feat(skills): [P3-12] add skill events and RPC handlers"
+```
+
+---
+
+### Task P3-13: 前端 Skill UI
+
+**目标：**
+- 显示当前 run 激活的 skill（徽章/标签）
+- Skill 管理面板（列表、查看详情）
+- `/skill-name` 输入时的自动补全
+
+**Files:**
+- Modify: `miniclaw-ui/src/App.vue` 或相关组件
+- Create: `miniclaw-ui/src/components/SkillBadge.vue`
+- Create: `miniclaw-ui/src/components/SkillPanel.vue`
+- Modify: `miniclaw-ui/src/composables/useChat.ts` - 处理 skill.activated 事件
+
+**Step 1: 处理 skill.activated 事件**
+
+在 WebSocket 消息处理中添加：
+
+```typescript
+case 'skill.activated':
+  currentSkill.value = {
+    name: event.payload.skillName,
+    source: event.payload.source
+  };
+  break;
+```
+
+**Step 2: SkillBadge 组件**
+
+显示当前激活的 skill：
+
+```vue
+<template>
+  <div v-if="skill" class="skill-badge">
+    <span class="skill-icon">⚡</span>
+    <span class="skill-name">{{ skill.name }}</span>
+    <span class="skill-source">({{ skill.source }})</span>
+  </div>
+</template>
+```
+
+**Step 3: SkillPanel 组件**
+
+Skill 管理面板：
+- 调用 `skills.list` 获取列表
+- 显示 available / unavailable 状态
+- 点击查看详情（调用 `skills.get`）
+
+**Step 4: 输入补全**
+
+当用户输入 `/` 时，显示可用 skill 列表供选择。
+
+**Commit:**
+
+```bash
+git add miniclaw-ui/
+git commit -m "feat(skills): [P3-13] add skill UI components"
+```
+
+---
+
 ## 验收标准
 
 ### 核心功能
@@ -1951,6 +2191,21 @@ git commit -m "feat(skills): [P3-11] add example skills"
 6. **Token 成本控制**
    - 索引不超过 `index-token-budget`
    - 日志显示：`Built skill index: 3 skills, ~450 tokens`
+
+### 前端集成
+
+7. **Skill 激活反馈**
+   - agent 激活 skill 时，前端收到 `skill.activated` 事件
+   - 界面显示当前 skill 徽章（名称 + 来源）
+
+8. **Skill 管理 API**
+   - `skills.list` 返回所有 skill（含 available / unavailableReason）
+   - `skills.get` 返回 skill 详情（含正文）
+
+9. **前端 Skill UI**
+   - 显示 skill 列表（可用/不可用分组）
+   - 查看 skill 详情
+   - 输入 `/` 时显示 skill 补全建议
 
 ---
 
