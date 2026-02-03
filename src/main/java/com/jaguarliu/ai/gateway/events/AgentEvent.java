@@ -42,7 +42,9 @@ public class AgentEvent {
         ASSISTANT_DELTA("assistant.delta"),
         LIFECYCLE_END("lifecycle.end"),
         LIFECYCLE_ERROR("lifecycle.error"),
-        STEP_COMPLETED("step.completed");
+        STEP_COMPLETED("step.completed"),
+        TOOL_CALL("tool.call"),
+        TOOL_RESULT("tool.result");
 
         private final String value;
 
@@ -113,6 +115,30 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 tool.call 事件（工具调用开始）
+     */
+    public static AgentEvent toolCall(String connectionId, String runId, String callId, String toolName, Object arguments) {
+        return AgentEvent.builder()
+                .type(EventType.TOOL_CALL)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new ToolCallData(callId, toolName, arguments))
+                .build();
+    }
+
+    /**
+     * 创建 tool.result 事件（工具调用结果）
+     */
+    public static AgentEvent toolResult(String connectionId, String runId, String callId, boolean success, String content) {
+        return AgentEvent.builder()
+                .type(EventType.TOOL_RESULT)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new ToolResultData(callId, success, content))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -131,5 +157,21 @@ public class AgentEvent {
         private int step;
         private int maxSteps;
         private long elapsedSeconds;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ToolCallData {
+        private String callId;
+        private String toolName;
+        private Object arguments;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ToolResultData {
+        private String callId;
+        private boolean success;
+        private String content;
     }
 }

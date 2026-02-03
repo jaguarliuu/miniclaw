@@ -183,17 +183,36 @@ public class AgentRuntime {
      */
     private ToolResult executeToolCall(RunContext context, ToolCall toolCall) {
         String toolName = toolCall.getName();
+        String callId = toolCall.getId();
         String argumentsJson = toolCall.getArguments();
 
         log.info("Executing tool: name={}, callId={}, runId={}, step={}",
-                toolName, toolCall.getId(), context.getRunId(), context.getCurrentStep());
+                toolName, callId, context.getRunId(), context.getCurrentStep());
 
         Map<String, Object> arguments = parseArguments(argumentsJson);
+
+        // 发布 tool.call 事件
+        eventBus.publish(AgentEvent.toolCall(
+                context.getConnectionId(),
+                context.getRunId(),
+                callId,
+                toolName,
+                arguments));
+
+        // 执行工具
         ToolResult result = toolDispatcher.dispatch(toolName, arguments).block();
 
         if (result == null) {
             result = ToolResult.error("Tool execution returned null");
         }
+
+        // 发布 tool.result 事件
+        eventBus.publish(AgentEvent.toolResult(
+                context.getConnectionId(),
+                context.getRunId(),
+                callId,
+                result.isSuccess(),
+                result.getContent()));
 
         log.info("Tool executed: name={}, success={}, runId={}",
                 toolName, result.isSuccess(), context.getRunId());
