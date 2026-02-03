@@ -44,7 +44,8 @@ public class AgentEvent {
         LIFECYCLE_ERROR("lifecycle.error"),
         STEP_COMPLETED("step.completed"),
         TOOL_CALL("tool.call"),
-        TOOL_RESULT("tool.result");
+        TOOL_RESULT("tool.result"),
+        TOOL_CONFIRM_REQUEST("tool.confirm_request");
 
         private final String value;
 
@@ -139,6 +140,18 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 tool.confirm_request 事件（请求 HITL 确认）
+     */
+    public static AgentEvent toolConfirmRequest(String connectionId, String runId, String callId, String toolName, Object arguments) {
+        return AgentEvent.builder()
+                .type(EventType.TOOL_CONFIRM_REQUEST)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new ToolConfirmRequestData(callId, toolName, arguments))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -173,5 +186,13 @@ public class AgentEvent {
         private String callId;
         private boolean success;
         private String content;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ToolConfirmRequestData {
+        private String callId;
+        private String toolName;
+        private Object arguments;
     }
 }

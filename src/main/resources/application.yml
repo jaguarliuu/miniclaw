@@ -55,6 +55,8 @@ agent:
     max-steps: 10
     run-timeout-seconds: 300
     step-timeout-seconds: 120
+  hitl:
+    timeout-seconds: 300  # HITL 确认超时时间（5分钟）
 
 # Tools 配置
 tools:

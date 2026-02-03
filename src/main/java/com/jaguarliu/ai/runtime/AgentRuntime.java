@@ -22,7 +22,7 @@ import java.util.concurrent.TimeoutException;
  * Agent 运行时
  * 负责 ReAct 循环执行：
  * 1. 调用 LLM（带 tools）
- * 2. 如果返回 tool_calls → 执行工具
+ * 2. 如果返回 tool_calls → 执行工具（需要 HITL 的工具先等待确认）
  * 3. 将工具结果追加到上下文
  * 4. 循环直到模型收口或达到限制
  */
@@ -37,6 +37,7 @@ public class AgentRuntime {
     private final EventBus eventBus;
     private final LoopConfig loopConfig;
     private final CancellationManager cancellationManager;
+    private final HitlManager hitlManager;
 
     /**
      * 执行 ReAct 多步循环
@@ -109,9 +110,7 @@ public class AgentRuntime {
             messages.add(LlmRequest.Message.assistantWithToolCalls(result.toolCalls()));
 
             for (ToolCall toolCall : result.toolCalls()) {
-                // Hook 点：beforeToolCall（预留给 HITL）
                 ToolResult toolResult = executeToolCall(context, toolCall);
-                // Hook 点：afterToolCall
                 messages.add(LlmRequest.Message.toolResult(toolCall.getId(), toolResult.getContent()));
             }
 
@@ -179,7 +178,7 @@ public class AgentRuntime {
     }
 
     /**
-     * 执行单个工具调用（使用 RunContext）
+     * 执行单个工具调用（使用 RunContext，支持 HITL）
      */
     private ToolResult executeToolCall(RunContext context, ToolCall toolCall) {
         String toolName = toolCall.getName();
@@ -190,6 +189,46 @@ public class AgentRuntime {
                 toolName, callId, context.getRunId(), context.getCurrentStep());
 
         Map<String, Object> arguments = parseArguments(argumentsJson);
+
+        // 检查是否需要 HITL 确认
+        boolean requiresHitl = toolDispatcher.requiresHitl(toolName);
+
+        if (requiresHitl) {
+            log.info("Tool requires HITL confirmation: name={}, callId={}", toolName, callId);
+
+            // 发布 tool.confirm_request 事件
+            eventBus.publish(AgentEvent.toolConfirmRequest(
+                    context.getConnectionId(),
+                    context.getRunId(),
+                    callId,
+                    toolName,
+                    arguments));
+
+            // 等待用户决策
+            HitlDecision decision = hitlManager.requestConfirmation(callId, toolName).block();
+
+            if (decision == null || !decision.isApproved()) {
+                log.info("Tool rejected by HITL: name={}, callId={}", toolName, callId);
+
+                ToolResult rejectResult = ToolResult.error("Tool execution rejected by user");
+
+                // 发布 tool.result 事件（被拒绝）
+                eventBus.publish(AgentEvent.toolResult(
+                        context.getConnectionId(),
+                        context.getRunId(),
+                        callId,
+                        false,
+                        rejectResult.getContent()));
+
+                return rejectResult;
+            }
+
+            // 如果用户修改了参数，使用修改后的参数
+            if (decision.getModifiedArguments() != null && !decision.getModifiedArguments().isEmpty()) {
+                arguments = decision.getModifiedArguments();
+                log.info("Using modified arguments for tool: name={}, callId={}", toolName, callId);
+            }
+        }
 
         // 发布 tool.call 事件
         eventBus.publish(AgentEvent.toolCall(
