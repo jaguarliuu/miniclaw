@@ -62,3 +62,5 @@ agent:
 tools:
   workspace: ${TOOLS_WORKSPACE:./workspace}
   max-file-size: 1048576  # 1MB
+skills:
+  watch-enabled: true  # 是否启用热更新
