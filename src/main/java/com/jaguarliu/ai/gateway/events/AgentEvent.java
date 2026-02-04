@@ -45,7 +45,8 @@ public class AgentEvent {
         STEP_COMPLETED("step.completed"),
         TOOL_CALL("tool.call"),
         TOOL_RESULT("tool.result"),
-        TOOL_CONFIRM_REQUEST("tool.confirm_request");
+        TOOL_CONFIRM_REQUEST("tool.confirm_request"),
+        SKILL_ACTIVATED("skill.activated");
 
         private final String value;
 
@@ -152,6 +153,18 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 skill.activated 事件
+     */
+    public static AgentEvent skillActivated(String connectionId, String runId, String skillName, String source) {
+        return AgentEvent.builder()
+                .type(EventType.SKILL_ACTIVATED)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new SkillActivatedData(skillName, source))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -194,5 +207,12 @@ public class AgentEvent {
         private String callId;
         private String toolName;
         private Object arguments;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SkillActivatedData {
+        private String skillName;
+        private String source;  // "manual" or "auto"
     }
 }

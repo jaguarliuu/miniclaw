@@ -45,6 +45,9 @@ public class SkillRegistry {
     // skill name -> 完整正文缓存（激活后缓存，避免重复读取）
     private final Map<String, String> bodyCache = new ConcurrentHashMap<>();
 
+    // 快照版本号（每次刷新递增，用于前端缓存控制）
+    private volatile long snapshotVersion = 0;
+
     // 扫描目录配置
     private Path projectSkillsDir;
     private Path userSkillsDir;
@@ -89,7 +92,10 @@ public class SkillRegistry {
         scanDirectory(userSkillsDir, 1);     // 用户级
         scanDirectory(projectSkillsDir, 0);  // 项目级
 
-        log.info("Skill registry refreshed: {} skills loaded ({} available)",
+        snapshotVersion++;
+
+        log.info("Skill registry refreshed (v{}): {} skills loaded ({} available)",
+                snapshotVersion,
                 registry.size(),
                 registry.values().stream().filter(SkillEntry::isAvailable).count());
     }
@@ -323,6 +329,13 @@ public class SkillRegistry {
      */
     public int size() {
         return registry.size();
+    }
+
+    /**
+     * 获取快照版本号
+     */
+    public long getSnapshotVersion() {
+        return snapshotVersion;
     }
 
     /**
