@@ -64,3 +64,4 @@ tools:
   max-file-size: 1048576  # 1MB
 skills:
   watch-enabled: true  # 是否启用热更新
+  index-token-budget: 2000  # 索引 token 预算
