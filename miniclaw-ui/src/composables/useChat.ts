@@ -60,6 +60,26 @@ async function selectSession(sessionId: string) {
   await loadMessages(sessionId)
 }
 
+// Delete session
+async function deleteSession(sessionId: string) {
+  try {
+    await request('session.delete', { sessionId })
+    // Remove from local state
+    sessions.value = sessions.value.filter(s => s.id !== sessionId)
+    // If deleted current session, clear selection
+    if (currentSessionId.value === sessionId) {
+      currentSessionId.value = null
+      messages.value = []
+      streamBlocks.value = []
+      toolCallIndex.value = {}
+      currentRun.value = null
+    }
+    console.log('[Chat] Deleted session:', sessionId)
+  } catch (e) {
+    console.error('Failed to delete session:', e)
+  }
+}
+
 // Message API
 async function loadMessages(sessionId: string) {
   try {
@@ -387,6 +407,7 @@ export function useChat() {
     loadSessions,
     createSession,
     selectSession,
+    deleteSession,
     loadMessages,
     sendMessage,
     confirmToolCall,

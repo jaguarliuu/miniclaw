@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Session } from '@/types'
 import ModeSwitcher from '@/components/layout/ModeSwitcher.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { confirm } = useConfirm()
 
 defineProps<{
   sessions: Session[]
@@ -10,6 +13,7 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: string]
   create: []
+  delete: [id: string]
 }>()
 
 function formatDate(dateStr: string): string {
@@ -30,6 +34,20 @@ function formatDate(dateStr: string): string {
   // Older
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
+
+async function handleDelete(e: Event, sessionId: string) {
+  e.stopPropagation()
+  const confirmed = await confirm({
+    title: 'Delete Session',
+    message: 'This will permanently delete the session and all its messages. This action cannot be undone.',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    danger: true
+  })
+  if (confirmed) {
+    emit('delete', sessionId)
+  }
+}
 </script>
 
 <template>
@@ -47,16 +65,19 @@ function formatDate(dateStr: string): string {
         No sessions yet
       </div>
 
-      <button
+      <div
         v-for="session in sessions"
         :key="session.id"
         class="session-item"
         :class="{ active: session.id === currentId }"
         @click="emit('select', session.id)"
       >
-        <span class="session-title">{{ session.name || 'Untitled' }}</span>
-        <span class="session-date">{{ formatDate(session.createdAt) }}</span>
-      </button>
+        <div class="session-content">
+          <span class="session-title">{{ session.name || 'Untitled' }}</span>
+          <span class="session-date">{{ formatDate(session.createdAt) }}</span>
+        </div>
+        <button class="delete-btn" @click="(e) => handleDelete(e, session.id)" title="Delete session">×</button>
+      </div>
     </nav>
 
     <footer class="sidebar-footer">
@@ -131,9 +152,9 @@ function formatDate(dateStr: string): string {
 .session-item {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 12px;
   border: none;
   background: transparent;
@@ -149,6 +170,14 @@ function formatDate(dateStr: string): string {
 .session-item.active {
   background: var(--color-black);
   color: var(--color-white);
+}
+
+.session-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .session-title {
@@ -169,6 +198,39 @@ function formatDate(dateStr: string): string {
 
 .session-item.active .session-date {
   color: var(--color-gray-light);
+}
+
+.delete-btn {
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-gray-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.session-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  color: #d22;
+}
+
+.session-item.active .delete-btn {
+  color: var(--color-gray-light);
+}
+
+.session-item.active .delete-btn:hover {
+  color: #faa;
 }
 
 .sidebar-footer {

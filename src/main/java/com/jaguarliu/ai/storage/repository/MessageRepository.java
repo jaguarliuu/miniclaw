@@ -12,4 +12,6 @@ public interface MessageRepository extends JpaRepository<MessageEntity, String> 
     List<MessageEntity> findBySessionIdOrderByCreatedAtAsc(String sessionId);
 
     List<MessageEntity> findByRunIdOrderByCreatedAtAsc(String runId);
+
+    void deleteBySessionId(String sessionId);
 }

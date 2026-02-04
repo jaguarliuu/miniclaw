@@ -100,9 +100,32 @@ function disconnect() {
   connectionState.value = 'disconnected'
 }
 
+function waitForConnection(timeoutMs = 10000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (socket.value?.readyState === WebSocket.OPEN) {
+      resolve()
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      clearInterval(check)
+      reject(new Error('WebSocket connection timeout'))
+    }, timeoutMs)
+
+    const check = setInterval(() => {
+      if (socket.value?.readyState === WebSocket.OPEN) {
+        clearTimeout(timeout)
+        clearInterval(check)
+        resolve()
+      }
+    }, 50)
+  })
+}
+
 async function request<T = unknown>(method: string, payload?: unknown): Promise<T> {
+  // Wait for connection if socket is still connecting
   if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-    throw new Error('WebSocket not connected')
+    await waitForConnection()
   }
 
   const id = generateId()

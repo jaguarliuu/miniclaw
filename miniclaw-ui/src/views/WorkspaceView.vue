@@ -18,6 +18,7 @@ const {
   loadSessions,
   createSession,
   selectSession,
+  deleteSession,
   sendMessage,
   confirmToolCall,
   cancelRun,
@@ -31,6 +32,10 @@ async function handleCreateSession() {
 
 async function handleSelectSession(id: string) {
   await selectSession(id)
+}
+
+function handleDeleteSession(id: string) {
+  deleteSession(id)
 }
 
 function handleSend(prompt: string) {
@@ -70,6 +75,7 @@ onUnmounted(() => {
       :current-id="currentSessionId"
       @select="handleSelectSession"
       @create="handleCreateSession"
+      @delete="handleDeleteSession"
     >
       <template #footer>
         <ConnectionStatus :state="connectionState" />

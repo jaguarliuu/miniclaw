@@ -1,6 +1,8 @@
 package com.jaguarliu.ai.session;
 
 import com.jaguarliu.ai.storage.entity.SessionEntity;
+import com.jaguarliu.ai.storage.repository.MessageRepository;
+import com.jaguarliu.ai.storage.repository.RunRepository;
 import com.jaguarliu.ai.storage.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,8 @@ import java.util.UUID;
 public class SessionService {
 
     private final SessionRepository sessionRepository;
+    private final RunRepository runRepository;
+    private final MessageRepository messageRepository;
 
     /**
      * 创建新 Session
@@ -48,5 +52,22 @@ public class SessionService {
      */
     public Optional<SessionEntity> get(String id) {
         return sessionRepository.findById(id);
+    }
+
+    /**
+     * 删除 Session（级联删除关联的 messages 和 runs）
+     */
+    @Transactional
+    public boolean delete(String id) {
+        if (!sessionRepository.existsById(id)) {
+            return false;
+        }
+
+        messageRepository.deleteBySessionId(id);
+        runRepository.deleteBySessionId(id);
+        sessionRepository.deleteById(id);
+
+        log.info("Deleted session and related data: id={}", id);
+        return true;
     }
 }

@@ -12,4 +12,6 @@ public interface RunRepository extends JpaRepository<RunEntity, String> {
     List<RunEntity> findBySessionIdOrderByCreatedAtDesc(String sessionId);
 
     List<RunEntity> findByStatus(String status);
+
+    void deleteBySessionId(String sessionId);
 }
