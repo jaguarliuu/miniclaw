@@ -90,9 +90,45 @@ public class ToolDispatcher {
      * @return 是否需要确认，工具不存在时返回 false
      */
     public boolean requiresHitl(String toolName) {
+        return requiresHitl(toolName, null);
+    }
+
+    /**
+     * 检查工具是否需要 HITL 确认（支持 skill 覆盖）
+     *
+     * Skill 的 confirm-before 配置可以覆盖工具默认的 HITL 设置：
+     * - confirmBefore 包含该工具 → 强制需要确认
+     * - confirmBefore 为空/null → 使用工具默认配置
+     *
+     * @param toolName      工具名称
+     * @param confirmBefore skill 配置的需要确认的工具列表
+     * @return 是否需要确认
+     */
+    public boolean requiresHitl(String toolName, Set<String> confirmBefore) {
+        // 1. Skill 覆盖优先
+        if (confirmBefore != null && confirmBefore.contains(toolName)) {
+            log.debug("Tool {} requires HITL (skill override)", toolName);
+            return true;
+        }
+
+        // 2. 使用工具默认配置
         return toolRegistry.get(toolName)
                 .map(tool -> tool.getDefinition().isHitl())
                 .orElse(false);
+    }
+
+    /**
+     * 检查工具是否被允许执行
+     *
+     * @param toolName     工具名称
+     * @param allowedTools 允许的工具白名单，null 表示允许所有
+     * @return 是否允许
+     */
+    public boolean isToolAllowed(String toolName, Set<String> allowedTools) {
+        if (allowedTools == null || allowedTools.isEmpty()) {
+            return true;
+        }
+        return allowedTools.contains(toolName);
     }
 
     /**
