@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -75,6 +76,23 @@ public class ToolRegistry {
      */
     public List<Map<String, Object>> toOpenAiTools() {
         return registry.values().stream()
+                .map(tool -> tool.getDefinition().toOpenAiFormat())
+                .toList();
+    }
+
+    /**
+     * 转换为 OpenAI Function Calling 格式（过滤版）
+     * 只包含指定的工具
+     *
+     * @param allowedTools 允许的工具名称集合
+     * @return 过滤后的工具列表
+     */
+    public List<Map<String, Object>> toOpenAiTools(Set<String> allowedTools) {
+        if (allowedTools == null || allowedTools.isEmpty()) {
+            return toOpenAiTools();
+        }
+        return registry.values().stream()
+                .filter(tool -> allowedTools.contains(tool.getName()))
                 .map(tool -> tool.getDefinition().toOpenAiFormat())
                 .toList();
     }
