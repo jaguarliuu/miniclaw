@@ -1,7 +1,9 @@
 import { ref, readonly } from 'vue'
 import type { ConnectionState, RpcRequest, RpcResponse, RpcEvent } from '@/types'
 
-const WS_URL = 'ws://localhost:8080/ws'
+const WS_URL = import.meta.env.DEV
+  ? 'ws://localhost:8080/ws'
+  : `ws://${window.location.host}/ws`
 
 // Global state
 const connectionState = ref<ConnectionState>('disconnected')
