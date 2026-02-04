@@ -67,10 +67,10 @@ public class WriteFileTool implements Tool {
                 Path workspacePath = Path.of(properties.getWorkspace()).toAbsolutePath().normalize();
                 Path filePath = workspacePath.resolve(pathStr).normalize();
 
-                // 安全检查：确保在 workspace 内
+                // 安全检查：写入只允许在 workspace 内（skill 资源目录只允许读取，不允许写入）
                 if (!filePath.startsWith(workspacePath)) {
-                    log.warn("Path traversal attempt: {}", pathStr);
-                    return ToolResult.error("Access denied: path outside workspace");
+                    log.warn("Write path traversal attempt: {}", pathStr);
+                    return ToolResult.error("Access denied: write only allowed within workspace");
                 }
 
                 // 检查内容大小

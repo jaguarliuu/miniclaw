@@ -5,7 +5,10 @@ import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.ToolCall;
+import com.jaguarliu.ai.skills.selector.SkillSelector;
+import com.jaguarliu.ai.skills.selector.SkillSelection;
 import com.jaguarliu.ai.tools.ToolDispatcher;
+import com.jaguarliu.ai.tools.ToolExecutionContext;
 import com.jaguarliu.ai.tools.ToolRegistry;
 import com.jaguarliu.ai.tools.ToolResult;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
@@ -23,8 +27,9 @@ import java.util.concurrent.TimeoutException;
  * 负责 ReAct 循环执行：
  * 1. 调用 LLM（带 tools）
  * 2. 如果返回 tool_calls → 执行工具（需要 HITL 的工具先等待确认）
- * 3. 将工具结果追加到上下文
- * 4. 循环直到模型收口或达到限制
+ * 3. 如果返回 [USE_SKILL:xxx] → 激活技能并重新调用
+ * 4. 将工具结果追加到上下文
+ * 5. 循环直到模型收口或达到限制
  */
 @Slf4j
 @Component
@@ -38,23 +43,27 @@ public class AgentRuntime {
     private final LoopConfig loopConfig;
     private final CancellationManager cancellationManager;
     private final HitlManager hitlManager;
+    private final ContextBuilder contextBuilder;
+    private final SkillSelector skillSelector;
 
     /**
      * 执行 ReAct 多步循环
      *
-     * @param connectionId 连接 ID
-     * @param runId        运行 ID
-     * @param sessionId    会话 ID
-     * @param messages     初始消息列表（会被修改）
+     * @param connectionId  连接 ID
+     * @param runId         运行 ID
+     * @param sessionId     会话 ID
+     * @param messages      初始消息列表（会被修改）
+     * @param originalInput 原始用户输入（用于 skill 激活）
      * @return 最终回复内容
      * @throws CancellationException 如果被取消
      * @throws TimeoutException      如果超时
      */
     public String executeLoop(String connectionId, String runId, String sessionId,
-                              List<LlmRequest.Message> messages) throws TimeoutException {
+                              List<LlmRequest.Message> messages, String originalInput) throws TimeoutException {
         // 1. 创建运行上下文
         RunContext context = RunContext.create(runId, connectionId, sessionId,
                 loopConfig, cancellationManager);
+        context.setOriginalInput(originalInput);
 
         // 2. 注册到取消管理器
         cancellationManager.register(runId);
@@ -65,6 +74,30 @@ public class AgentRuntime {
             // 3. 清理取消标记
             cancellationManager.clearCancellation(runId);
         }
+    }
+
+    /**
+     * 执行 ReAct 多步循环（兼容旧接口）
+     */
+    public String executeLoop(String connectionId, String runId, String sessionId,
+                              List<LlmRequest.Message> messages) throws TimeoutException {
+        // 从消息中提取原始用户输入
+        String originalInput = extractOriginalInput(messages);
+        return executeLoop(connectionId, runId, sessionId, messages, originalInput);
+    }
+
+    /**
+     * 从消息列表中提取原始用户输入
+     */
+    private String extractOriginalInput(List<LlmRequest.Message> messages) {
+        // 找最后一条 user 消息
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            LlmRequest.Message msg = messages.get(i);
+            if ("user".equals(msg.getRole())) {
+                return msg.getContent();
+            }
+        }
+        return "";
     }
 
     /**
@@ -95,8 +128,45 @@ public class AgentRuntime {
             // 执行单步 LLM 调用
             StepResult result = executeSingleStep(context, messages);
 
-            // 如果没有工具调用，正常结束
+            // 如果没有工具调用，检查是否有 skill 自动选择
             if (!result.hasToolCalls()) {
+                // 检查 [USE_SKILL:xxx] 标记
+                SkillSelection selection = skillSelector.parseFromLlmResponse(
+                        result.content(), context.getOriginalInput());
+
+                if (selection.isSelected()) {
+                    log.info("Detected skill auto-selection: skill={}, runId={}",
+                            selection.getSkillName(), context.getRunId());
+
+                    // 尝试激活 skill 并重新调用
+                    Optional<ContextBuilder.SkillAwareRequest> skillRequest =
+                            contextBuilder.handleAutoSkillSelection(
+                                    result.content(),
+                                    context.getOriginalInput(),
+                                    extractHistory(messages),
+                                    true);
+
+                    if (skillRequest.isPresent()) {
+                        // 发布 skill.activated 事件
+                        eventBus.publish(AgentEvent.skillActivated(
+                                context.getConnectionId(),
+                                context.getRunId(),
+                                selection.getSkillName(),
+                                "auto"));
+
+                        // 用新的请求重新开始循环
+                        messages.clear();
+                        messages.addAll(skillRequest.get().request().getMessages());
+                        context.setActiveSkill(skillRequest.get());
+                        context.setSkillBasePath(skillRequest.get().skillBasePath());
+
+                        log.info("Re-invoking with skill: {}, runId={}",
+                                selection.getSkillName(), context.getRunId());
+                        continue;
+                    }
+                }
+
+                // 正常结束
                 messages.add(LlmRequest.Message.assistant(result.content()));
                 log.info("Loop completed normally: runId={}, steps={}",
                         context.getRunId(), context.getCurrentStep());
@@ -140,16 +210,42 @@ public class AgentRuntime {
     }
 
     /**
+     * 从消息列表中提取历史消息（排除 system 和最后一条 user）
+     */
+    private List<LlmRequest.Message> extractHistory(List<LlmRequest.Message> messages) {
+        List<LlmRequest.Message> history = new ArrayList<>();
+        for (int i = 0; i < messages.size(); i++) {
+            LlmRequest.Message msg = messages.get(i);
+            // 跳过 system 消息
+            if ("system".equals(msg.getRole())) {
+                continue;
+            }
+            // 跳过最后一条 user 消息
+            if (i == messages.size() - 1 && "user".equals(msg.getRole())) {
+                continue;
+            }
+            history.add(msg);
+        }
+        return history;
+    }
+
+    /**
      * 执行单步（一次 LLM 调用）
      */
     private StepResult executeSingleStep(RunContext context, List<LlmRequest.Message> messages) {
-        LlmRequest request = LlmRequest.builder()
+        LlmRequest.LlmRequestBuilder requestBuilder = LlmRequest.builder()
                 .messages(messages)
-                .tools(toolRegistry.toOpenAiTools())
-                .toolChoice("auto")
-                .build();
+                .toolChoice("auto");
 
-        return streamLlmCall(context.getConnectionId(), context.getRunId(), request);
+        // 如果有激活的 skill，使用其工具限制
+        ContextBuilder.SkillAwareRequest activeSkill = context.getActiveSkill();
+        if (activeSkill != null && activeSkill.allowedTools() != null && !activeSkill.allowedTools().isEmpty()) {
+            requestBuilder.tools(toolRegistry.toOpenAiTools(activeSkill.allowedTools()));
+        } else {
+            requestBuilder.tools(toolRegistry.toOpenAiTools());
+        }
+
+        return streamLlmCall(context.getConnectionId(), context.getRunId(), requestBuilder.build());
     }
 
     /**
@@ -238,8 +334,16 @@ public class AgentRuntime {
                 toolName,
                 arguments));
 
+        // 设置工具执行上下文（传递 skill 资源目录等信息）
+        setupToolExecutionContext(context);
+
         // 执行工具
-        ToolResult result = toolDispatcher.dispatch(toolName, arguments).block();
+        ToolResult result;
+        try {
+            result = toolDispatcher.dispatch(toolName, arguments).block();
+        } finally {
+            ToolExecutionContext.clear();
+        }
 
         if (result == null) {
             result = ToolResult.error("Tool execution returned null");
@@ -273,6 +377,22 @@ public class AgentRuntime {
             log.warn("Failed to parse tool arguments: {}", argumentsJson, e);
             return Map.of();
         }
+    }
+
+    /**
+     * 设置工具执行上下文
+     * 如果有激活的 skill，将其资源目录添加到允许路径中
+     */
+    private void setupToolExecutionContext(RunContext context) {
+        ToolExecutionContext.Builder builder = ToolExecutionContext.builder();
+
+        // 如果有激活的 skill，添加其资源目录到允许路径
+        if (context.getSkillBasePath() != null) {
+            builder.addAllowedPath(context.getSkillBasePath());
+            log.debug("Added skill resource path to tool context: {}", context.getSkillBasePath());
+        }
+
+        ToolExecutionContext.set(builder.build());
     }
 
     /**

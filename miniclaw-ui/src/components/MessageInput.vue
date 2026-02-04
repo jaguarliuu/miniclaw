@@ -3,10 +3,12 @@ import { ref } from 'vue'
 
 const props = defineProps<{
   disabled: boolean
+  isRunning?: boolean
 }>()
 
 const emit = defineEmits<{
   send: [message: string]
+  cancel: []
 }>()
 
 const input = ref('')
@@ -24,11 +26,19 @@ function handleSubmit() {
   }
 }
 
+function handleCancel() {
+  emit('cancel')
+}
+
 function handleKeydown(e: KeyboardEvent) {
   // Enter to submit (Shift+Enter for new line)
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     handleSubmit()
+  }
+  // Escape to cancel
+  if (e.key === 'Escape' && props.isRunning) {
+    handleCancel()
   }
 }
 
@@ -52,7 +62,20 @@ function handleInput(e: Event) {
         @keydown="handleKeydown"
         @input="handleInput"
       ></textarea>
+
+      <!-- Cancel button when running -->
       <button
+        v-if="isRunning"
+        class="cancel-btn"
+        @click="handleCancel"
+        title="Cancel (Esc)"
+      >
+        <span class="icon">x</span>
+      </button>
+
+      <!-- Send button -->
+      <button
+        v-else
         class="send-btn"
         :disabled="disabled || !input.trim()"
         @click="handleSubmit"
@@ -61,9 +84,16 @@ function handleInput(e: Event) {
       </button>
     </div>
     <div class="input-hint">
-      <span>Enter to send</span>
-      <span class="separator">·</span>
-      <span>Shift+Enter for new line</span>
+      <template v-if="isRunning">
+        <span class="running">Running...</span>
+        <span class="separator">·</span>
+        <span>Esc to cancel</span>
+      </template>
+      <template v-else>
+        <span>Enter to send</span>
+        <span class="separator">·</span>
+        <span>Shift+Enter for new line</span>
+      </template>
     </div>
   </div>
 </template>
@@ -135,6 +165,31 @@ textarea:focus {
   cursor: not-allowed;
 }
 
+.cancel-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-black);
+  background: var(--color-white);
+  color: var(--color-black);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cancel-btn:hover {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.cancel-btn .icon {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+}
+
 .arrow {
   font-family: var(--font-mono);
   font-size: 18px;
@@ -153,5 +208,18 @@ textarea:focus {
 
 .separator {
   opacity: 0.5;
+}
+
+.running {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 </style>

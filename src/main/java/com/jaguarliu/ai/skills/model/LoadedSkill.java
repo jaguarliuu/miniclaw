@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +39,12 @@ public class LoadedSkill {
      * 包含 SOP 步骤、操作说明、$ARGUMENTS 占位符等
      */
     private String body;
+
+    /**
+     * Skill 的基础目录路径
+     * 用于访问 skill 相关的资源文件（如 html2pptx.md、scripts/ 等）
+     */
+    private Path basePath;
 
     /**
      * 允许的工具白名单

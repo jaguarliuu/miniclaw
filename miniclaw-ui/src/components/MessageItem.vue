@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Message } from '@/types'
 import { useMarkdown } from '@/composables/useMarkdown'
 import ToolCallCard from './ToolCallCard.vue'
+import SkillActivationCard from './SkillActivationCard.vue'
 
 const props = defineProps<{
   message: Message
@@ -50,6 +51,12 @@ function renderTextBlock(content: string | undefined): string {
             v-else-if="block.type === 'tool' && block.toolCall"
             :tool-call="block.toolCall"
             @confirm="(callId, decision) => emit('confirm', callId, decision)"
+          />
+
+          <!-- Skill activation block -->
+          <SkillActivationCard
+            v-else-if="block.type === 'skill' && block.skillActivation"
+            :activation="block.skillActivation"
           />
         </template>
       </template>

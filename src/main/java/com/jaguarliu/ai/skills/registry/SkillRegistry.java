@@ -249,17 +249,25 @@ public class SkillRegistry {
         }
 
         SkillMetadata meta = entry.getMetadata();
+
+        // 获取 skill 的基础目录
+        Path basePath = null;
+        if (meta.getSourcePath() != null) {
+            basePath = meta.getSourcePath().getParent();
+        }
+
         LoadedSkill loaded = LoadedSkill.builder()
                 .name(meta.getName())
                 .description(meta.getDescription())
                 .body(body)
+                .basePath(basePath)
                 .allowedTools(meta.getAllowedTools() != null ?
                         new HashSet<>(meta.getAllowedTools()) : null)
                 .confirmBefore(meta.getConfirmBefore() != null ?
                         new HashSet<>(meta.getConfirmBefore()) : null)
                 .build();
 
-        log.info("Activated skill: {}", name);
+        log.info("Activated skill: {} (basePath={})", name, basePath);
         return Optional.of(loaded);
     }
 

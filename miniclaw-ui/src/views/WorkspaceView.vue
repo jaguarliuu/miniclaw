@@ -20,6 +20,7 @@ const {
   selectSession,
   sendMessage,
   confirmToolCall,
+  cancelRun,
   setupEventListeners
 } = useChat()
 
@@ -38,6 +39,10 @@ function handleSend(prompt: string) {
 
 function handleConfirmToolCall(callId: string, decision: 'approve' | 'reject') {
   confirmToolCall(callId, decision)
+}
+
+function handleCancel() {
+  cancelRun()
 }
 
 onMounted(() => {
@@ -87,7 +92,9 @@ onUnmounted(() => {
 
       <MessageInput
         :disabled="isStreaming || connectionState !== 'connected'"
+        :is-running="isStreaming"
         @send="handleSend"
+        @cancel="handleCancel"
       />
     </main>
   </div>

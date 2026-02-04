@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ToolCall } from '@/types'
 
 const props = defineProps<{
@@ -9,6 +9,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   confirm: [callId: string, decision: 'approve' | 'reject']
 }>()
+
+// 结果是否展开显示
+const isResultExpanded = ref(false)
+
+// 截断阈值
+const RESULT_TRUNCATE_LENGTH = 500
 
 const statusIcon = computed(() => {
   switch (props.toolCall.status) {
@@ -88,20 +94,30 @@ const formattedArgs = computed(() => {
   }
 })
 
+// 结果是否需要截断
+const isResultLong = computed(() => {
+  if (!props.toolCall.result) return false
+  return props.toolCall.result.length > RESULT_TRUNCATE_LENGTH
+})
+
 // 格式化结果为人类可读的形式
 const formattedResult = computed(() => {
   if (!props.toolCall.result) return ''
 
   const result = props.toolCall.result
-  const toolName = props.toolCall.toolName
 
-  // 如果结果太长，截断显示
-  if (result.length > 500) {
-    return result.substring(0, 500) + '\n... (内容已截断)'
+  // 如果已展开或不需要截断，显示全部
+  if (isResultExpanded.value || !isResultLong.value) {
+    return result
   }
 
-  return result
+  // 截断显示
+  return result.substring(0, RESULT_TRUNCATE_LENGTH)
 })
+
+function toggleResultExpand() {
+  isResultExpanded.value = !isResultExpanded.value
+}
 
 // 简化 JSON 显示
 function formatJson(obj: Record<string, unknown>): string {
@@ -143,9 +159,15 @@ function handleReject() {
     </div>
 
     <!-- Result -->
-    <div v-if="toolCall.result" class="tool-result" :class="{ error: toolCall.status === 'error' }">
-      <div class="result-label">结果:</div>
+    <div v-if="toolCall.result" class="tool-result" :class="{ error: toolCall.status === 'error', expanded: isResultExpanded }">
+      <div class="result-header">
+        <span class="result-label">结果:</span>
+        <button v-if="isResultLong" class="expand-btn" @click="toggleResultExpand">
+          {{ isResultExpanded ? '收起' : '展开全部' }}
+        </button>
+      </div>
       <pre>{{ formattedResult }}</pre>
+      <div v-if="isResultLong && !isResultExpanded" class="truncation-fade"></div>
     </div>
   </div>
 </template>
@@ -258,6 +280,11 @@ function handleReject() {
   border: var(--border-light);
   max-height: 200px;
   overflow: auto;
+  position: relative;
+}
+
+.tool-result.expanded {
+  max-height: none;
 }
 
 .tool-result.error {
@@ -265,18 +292,50 @@ function handleReject() {
   color: #d22;
 }
 
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
 .tool-result .result-label {
   font-size: 11px;
   color: var(--color-gray-dark);
-  margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-dark);
+  cursor: pointer;
+  padding: 0 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.expand-btn:hover {
+  color: var(--color-black);
 }
 
 .tool-result pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.truncation-fade {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(transparent, var(--color-white));
+  pointer-events: none;
 }
 
 /* Animation for executing status */

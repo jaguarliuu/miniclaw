@@ -429,12 +429,12 @@ class ContextBuilderTest {
         @DisplayName("hasActiveSkill 判断")
         void hasActiveSkill() {
             ContextBuilder.SkillAwareRequest withSkill = new ContextBuilder.SkillAwareRequest(
-                    null, "test-skill", null, null
+                    null, "test-skill", null, null, null
             );
             assertTrue(withSkill.hasActiveSkill());
 
             ContextBuilder.SkillAwareRequest withoutSkill = new ContextBuilder.SkillAwareRequest(
-                    null, null, null, null
+                    null, null, null, null, null
             );
             assertFalse(withoutSkill.hasActiveSkill());
         }
@@ -444,7 +444,7 @@ class ContextBuilderTest {
         void isToolAllowed() {
             Set<String> allowed = Set.of("read_file", "grep");
             ContextBuilder.SkillAwareRequest request = new ContextBuilder.SkillAwareRequest(
-                    null, "skill", allowed, null
+                    null, "skill", allowed, null, null
             );
 
             assertTrue(request.isToolAllowed("read_file"));
@@ -453,12 +453,12 @@ class ContextBuilderTest {
 
             // 无限制时所有工具都允许
             ContextBuilder.SkillAwareRequest noRestriction = new ContextBuilder.SkillAwareRequest(
-                    null, "skill", null, null
+                    null, "skill", null, null, null
             );
             assertTrue(noRestriction.isToolAllowed("any_tool"));
 
             ContextBuilder.SkillAwareRequest emptyRestriction = new ContextBuilder.SkillAwareRequest(
-                    null, "skill", Set.of(), null
+                    null, "skill", Set.of(), null, null
             );
             assertTrue(emptyRestriction.isToolAllowed("any_tool"));
         }
@@ -468,7 +468,7 @@ class ContextBuilderTest {
         void requiresConfirmation() {
             Set<String> confirmBefore = Set.of("write_file", "bash");
             ContextBuilder.SkillAwareRequest request = new ContextBuilder.SkillAwareRequest(
-                    null, "skill", null, confirmBefore
+                    null, "skill", null, confirmBefore, null
             );
 
             assertTrue(request.requiresConfirmation("write_file"));
@@ -477,7 +477,7 @@ class ContextBuilderTest {
 
             // 无确认列表时都不需要确认
             ContextBuilder.SkillAwareRequest noConfirm = new ContextBuilder.SkillAwareRequest(
-                    null, "skill", null, null
+                    null, "skill", null, null, null
             );
             assertFalse(noConfirm.requiresConfirmation("any_tool"));
         }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Session } from '@/types'
+import ModeSwitcher from '@/components/layout/ModeSwitcher.vue'
 
 defineProps<{
   sessions: Session[]
@@ -34,7 +35,10 @@ function formatDate(dateStr: string): string {
 <template>
   <aside class="sidebar">
     <header class="sidebar-header">
-      <h1 class="logo">MiniClaw</h1>
+      <div class="header-left">
+        <ModeSwitcher />
+        <h1 class="logo">MiniClaw</h1>
+      </div>
       <button class="new-btn" @click="emit('create')" title="New session">+</button>
     </header>
 
@@ -77,6 +81,12 @@ function formatDate(dateStr: string): string {
   justify-content: space-between;
   padding: 20px;
   border-bottom: var(--border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .logo {

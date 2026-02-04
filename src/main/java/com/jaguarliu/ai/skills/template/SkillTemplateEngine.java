@@ -212,6 +212,13 @@ public class SkillTemplateEngine {
         }
 
         /**
+         * 设置技能基础目录
+         */
+        public TemplateContext withSkillBasePath(String path) {
+            return set("SKILL_BASE_PATH", path);
+        }
+
+        /**
          * 设置当前分支
          */
         public TemplateContext withGitBranch(String branch) {

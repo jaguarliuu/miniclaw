@@ -8,11 +8,11 @@ import com.jaguarliu.ai.skills.selector.SkillSelection;
 import com.jaguarliu.ai.skills.selector.SkillSelector;
 import com.jaguarliu.ai.skills.template.SkillTemplateEngine;
 import com.jaguarliu.ai.tools.ToolRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +29,6 @@ import java.util.Set;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ContextBuilder {
 
     private final ToolRegistry toolRegistry;
@@ -37,12 +36,25 @@ public class ContextBuilder {
     private final SkillIndexBuilder skillIndexBuilder;
     private final SkillSelector skillSelector;
     private final SkillTemplateEngine templateEngine;
-
-    @Value("${agent.system-prompt:你是一个有帮助的 AI 助手。}")
-    private String defaultSystemPrompt;
+    private final SystemPromptBuilder systemPromptBuilder;
 
     @Value("${skills.auto-select-enabled:true}")
     private boolean autoSelectEnabled;
+
+    public ContextBuilder(
+            ToolRegistry toolRegistry,
+            SkillRegistry skillRegistry,
+            SkillIndexBuilder skillIndexBuilder,
+            SkillSelector skillSelector,
+            SkillTemplateEngine templateEngine,
+            SystemPromptBuilder systemPromptBuilder) {
+        this.toolRegistry = toolRegistry;
+        this.skillRegistry = skillRegistry;
+        this.skillIndexBuilder = skillIndexBuilder;
+        this.skillSelector = skillSelector;
+        this.templateEngine = templateEngine;
+        this.systemPromptBuilder = systemPromptBuilder;
+    }
 
     /**
      * 构建 LLM 请求
@@ -55,7 +67,9 @@ public class ContextBuilder {
         List<LlmRequest.Message> messages = new ArrayList<>();
 
         // 1. System prompt
-        String system = (systemPrompt != null && !systemPrompt.isBlank()) ? systemPrompt : defaultSystemPrompt;
+        String system = (systemPrompt != null && !systemPrompt.isBlank())
+                ? systemPrompt
+                : systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL);
         messages.add(LlmRequest.Message.system(system));
 
         // 2. 历史消息
@@ -117,8 +131,9 @@ public class ContextBuilder {
      * @return LlmRequest
      */
     public LlmRequest buildWithSkillIndex(List<LlmRequest.Message> history, String userPrompt, boolean enableTools) {
-        // 构建带 skill 索引的 system prompt
-        String systemWithSkills = defaultSystemPrompt + skillIndexBuilder.buildIndex();
+        // 使用 SystemPromptBuilder 构建带 skill 索引的完整 system prompt
+        // Skills 段落已经包含在 FULL 模式中
+        String systemWithSkills = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL);
 
         LlmRequest request = build(systemWithSkills, history, userPrompt);
 
@@ -157,26 +172,58 @@ public class ContextBuilder {
                 .withProjectRoot(System.getProperty("user.dir"))
                 .withCwd(System.getProperty("user.dir"));
 
+        // 添加技能基础目录到模板上下文
+        if (skill.getBasePath() != null) {
+            context.withSkillBasePath(skill.getBasePath().toAbsolutePath().toString());
+        }
+
         String compiledBody = templateEngine.render(skill.getBody(), context);
+
+        // 获取基础 system prompt（带工具限制）
+        Set<String> allowedTools = skill.getAllowedTools();
+        String basePrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.MINIMAL, allowedTools);
 
         // 构建 system prompt
         StringBuilder systemPrompt = new StringBuilder();
-        systemPrompt.append(defaultSystemPrompt);
+        systemPrompt.append(basePrompt);
         systemPrompt.append("\n\n---\n\n");
+
+        // 添加强制执行指令
+        systemPrompt.append("## MANDATORY SKILL EXECUTION\n\n");
+        systemPrompt.append("A skill has been activated for this task. You MUST:\n");
+        systemPrompt.append("1. **Follow the skill instructions below step by step**\n");
+        systemPrompt.append("2. **Use the available tools** to accomplish the task (read files, write files, execute commands)\n");
+        systemPrompt.append("3. **Read any referenced files** mentioned in the skill before proceeding\n");
+        systemPrompt.append("4. **Do NOT just describe** what you would do - actually DO it using tools\n");
+        systemPrompt.append("5. **Complete the entire workflow** described in the skill\n\n");
+
+        systemPrompt.append("---\n\n");
         systemPrompt.append("## Active Skill: ").append(skill.getName()).append("\n\n");
+
+        // 添加技能资源目录信息
+        if (skill.getBasePath() != null) {
+            systemPrompt.append("**Skill Resources Directory**: `").append(skill.getBasePath().toAbsolutePath()).append("`\n\n");
+            systemPrompt.append("This skill has resource files (templates, scripts, etc.) in the above directory. ");
+            systemPrompt.append("When the instructions reference files like `html2pptx.md`, `templates/`, or `scripts/`, ");
+            systemPrompt.append("read them from this directory.\n\n");
+        }
+
         systemPrompt.append(compiledBody);
 
         // 添加工具限制提示
-        if (skill.getAllowedTools() != null && !skill.getAllowedTools().isEmpty()) {
+        if (allowedTools != null && !allowedTools.isEmpty()) {
             systemPrompt.append("\n\n---\n");
             systemPrompt.append("**Tool Restriction**: Only use these tools: ");
-            systemPrompt.append(String.join(", ", skill.getAllowedTools()));
+            systemPrompt.append(String.join(", ", allowedTools));
         }
+
+        // 添加结尾强调
+        systemPrompt.append("\n\n---\n\n");
+        systemPrompt.append("**REMINDER**: Start executing the skill workflow NOW. Use tools to read files, write code, and complete the task.\n");
 
         LlmRequest request = build(systemPrompt.toString(), history, userPrompt);
 
         // 设置工具（可能需要过滤）
-        Set<String> allowedTools = skill.getAllowedTools();
         if (enableTools && toolRegistry.size() > 0) {
             if (allowedTools != null && !allowedTools.isEmpty()) {
                 // 只包含允许的工具
@@ -190,11 +237,12 @@ public class ContextBuilder {
             request.setToolChoice("auto");
         }
 
-        log.info("Built context with active skill: {} (allowed tools: {})",
+        log.info("Built context with active skill: {} (allowed tools: {}, prompt length: {} chars)",
                 skill.getName(),
-                allowedTools != null ? allowedTools.size() : "all");
+                allowedTools != null ? allowedTools.size() : "all",
+                systemPrompt.length());
 
-        return new SkillAwareRequest(request, skill.getName(), allowedTools, skill.getConfirmBefore());
+        return new SkillAwareRequest(request, skill.getName(), allowedTools, skill.getConfirmBefore(), skill.getBasePath());
     }
 
     /**
@@ -226,12 +274,12 @@ public class ContextBuilder {
         // 2. 如果启用自动选择，注入 skill 索引
         if (autoSelectEnabled && !skillRegistry.getAvailable().isEmpty()) {
             LlmRequest request = buildWithSkillIndex(history, userPrompt, enableTools);
-            return new SkillAwareRequest(request, null, null, null);
+            return new SkillAwareRequest(request, null, null, null, null);
         }
 
         // 3. 普通请求
         LlmRequest request = buildWithTools(history, userPrompt, enableTools);
-        return new SkillAwareRequest(request, null, null, null);
+        return new SkillAwareRequest(request, null, null, null, null);
     }
 
     /**
@@ -281,8 +329,9 @@ public class ContextBuilder {
     public List<LlmRequest.Message> buildMessages(List<LlmRequest.Message> history, String userPrompt) {
         List<LlmRequest.Message> messages = new ArrayList<>();
 
-        // 1. System prompt
-        messages.add(LlmRequest.Message.system(defaultSystemPrompt));
+        // 1. System prompt - 使用结构化的完整提示
+        String systemPrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL);
+        messages.add(LlmRequest.Message.system(systemPrompt));
 
         // 2. 历史消息
         if (history != null && !history.isEmpty()) {
@@ -302,7 +351,8 @@ public class ContextBuilder {
             LlmRequest request,
             String activeSkillName,
             Set<String> allowedTools,
-            Set<String> confirmBefore
+            Set<String> confirmBefore,
+            Path skillBasePath
     ) {
         /**
          * 是否有激活的 skill

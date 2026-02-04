@@ -1,0 +1,249 @@
+package com.jaguarliu.ai.runtime;
+
+import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
+import com.jaguarliu.ai.tools.ToolDefinition;
+import com.jaguarliu.ai.tools.ToolRegistry;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * System Prompt 构建器
+ *
+ * 参考 OpenClaw 的结构化设计，构建包含以下固定段落的系统提示：
+ * 1. Identity - 基本身份
+ * 2. Tooling - 工具列表和说明
+ * 3. Safety - 安全防护提醒
+ * 4. Skills - 技能使用方式（当有可用技能时）
+ * 5. Workspace - 工作目录
+ * 6. Current Date & Time - 当前时间
+ * 7. Runtime - 运行环境信息
+ *
+ * 支持三种 Prompt Mode：
+ * - FULL: 完整提示（默认）
+ * - MINIMAL: 精简提示（用于子代理）
+ * - NONE: 仅身份行
+ */
+@Slf4j
+@Component
+public class SystemPromptBuilder {
+
+    private final ToolRegistry toolRegistry;
+    private final SkillIndexBuilder skillIndexBuilder;
+
+    @Value("${tools.workspace:./workspace}")
+    private String workspace;
+
+    @Value("${agent.system-prompt:}")
+    private String customSystemPrompt;
+
+    // 身份段落
+    private static final String IDENTITY_SECTION = """
+        You are MiniClaw, an AI coding assistant. You help users with software engineering tasks including:
+        - Writing, reviewing, and debugging code
+        - Explaining technical concepts
+        - File operations and shell commands
+        - Creating documents (PPTX, XLSX, etc.)
+
+        Respond concisely and accurately. Use Chinese when the user writes in Chinese.
+        """;
+
+    // 安全段落
+    private static final String SAFETY_SECTION = """
+        ## Safety Guidelines
+
+        - Do not execute destructive operations without explicit user confirmation
+        - Avoid accessing sensitive files (credentials, private keys, etc.) unless necessary
+        - When uncertain, ask for clarification before proceeding
+        - Do not bypass security measures or perform unauthorized actions
+        - Respect file system boundaries (stay within workspace when possible)
+        """;
+
+    public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder) {
+        this.toolRegistry = toolRegistry;
+        this.skillIndexBuilder = skillIndexBuilder;
+    }
+
+    /**
+     * 构建完整的系统提示
+     */
+    public String build(PromptMode mode) {
+        return build(mode, null);
+    }
+
+    /**
+     * 构建系统提示（可指定工具白名单）
+     */
+    public String build(PromptMode mode, Set<String> allowedTools) {
+        if (mode == PromptMode.NONE) {
+            return "You are MiniClaw, an AI coding assistant.";
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        // 1. Identity
+        sb.append(IDENTITY_SECTION.trim());
+        sb.append("\n\n");
+
+        // 2. Tooling
+        sb.append(buildToolingSection(allowedTools));
+
+        // 3. Safety (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            sb.append(SAFETY_SECTION.trim());
+            sb.append("\n\n");
+        }
+
+        // 4. Skills (only in FULL mode, when available)
+        if (mode == PromptMode.FULL) {
+            String skillsSection = buildSkillsSection();
+            if (!skillsSection.isEmpty()) {
+                sb.append(skillsSection);
+            }
+        }
+
+        // 5. Workspace
+        sb.append(buildWorkspaceSection());
+
+        // 6. Current Date & Time (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            sb.append(buildDateTimeSection());
+        }
+
+        // 7. Runtime
+        sb.append(buildRuntimeSection(mode));
+
+        // Append custom prompt if configured
+        if (customSystemPrompt != null && !customSystemPrompt.isBlank()) {
+            sb.append("\n---\n\n");
+            sb.append("## Custom Instructions\n\n");
+            sb.append(customSystemPrompt.trim());
+            sb.append("\n");
+        }
+
+        return sb.toString().trim();
+    }
+
+    /**
+     * 构建工具段落
+     */
+    private String buildToolingSection(Set<String> allowedTools) {
+        List<ToolDefinition> tools = toolRegistry.listDefinitions();
+
+        if (tools.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Available Tools\n\n");
+        sb.append("You can use the following tools to help complete tasks:\n\n");
+
+        for (ToolDefinition tool : tools) {
+            // 如果有白名单且当前工具不在白名单中，跳过
+            if (allowedTools != null && !allowedTools.contains(tool.getName())) {
+                continue;
+            }
+
+            sb.append(String.format("- **%s**: %s", tool.getName(), tool.getDescription()));
+            if (tool.isHitl()) {
+                sb.append(" _(requires confirmation)_");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("\nUse tools when they help accomplish the task. Always explain what you're doing.\n\n");
+        return sb.toString();
+    }
+
+    /**
+     * 构建技能段落
+     */
+    private String buildSkillsSection() {
+        String skillIndex = skillIndexBuilder.buildIndex();
+
+        if (skillIndex.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Skills\n\n");
+        sb.append("Skills are specialized instruction sets that enhance your capabilities for specific tasks.\n\n");
+        sb.append("**How to use skills:**\n");
+        sb.append("1. **Manual trigger**: User types `/skill-name arguments` (e.g., `/frontend-design create a login page`)\n");
+        sb.append("2. **Auto trigger**: When you identify a task that matches a skill, respond with `[USE_SKILL:skill-name]`\n\n");
+        sb.append("**When to auto-trigger a skill:**\n");
+        sb.append("- The user's request clearly matches a skill's purpose\n");
+        sb.append("- The skill would significantly improve the quality of your response\n");
+        sb.append("- You need specialized knowledge or workflow guidance\n\n");
+        sb.append("**Important**: When you respond with `[USE_SKILL:xxx]`, the system will:\n");
+        sb.append("1. Load the full skill instructions\n");
+        sb.append("2. Re-invoke you with the skill context\n");
+        sb.append("3. You will then follow the skill's detailed instructions\n\n");
+
+        // 附加技能索引（只有 XML 部分，说明已在上面）
+        sb.append(skillIndexBuilder.buildCompactIndex());
+        sb.append("\n\n");
+
+        return sb.toString();
+    }
+
+    /**
+     * 构建工作目录段落
+     */
+    private String buildWorkspaceSection() {
+        Path workspacePath = Path.of(workspace).toAbsolutePath().normalize();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Workspace\n\n");
+        sb.append(String.format("Working directory: `%s`\n\n", workspacePath));
+        sb.append("File operations should be relative to this directory unless specified otherwise.\n\n");
+        return sb.toString();
+    }
+
+    /**
+     * 构建日期时间段落
+     */
+    private String buildDateTimeSection() {
+        LocalDateTime now = LocalDateTime.now();
+        ZoneId zoneId = ZoneId.systemDefault();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Current Date & Time\n\n");
+        sb.append(String.format("- Date: %s\n", now.format(DateTimeFormatter.ISO_LOCAL_DATE)));
+        sb.append(String.format("- Time: %s\n", now.format(DateTimeFormatter.ofPattern("HH:mm"))));
+        sb.append(String.format("- Timezone: %s\n\n", zoneId.getId()));
+        return sb.toString();
+    }
+
+    /**
+     * 构建运行环境段落
+     */
+    private String buildRuntimeSection(PromptMode mode) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Runtime\n\n");
+        sb.append(String.format("- OS: %s\n", System.getProperty("os.name")));
+        sb.append(String.format("- Java: %s\n", System.getProperty("java.version")));
+        sb.append(String.format("- Mode: %s\n", mode.name().toLowerCase()));
+        sb.append("\n");
+        return sb.toString();
+    }
+
+    /**
+     * Prompt 模式
+     */
+    public enum PromptMode {
+        /** 完整提示，包含所有段落 */
+        FULL,
+        /** 精简提示，用于子代理，省略 Skills、Safety、DateTime */
+        MINIMAL,
+        /** 仅身份行 */
+        NONE
+    }
+}

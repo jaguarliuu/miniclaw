@@ -45,9 +45,16 @@ export interface ToolCall {
 // Stream Block (流式内容块，用于交错显示文本和工具调用)
 export interface StreamBlock {
   id: string
-  type: 'text' | 'tool'
+  type: 'text' | 'tool' | 'skill'
   content?: string      // type === 'text' 时的文本内容
   toolCall?: ToolCall   // type === 'tool' 时的工具调用
+  skillActivation?: SkillActivation  // type === 'skill' 时的技能激活
+}
+
+// Skill Activation (技能激活信息)
+export interface SkillActivation {
+  skillName: string
+  source: 'manual' | 'auto'
 }
 
 // WebSocket Connection State
@@ -93,6 +100,7 @@ export type AgentEventType =
   | 'tool.call'
   | 'tool.result'
   | 'tool.confirm_request'
+  | 'skill.activated'
 
 // Tool Event Payloads
 export interface ToolCallPayload {
@@ -117,4 +125,27 @@ export interface StepCompletedPayload {
   step: number
   maxSteps: number
   elapsedSeconds: number
+}
+
+// Skill Activated Event Payload
+export interface SkillActivatedPayload {
+  skillName: string
+  source: 'manual' | 'auto'
+}
+
+// Skill (技能列表项)
+export interface Skill {
+  name: string
+  description: string
+  available: boolean
+  unavailableReason: string
+  priority: number
+  tokenCost: number
+}
+
+// SkillDetail (技能详情)
+export interface SkillDetail extends Skill {
+  body: string
+  allowedTools: readonly string[]
+  confirmBefore: readonly string[]
 }

@@ -2,7 +2,9 @@ package com.jaguarliu.ai.runtime;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -49,6 +51,24 @@ public class RunContext {
      */
     @Builder.Default
     private int currentStep = 0;
+
+    /**
+     * 原始用户输入（用于 skill 激活）
+     */
+    @Setter
+    private String originalInput;
+
+    /**
+     * 当前激活的 skill（如果有）
+     */
+    @Setter
+    private ContextBuilder.SkillAwareRequest activeSkill;
+
+    /**
+     * 当前激活的 skill 的资源目录
+     */
+    @Setter
+    private Path skillBasePath;
 
     /**
      * 检查是否已被取消

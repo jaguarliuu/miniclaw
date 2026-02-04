@@ -38,11 +38,11 @@ llm:
   # DeepSeek: https://api.deepseek.com
   # 通义千问: https://dashscope.aliyuncs.com/compatible-mode
   # GLM (智谱): https://open.bigmodel.cn/api/paas/v4  (已含 /v4，不会再追加)
-  endpoint: ${LLM_ENDPOINT:http://localhost:11434}
-  api-key: ${LLM_API_KEY:ollama}
-  model: ${LLM_MODEL:qwen2.5:7b}
+  endpoint: ${LLM_ENDPOINT}
+  api-key: ${LLM_API_KEY}
+  model: ${LLM_MODEL}
   temperature: 0.7
-  max-tokens: 2048
+  max-tokens: 8192
   timeout: 120
 
 # Agent 配置
@@ -52,7 +52,7 @@ agent:
     回答要简洁、准确、有条理。
   max-history-messages: 20
   loop:
-    max-steps: 10
+    max-steps: 50
     run-timeout-seconds: 300
     step-timeout-seconds: 120
   hitl:

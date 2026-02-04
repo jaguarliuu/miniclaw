@@ -16,11 +16,21 @@ import { RouterView } from 'vue-router'
   --color-gray-light: #e0e0e0;
   --color-gray-bg: #f5f5f5;
 
+  /* Status colors */
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-error: #ef4444;
+
   --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   --border: 1px solid var(--color-black);
   --border-light: 1px solid var(--color-gray-light);
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --settings-nav-width: 180px;
+  --detail-panel-width: 480px;
 }
 
 * {

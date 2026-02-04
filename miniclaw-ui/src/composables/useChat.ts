@@ -9,7 +9,9 @@ import type {
   StreamBlock,
   ToolCallPayload,
   ToolResultPayload,
-  ToolConfirmRequestPayload
+  ToolConfirmRequestPayload,
+  SkillActivatedPayload,
+  SkillActivation
 } from '@/types'
 
 const sessions = ref<Session[]>([])
@@ -136,6 +138,41 @@ async function confirmToolCall(callId: string, decision: 'approve' | 'reject') {
   }
 }
 
+// Cancel Run
+async function cancelRun() {
+  if (!currentRun.value) {
+    console.warn('No active run to cancel')
+    return
+  }
+
+  const runIdToCancel = currentRun.value.id
+
+  try {
+    await request('agent.cancel', { runId: runIdToCancel })
+    console.log('[Chat] Cancellation requested for run:', runIdToCancel)
+
+    // 立即重置前端状态（不等待 lifecycle.error 事件）
+    // 后端的实际取消可能需要一些时间（等待 LLM 响应完成）
+    isStreaming.value = false
+    streamBlocks.value = []
+    toolCallIndex.value = {}
+    currentRun.value = null
+
+    // 添加一条取消消息
+    const cancelMessage: Message = {
+      id: `msg-cancel-${Date.now()}`,
+      sessionId: currentSessionId.value!,
+      runId: runIdToCancel,
+      role: 'assistant',
+      content: '_Cancelled by user_',
+      createdAt: new Date().toISOString()
+    }
+    messages.value.push(cancelMessage)
+  } catch (e) {
+    console.error('Failed to cancel run:', e)
+  }
+}
+
 /**
  * 获取或创建当前文本块
  * 如果最后一个块是文本块，返回它；否则创建新的文本块
@@ -167,6 +204,19 @@ function createToolBlock(toolCall: ToolCall): StreamBlock {
   }
   streamBlocks.value.push(block)
   toolCallIndex.value[toolCall.callId] = toolCall
+  return block
+}
+
+/**
+ * 创建技能激活块
+ */
+function createSkillBlock(activation: SkillActivation): StreamBlock {
+  const block: StreamBlock = {
+    id: `skill-${activation.skillName}-${Date.now()}`,
+    type: 'skill',
+    skillActivation: activation
+  }
+  streamBlocks.value.push(block)
   return block
 }
 
@@ -249,6 +299,17 @@ function setupEventListeners() {
     }
   }))
 
+  // Handle skill.activated - 创建技能激活块
+  eventCleanups.push(onEvent('skill.activated', (event: RpcEvent) => {
+    const payload = event.payload as SkillActivatedPayload
+    if (payload) {
+      createSkillBlock({
+        skillName: payload.skillName,
+        source: payload.source
+      })
+    }
+  }))
+
   // Handle lifecycle end - 保存到消息
   eventCleanups.push(onEvent('lifecycle.end', (event: RpcEvent) => {
     if (currentRun.value && event.runId === currentRun.value.id) {
@@ -261,7 +322,8 @@ function setupEventListeners() {
       // 复制 blocks 用于保存（深拷贝避免引用问题）
       const savedBlocks = streamBlocks.value.map(block => ({
         ...block,
-        toolCall: block.toolCall ? { ...block.toolCall } : undefined
+        toolCall: block.toolCall ? { ...block.toolCall } : undefined,
+        skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined
       }))
 
       // Add assistant message with blocks
@@ -316,6 +378,7 @@ export function useChat() {
     sessions,
     currentSession,
     currentSessionId,
+    currentRun,
     messages,
     streamBlocks,
     isStreaming,
@@ -327,6 +390,7 @@ export function useChat() {
     loadMessages,
     sendMessage,
     confirmToolCall,
+    cancelRun,
     setupEventListeners
   }
 }
