@@ -85,4 +85,4 @@ memory:
     min-similarity: 0.3
   flush:
     enabled: true
-    token-threshold: 6000
+    token-threshold: 100000

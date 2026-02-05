@@ -5,6 +5,7 @@ import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.ToolCall;
+import com.jaguarliu.ai.memory.flush.PreCompactionFlushHook;
 import com.jaguarliu.ai.skills.selector.SkillSelector;
 import com.jaguarliu.ai.skills.selector.SkillSelection;
 import com.jaguarliu.ai.tools.ToolDispatcher;
@@ -45,6 +46,7 @@ public class AgentRuntime {
     private final HitlManager hitlManager;
     private final ContextBuilder contextBuilder;
     private final SkillSelector skillSelector;
+    private final PreCompactionFlushHook flushHook;
 
     /**
      * 执行 ReAct 多步循环
@@ -73,6 +75,8 @@ public class AgentRuntime {
         } finally {
             // 3. 清理取消标记
             cancellationManager.clearCancellation(runId);
+            // 4. 清理 flush 标记
+            flushHook.clearRun(runId);
         }
     }
 
@@ -124,6 +128,9 @@ public class AgentRuntime {
                 throw new TimeoutException("ReAct loop timeout after " +
                         context.getElapsedSeconds() + " seconds");
             }
+
+            // Pre-compaction flush 检查（写入全局记忆）
+            flushHook.checkAndFlush(context.getRunId(), messages);
 
             // 执行单步 LLM 调用
             StepResult result = executeSingleStep(context, messages);

@@ -94,7 +94,7 @@ public class MemoryProperties {
     public static class FlushConfig {
         /** 是否启用 pre-compaction flush */
         private boolean enabled = true;
-        /** 触发 flush 的 token 阈值（估算值） */
-        private int tokenThreshold = 6000;
+        /** 触发 flush 的 token 阈值（估算值，默认 80000 适合 128k+ context 模型） */
+        private int tokenThreshold = 80000;
     }
 }
