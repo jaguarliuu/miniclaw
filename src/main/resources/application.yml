@@ -30,6 +30,16 @@ spring:
 server:
   port: 8080
 
+# Actuator 健康检查
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 # LLM 配置
 llm:
   # 使用 OpenAI 兼容接口（可替换为 DeepSeek、通义千问、Ollama、GLM 等）

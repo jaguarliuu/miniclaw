@@ -1,0 +1,103 @@
+# ========================================
+# MiniClaw ARM64 部署 docker-compose
+# 针对麒麟 V10 / ARM Linux 优化
+# ========================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL + pgvector (ARM64)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: miniclaw-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-miniclaw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-miniclaw}
+      POSTGRES_DB: ${POSTGRES_DB:-miniclaw}
+      # 时区设置
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miniclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - miniclaw-network
+    # ARM 设备可能内存有限，限制资源
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Backend (Java + Spring Boot) - ARM64
+  backend:
+    image: miniclaw/backend:latest-arm64
+    container_name: miniclaw-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/miniclaw
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-miniclaw}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-miniclaw}
+      # LLM 配置（必须提供）
+      LLM_ENDPOINT: ${LLM_ENDPOINT}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      # 工作目录
+      TOOLS_WORKSPACE: /app/workspace
+      # 时区
+      TZ: Asia/Shanghai
+      # JVM 参数（ARM 优化）
+      JAVA_OPTS: >-
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=70.0
+        -XX:+UseG1GC
+        -Djava.security.egd=file:/dev/./urandom
+        -Dfile.encoding=UTF-8
+    volumes:
+      - workspace_data:/app/workspace
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s  # ARM 启动可能较慢
+      retries: 5
+    networks:
+      - miniclaw-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # Frontend (Vue 3 + Nginx) - ARM64
+  frontend:
+    image: miniclaw/frontend:latest-arm64
+    container_name: miniclaw-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PORT:-80}:80"
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - miniclaw-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  postgres_data:
+  workspace_data:
+
+networks:
+  miniclaw-network:
+    driver: bridge

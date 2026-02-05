@@ -1,0 +1,28 @@
+# Build outputs
+target/
+miniclaw-ui/dist/
+miniclaw-ui/node_modules/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Docker outputs
+*.tar
+*.tar.gz
+
+# Documentation
+docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.local

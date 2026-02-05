@@ -1,0 +1,68 @@
+# ========================================
+# MiniClaw Backend Dockerfile (ARM64)
+# 针对麒麟/ARM Linux 优化
+# ========================================
+
+# Stage 1: Build（使用多平台 Maven 镜像）
+FROM --platform=$TARGETPLATFORM maven:3.9-eclipse-temurin-21-alpine AS builder
+
+WORKDIR /app
+
+# 先复制 pom.xml，利用 Docker 缓存
+COPY pom.xml .
+# 使用阿里云 Maven 镜像加速（内网友好）
+RUN mkdir -p /root/.m2 && \
+    echo '<settings><mirrors><mirror><id>aliyun</id><mirrorOf>central</mirrorOf><url>https://maven.aliyun.com/repository/central</url></mirror></mirrors></settings>' > /root/.m2/settings.xml
+RUN mvn dependency:go-offline -B
+
+# 复制源码并构建（强制使用 Java 21 编译）
+COPY src ./src
+RUN mvn clean package -DskipTests -B \
+    -Dmaven.compiler.source=21 \
+    -Dmaven.compiler.target=21 \
+    -Dmaven.compiler.release=21
+
+# Stage 2: Runtime（使用 Java 21 LTS，ARM 更稳定）
+FROM --platform=$TARGETPLATFORM eclipse-temurin:21-jre-alpine
+
+LABEL maintainer="MiniClaw"
+LABEL description="MiniClaw Backend - ARM64"
+LABEL architecture="arm64"
+
+WORKDIR /app
+
+# 安装必要工具（麒麟系统可能需要）
+RUN apk add --no-cache \
+    curl \
+    tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone
+
+# 创建非 root 用户
+RUN addgroup -g 1000 miniclaw && \
+    adduser -u 1000 -G miniclaw -D miniclaw
+
+# 从构建阶段复制 jar
+COPY --from=builder /app/target/*.jar app.jar
+
+# 创建工作目录
+RUN mkdir -p /app/workspace && \
+    chown -R miniclaw:miniclaw /app
+
+USER miniclaw
+
+# 健康检查（使用 curl，更可靠）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+EXPOSE 8080
+
+# JVM 参数优化（ARM 容器环境）
+# 注意：ARM 上 G1GC 可能不如 SerialGC 稳定，内存小时用 SerialGC
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:+UseG1GC \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Dfile.encoding=UTF-8"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

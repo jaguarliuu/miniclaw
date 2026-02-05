@@ -1,0 +1,76 @@
+# ========================================
+# MiniClaw 完整部署 docker-compose
+# 包含：PostgreSQL + Backend + Frontend
+# ========================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL + pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: miniclaw-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-miniclaw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-miniclaw}
+      POSTGRES_DB: ${POSTGRES_DB:-miniclaw}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miniclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - miniclaw-network
+
+  # Backend (Java + Spring Boot)
+  backend:
+    image: miniclaw/backend:latest
+    container_name: miniclaw-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/miniclaw
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-miniclaw}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-miniclaw}
+      # LLM 配置（必须提供）
+      LLM_ENDPOINT: ${LLM_ENDPOINT}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      # 工作目录
+      TOOLS_WORKSPACE: /app/workspace
+    volumes:
+      - workspace_data:/app/workspace
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - miniclaw-network
+
+  # Frontend (Vue 3 + Nginx)
+  frontend:
+    image: miniclaw/frontend:latest
+    container_name: miniclaw-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PORT:-80}:80"
+    networks:
+      - miniclaw-network
+
+volumes:
+  postgres_data:
+  workspace_data:
+
+networks:
+  miniclaw-network:
+    driver: bridge
