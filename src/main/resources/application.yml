@@ -65,3 +65,24 @@ tools:
 skills:
   watch-enabled: true  # 是否启用热更新
   index-token-budget: 2000  # 索引 token 预算
+
+# Memory 配置（全局记忆，跨会话）
+memory:
+  path: memory  # 相对于 workspace
+  chunk:
+    target-tokens: 400
+    overlap-tokens: 80
+  embedding:
+    provider: auto  # auto / openai / llm / none
+    model: text-embedding-3-small
+    dimensions: 1536
+    batch-size: 20
+  search:
+    vector-top-k: 10
+    fts-top-k: 10
+    final-top-k: 5
+    snippet-max-chars: 700
+    min-similarity: 0.3
+  flush:
+    enabled: true
+    token-threshold: 6000
