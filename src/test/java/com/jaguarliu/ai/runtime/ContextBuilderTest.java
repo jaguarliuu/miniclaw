@@ -45,6 +45,9 @@ class ContextBuilderTest {
     @Mock
     private SkillTemplateEngine templateEngine;
 
+    @Mock
+    private SystemPromptBuilder systemPromptBuilder;
+
     @InjectMocks
     private ContextBuilder contextBuilder;
 
@@ -52,7 +55,10 @@ class ContextBuilderTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(contextBuilder, "defaultSystemPrompt", DEFAULT_SYSTEM_PROMPT);
+        // 设置 systemPromptBuilder 的默认行为（lenient 因为并非所有测试都会触发）
+        lenient().when(systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL)).thenReturn(DEFAULT_SYSTEM_PROMPT);
+        lenient().when(systemPromptBuilder.build(eq(SystemPromptBuilder.PromptMode.MINIMAL), any())).thenReturn(DEFAULT_SYSTEM_PROMPT);
+
         ReflectionTestUtils.setField(contextBuilder, "autoSelectEnabled", true);
     }
 
@@ -160,9 +166,10 @@ class ContextBuilderTest {
         @Test
         @DisplayName("注入 skill 索引到 system prompt")
         void buildWithSkillIndex() {
-            String skillIndex = "\n---\n\n## Available Skills\n<skills>\n  <skill name=\"code-review\">代码审查</skill>\n</skills>";
-            when(skillIndexBuilder.buildIndex()).thenReturn(skillIndex);
-            // skillRegistry.getAvailable() 只在 log 中使用，不需要 stub
+            // 模拟 systemPromptBuilder 返回包含技能索引的完整提示
+            String fullPromptWithSkills = DEFAULT_SYSTEM_PROMPT
+                    + "\n\n## Available Skills\n<skills>\n  <skill name=\"code-review\">代码审查</skill>\n</skills>";
+            when(systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL)).thenReturn(fullPromptWithSkills);
 
             LlmRequest request = contextBuilder.buildWithSkillIndex(null, "审查代码", false);
 
@@ -321,12 +328,12 @@ class ContextBuilderTest {
                     .available(true)
                     .build();
             when(skillRegistry.getAvailable()).thenReturn(List.of(entry));
-            when(skillIndexBuilder.buildIndex()).thenReturn("<skills></skills>");
 
             ContextBuilder.SkillAwareRequest result = contextBuilder.buildSmart(null, "帮我审查代码", false);
 
             assertFalse(result.hasActiveSkill());
-            verify(skillIndexBuilder).buildIndex();
+            // buildWithSkillIndex 通过 systemPromptBuilder.build(FULL) 构建包含 skills 索引的提示
+            verify(systemPromptBuilder).build(SystemPromptBuilder.PromptMode.FULL);
         }
 
         @Test

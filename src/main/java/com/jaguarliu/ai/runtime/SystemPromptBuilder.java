@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.runtime;
 
+import com.jaguarliu.ai.memory.search.MemorySearchService;
 import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolRegistry;
@@ -21,10 +22,11 @@ import java.util.Set;
  * 1. Identity - 基本身份
  * 2. Tooling - 工具列表和说明
  * 3. Safety - 安全防护提醒
- * 4. Skills - 技能使用方式（当有可用技能时）
- * 5. Workspace - 工作目录
- * 6. Current Date & Time - 当前时间
- * 7. Runtime - 运行环境信息
+ * 4. Memory - 全局记忆系统使用说明
+ * 5. Skills - 技能使用方式（当有可用技能时）
+ * 6. Workspace - 工作目录
+ * 7. Current Date & Time - 当前时间
+ * 8. Runtime - 运行环境信息
  *
  * 支持三种 Prompt Mode：
  * - FULL: 完整提示（默认）
@@ -37,6 +39,7 @@ public class SystemPromptBuilder {
 
     private final ToolRegistry toolRegistry;
     private final SkillIndexBuilder skillIndexBuilder;
+    private final MemorySearchService memorySearchService;
 
     @Value("${tools.workspace:./workspace}")
     private String workspace;
@@ -66,9 +69,11 @@ public class SystemPromptBuilder {
         - Respect file system boundaries (stay within workspace when possible)
         """;
 
-    public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder) {
+    public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
+                                MemorySearchService memorySearchService) {
         this.toolRegistry = toolRegistry;
         this.skillIndexBuilder = skillIndexBuilder;
+        this.memorySearchService = memorySearchService;
     }
 
     /**
@@ -101,7 +106,12 @@ public class SystemPromptBuilder {
             sb.append("\n\n");
         }
 
-        // 4. Skills (only in FULL mode, when available)
+        // 4. Memory (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            sb.append(buildMemorySection());
+        }
+
+        // 5. Skills (only in FULL mode, when available)
         if (mode == PromptMode.FULL) {
             String skillsSection = buildSkillsSection();
             if (!skillsSection.isEmpty()) {
@@ -109,15 +119,15 @@ public class SystemPromptBuilder {
             }
         }
 
-        // 5. Workspace
+        // 6. Workspace
         sb.append(buildWorkspaceSection());
 
-        // 6. Current Date & Time (only in FULL mode)
+        // 7. Current Date & Time (only in FULL mode)
         if (mode == PromptMode.FULL) {
             sb.append(buildDateTimeSection());
         }
 
-        // 7. Runtime
+        // 8. Runtime
         sb.append(buildRuntimeSection(mode));
 
         // Append custom prompt if configured
@@ -191,6 +201,27 @@ public class SystemPromptBuilder {
         sb.append(skillIndexBuilder.buildCompactIndex());
         sb.append("\n\n");
 
+        return sb.toString();
+    }
+
+    /**
+     * 构建记忆段落
+     */
+    private String buildMemorySection() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Memory\n\n");
+        sb.append("You have access to a **global, cross-session** memory system:\n\n");
+        sb.append("- `memory_search(query)`: Search all historical memories (preferences, facts, past summaries)\n");
+        sb.append("- `memory_get(path)`: Read specific memory files\n");
+        sb.append("- `memory_write(content, target)`: Save important information\n");
+        sb.append("  - target=\"core\" → MEMORY.md (long-term: preferences, constraints)\n");
+        sb.append("  - target=\"daily\" → Today's log (session summaries, work records)\n\n");
+        sb.append("**Key point**: Memories are global and cross-session. Information saved today ");
+        sb.append("will be searchable in all future conversations. This is a personal assistant, not multi-tenant.\n\n");
+        sb.append("**When to use memory:**\n");
+        sb.append("- Search for relevant context at conversation start\n");
+        sb.append("- Save user preferences/constraints to core memory\n");
+        sb.append("- Summarize significant tasks to daily log\n\n");
         return sb.toString();
     }
 
