@@ -18,7 +18,7 @@ import java.util.Map;
 
 /**
  * 写入文件工具
- * 需要 HITL 确认
+ * 默认不需要 HITL 确认
  */
 @Slf4j
 @Component
@@ -46,7 +46,7 @@ public class WriteFileTool implements Tool {
                         ),
                         "required", List.of("path", "content")
                 ))
-                .hitl(true)  // 写操作需要人工确认
+                .hitl(false)  // 默认不需要确认
                 .build();
     }
 

@@ -5,6 +5,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import ModeSwitcher from '@/components/layout/ModeSwitcher.vue'
 import SettingsSidebar from '@/components/settings/SettingsSidebar.vue'
 import SkillsSection from '@/components/settings/SkillsSection.vue'
+import MemorySection from '@/components/settings/MemorySection.vue'
 import PlaceholderSection from '@/components/settings/PlaceholderSection.vue'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 
@@ -40,7 +41,7 @@ onUnmounted(() => {
 
       <main class="settings-content">
         <SkillsSection v-if="currentSection === 'skills'" />
-        <PlaceholderSection v-else-if="currentSection === 'memory'" title="Memory" message="Memory management coming soon" />
+        <MemorySection v-else-if="currentSection === 'memory'" />
         <PlaceholderSection v-else-if="currentSection === 'tasks'" title="Tasks" message="Task management coming soon" />
         <PlaceholderSection v-else title="Not Found" message="Section not found" />
       </main>

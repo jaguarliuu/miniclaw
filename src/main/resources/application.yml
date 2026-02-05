@@ -43,7 +43,7 @@ llm:
   model: ${LLM_MODEL}
   temperature: 0.7
   max-tokens: 8192
-  timeout: 120
+  timeout: 300
 
 # Agent 配置
 agent:
@@ -53,8 +53,8 @@ agent:
   max-history-messages: 20
   loop:
     max-steps: 50
-    run-timeout-seconds: 300
-    step-timeout-seconds: 120
+    run-timeout-seconds: 1200
+    step-timeout-seconds: 300
   hitl:
     timeout-seconds: 300  # HITL 确认超时时间（5分钟）
 
@@ -73,10 +73,7 @@ memory:
     target-tokens: 400
     overlap-tokens: 80
   embedding:
-    provider: auto  # auto / openai / llm / none
-    model: text-embedding-3-small
-    dimensions: 1536
-    batch-size: 20
+    provider: none  # auto / openai / llm / none
   search:
     vector-top-k: 10
     fts-top-k: 10

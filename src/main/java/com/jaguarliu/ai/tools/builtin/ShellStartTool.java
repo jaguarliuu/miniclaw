@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * 异步启动 Shell 命令工具
  * 启动命令后立即返回 processId，不等待命令完成
- * 需要 HITL 确认
+ * 默认不需要 HITL 确认，但危险命令会触发确认
  */
 @Slf4j
 @Component
@@ -48,7 +48,7 @@ public class ShellStartTool implements Tool {
                         ),
                         "required", List.of("command")
                 ))
-                .hitl(true)  // 启动命令需要人工确认
+                .hitl(false)  // 默认不需要确认，危险命令由 DangerousCommandDetector 检测
                 .build();
     }
 

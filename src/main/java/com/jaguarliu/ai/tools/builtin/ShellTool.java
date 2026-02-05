@@ -19,7 +19,7 @@ import java.util.concurrent.*;
 
 /**
  * Shell 命令执行工具
- * 需要 HITL 确认
+ * 默认不需要 HITL 确认，但危险命令会触发确认
  * 支持 Windows 和 Linux/Mac
  */
 @Slf4j
@@ -66,7 +66,7 @@ public class ShellTool implements Tool {
                         ),
                         "required", List.of("command")
                 ))
-                .hitl(true)  // 命令执行需要人工确认
+                .hitl(false)  // 默认不需要确认，危险命令由 DangerousCommandDetector 检测
                 .build();
     }
 

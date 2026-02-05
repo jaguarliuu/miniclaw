@@ -40,6 +40,9 @@ public class LlmProperties {
 
     /**
      * 请求超时时间（秒）
+     * 同步调用：整个请求的超时时间
+     * 流式调用：两个 chunk 之间的最大等待时间
+     * 默认 300 秒，适配推理模型首 token 可能较慢的场景
      */
-    private Integer timeout = 60;
+    private Integer timeout = 300;
 }
