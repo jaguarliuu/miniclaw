@@ -46,7 +46,12 @@ public class AgentEvent {
         TOOL_CALL("tool.call"),
         TOOL_RESULT("tool.result"),
         TOOL_CONFIRM_REQUEST("tool.confirm_request"),
-        SKILL_ACTIVATED("skill.activated");
+        SKILL_ACTIVATED("skill.activated"),
+        // SubAgent 事件
+        SUBAGENT_SPAWNED("subagent.spawned"),
+        SUBAGENT_STARTED("subagent.started"),
+        SUBAGENT_ANNOUNCED("subagent.announced"),
+        SUBAGENT_FAILED("subagent.failed");
 
         private final String value;
 
@@ -214,5 +219,90 @@ public class AgentEvent {
     public static class SkillActivatedData {
         private String skillName;
         private String source;  // "manual" or "auto"
+    }
+
+    // ==================== SubAgent 事件 ====================
+
+    /**
+     * 创建 subagent.spawned 事件（子代理已派生）
+     */
+    public static AgentEvent subagentSpawned(String connectionId, String parentRunId,
+                                              String subRunId, String subSessionId, String sessionKey) {
+        return AgentEvent.builder()
+                .type(EventType.SUBAGENT_SPAWNED)
+                .connectionId(connectionId)
+                .runId(parentRunId)
+                .data(new SubagentSpawnedData(subRunId, subSessionId, sessionKey))
+                .build();
+    }
+
+    /**
+     * 创建 subagent.started 事件（子代理开始执行）
+     */
+    public static AgentEvent subagentStarted(String connectionId, String parentRunId, String subRunId) {
+        return AgentEvent.builder()
+                .type(EventType.SUBAGENT_STARTED)
+                .connectionId(connectionId)
+                .runId(parentRunId)
+                .data(new SubagentStartedData(subRunId))
+                .build();
+    }
+
+    /**
+     * 创建 subagent.announced 事件（子代理完成并回传结果）
+     */
+    public static AgentEvent subagentAnnounced(String connectionId, String parentRunId,
+                                                String subRunId, String subSessionId, String sessionKey,
+                                                String result, String error) {
+        return AgentEvent.builder()
+                .type(EventType.SUBAGENT_ANNOUNCED)
+                .connectionId(connectionId)
+                .runId(parentRunId)
+                .data(new SubagentAnnouncedData(subRunId, subSessionId, sessionKey, result, error))
+                .build();
+    }
+
+    /**
+     * 创建 subagent.failed 事件（子代理执行失败）
+     */
+    public static AgentEvent subagentFailed(String connectionId, String parentRunId,
+                                             String subRunId, String error) {
+        return AgentEvent.builder()
+                .type(EventType.SUBAGENT_FAILED)
+                .connectionId(connectionId)
+                .runId(parentRunId)
+                .data(new SubagentFailedData(subRunId, error))
+                .build();
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SubagentSpawnedData {
+        private String subRunId;
+        private String subSessionId;
+        private String sessionKey;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SubagentStartedData {
+        private String subRunId;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SubagentAnnouncedData {
+        private String subRunId;
+        private String subSessionId;
+        private String sessionKey;
+        private String result;
+        private String error;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SubagentFailedData {
+        private String subRunId;
+        private String error;
     }
 }
