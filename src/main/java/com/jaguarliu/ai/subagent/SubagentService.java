@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -44,6 +45,7 @@ public class SubagentService {
     private final EventBus eventBus;
     private final LoopConfig loopConfig;
     private final CancellationManager cancellationManager;
+    private final SubagentAnnounceService announceService;
 
     /**
      * 派生子代理
@@ -149,6 +151,7 @@ public class SubagentService {
         String runId = subRun.getId();
         String sessionId = subSession.getId();
         String task = request.getTask();
+        LocalDateTime startTime = LocalDateTime.now();
 
         try {
             // 1. lifecycle.start
@@ -185,20 +188,20 @@ public class SubagentService {
 
             // 8. Announce 回传（如果启用）
             if (request.isAnnounce()) {
-                announceCompletion(connectionId, subRun, subSession, response, null);
+                announceService.announce(connectionId, subRun, subSession, response, null, startTime);
             }
 
             log.info("Subagent run completed: runId={}, response length={}", runId, response.length());
 
         } catch (java.util.concurrent.CancellationException e) {
             log.info("Subagent run cancelled: runId={}", runId);
-            handleSubagentFailure(connectionId, subRun, subSession, request, "Cancelled by user");
+            handleSubagentFailure(connectionId, subRun, subSession, request, "Cancelled by user", startTime);
         } catch (java.util.concurrent.TimeoutException e) {
             log.warn("Subagent run timed out: runId={}", runId);
-            handleSubagentFailure(connectionId, subRun, subSession, request, "Timeout: " + e.getMessage());
+            handleSubagentFailure(connectionId, subRun, subSession, request, "Timeout: " + e.getMessage(), startTime);
         } catch (Exception e) {
             log.error("Subagent run failed: runId={}", runId, e);
-            handleSubagentFailure(connectionId, subRun, subSession, request, "Error: " + e.getMessage());
+            handleSubagentFailure(connectionId, subRun, subSession, request, "Error: " + e.getMessage(), startTime);
         }
     }
 
@@ -209,7 +212,8 @@ public class SubagentService {
                                         RunEntity subRun,
                                         SessionEntity subSession,
                                         SubagentSpawnRequest request,
-                                        String errorMessage) {
+                                        String errorMessage,
+                                        LocalDateTime startTime) {
         try {
             runService.updateStatus(subRun.getId(), RunStatus.ERROR);
         } catch (Exception ignored) {}
@@ -223,31 +227,8 @@ public class SubagentService {
 
         // 即使失败也回传（包含错误信息）
         if (request.isAnnounce()) {
-            announceCompletion(connectionId, subRun, subSession, null, errorMessage);
+            announceService.announce(connectionId, subRun, subSession, null, errorMessage, startTime);
         }
-    }
-
-    /**
-     * Announce 回传完成结果到父会话
-     */
-    private void announceCompletion(String connectionId,
-                                     RunEntity subRun,
-                                     SessionEntity subSession,
-                                     String result,
-                                     String error) {
-        // 发布 subagent.announced 事件
-        eventBus.publish(AgentEvent.subagentAnnounced(
-                connectionId,
-                subRun.getParentRunId(),
-                subRun.getId(),
-                subSession.getId(),
-                subSession.getSessionKey(),
-                result,
-                error
-        ));
-
-        log.info("Announced subagent completion: subRunId={}, parentRunId={}, success={}",
-                subRun.getId(), subRun.getParentRunId(), error == null);
     }
 
     /**

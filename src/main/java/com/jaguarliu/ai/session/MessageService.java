@@ -38,6 +38,38 @@ public class MessageService {
     }
 
     /**
+     * 保存子代理 announce 消息到父会话
+     *
+     * @param parentSessionId 父会话 ID
+     * @param parentRunId     父运行 ID（可选，announce 可能在父 run 结束后到达）
+     * @param subRunId        子运行 ID
+     * @param subSessionId    子会话 ID
+     * @param content         announce 内容（JSON 格式）
+     * @return 保存的消息实体
+     */
+    @Transactional
+    public MessageEntity saveSubagentAnnounce(String parentSessionId,
+                                               String parentRunId,
+                                               String subRunId,
+                                               String subSessionId,
+                                               String content) {
+        // 使用特殊的 role 标记这是 subagent 的 announce 消息
+        // 前端可以根据 role 或 content 中的 type 来识别并特殊显示
+        MessageEntity message = MessageEntity.builder()
+                .id(UUID.randomUUID().toString())
+                .sessionId(parentSessionId)
+                .runId(parentRunId)  // 可能为 null
+                .role("assistant")   // 作为 assistant 消息，前端可正常显示
+                .content(content)
+                .build();
+
+        message = messageRepository.save(message);
+        log.info("Saved subagent announce: parentSessionId={}, subRunId={}, subSessionId={}",
+                parentSessionId, subRunId, subSessionId);
+        return message;
+    }
+
+    /**
      * 保存消息
      */
     private MessageEntity saveMessage(String sessionId, String runId, String role, String content) {
