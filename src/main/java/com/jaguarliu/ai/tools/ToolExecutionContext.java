@@ -9,7 +9,7 @@ import java.util.Set;
  * 工具执行上下文（ThreadLocal）
  *
  * 在 ReAct 循环中，每次工具执行前设置上下文，执行后清理。
- * 用于传递运行时信息（如 skill 资源目录）到工具实现。
+ * 用于传递运行时信息（如 skill 资源目录、subagent 元数据）到工具实现。
  */
 public class ToolExecutionContext {
 
@@ -21,8 +21,50 @@ public class ToolExecutionContext {
      */
     private final Set<Path> additionalAllowedPaths;
 
-    private ToolExecutionContext(Set<Path> additionalAllowedPaths) {
+    /**
+     * Agent ID（当前运行的 Agent Profile）
+     */
+    private final String agentId;
+
+    /**
+     * 运行类型：main / subagent
+     */
+    private final String runKind;
+
+    /**
+     * 父运行 ID（仅 subagent 有值）
+     */
+    private final String parentRunId;
+
+    /**
+     * 当前运行 ID
+     */
+    private final String runId;
+
+    /**
+     * 当前会话 ID
+     */
+    private final String sessionId;
+
+    /**
+     * 派生深度
+     */
+    private final int depth;
+
+    private ToolExecutionContext(Set<Path> additionalAllowedPaths,
+                                  String agentId,
+                                  String runKind,
+                                  String parentRunId,
+                                  String runId,
+                                  String sessionId,
+                                  int depth) {
         this.additionalAllowedPaths = Collections.unmodifiableSet(additionalAllowedPaths);
+        this.agentId = agentId;
+        this.runKind = runKind;
+        this.parentRunId = parentRunId;
+        this.runId = runId;
+        this.sessionId = sessionId;
+        this.depth = depth;
     }
 
     /**
@@ -67,6 +109,62 @@ public class ToolExecutionContext {
     }
 
     /**
+     * 获取 Agent ID
+     */
+    public String getAgentId() {
+        return agentId;
+    }
+
+    /**
+     * 获取运行类型
+     */
+    public String getRunKind() {
+        return runKind;
+    }
+
+    /**
+     * 获取父运行 ID
+     */
+    public String getParentRunId() {
+        return parentRunId;
+    }
+
+    /**
+     * 获取当前运行 ID
+     */
+    public String getRunId() {
+        return runId;
+    }
+
+    /**
+     * 获取当前会话 ID
+     */
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    /**
+     * 获取派生深度
+     */
+    public int getDepth() {
+        return depth;
+    }
+
+    /**
+     * 判断当前是否为子代理运行
+     */
+    public boolean isSubagent() {
+        return "subagent".equals(runKind);
+    }
+
+    /**
+     * 判断当前是否为主运行
+     */
+    public boolean isMain() {
+        return "main".equals(runKind);
+    }
+
+    /**
      * 构建器
      */
     public static Builder builder() {
@@ -75,6 +173,12 @@ public class ToolExecutionContext {
 
     public static class Builder {
         private final Set<Path> paths = new HashSet<>();
+        private String agentId = "main";
+        private String runKind = "main";
+        private String parentRunId;
+        private String runId;
+        private String sessionId;
+        private int depth = 0;
 
         public Builder addAllowedPath(Path path) {
             if (path != null) {
@@ -83,8 +187,38 @@ public class ToolExecutionContext {
             return this;
         }
 
+        public Builder agentId(String agentId) {
+            this.agentId = agentId;
+            return this;
+        }
+
+        public Builder runKind(String runKind) {
+            this.runKind = runKind;
+            return this;
+        }
+
+        public Builder parentRunId(String parentRunId) {
+            this.parentRunId = parentRunId;
+            return this;
+        }
+
+        public Builder runId(String runId) {
+            this.runId = runId;
+            return this;
+        }
+
+        public Builder sessionId(String sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
+
+        public Builder depth(int depth) {
+            this.depth = depth;
+            return this;
+        }
+
         public ToolExecutionContext build() {
-            return new ToolExecutionContext(paths);
+            return new ToolExecutionContext(paths, agentId, runKind, parentRunId, runId, sessionId, depth);
         }
     }
 }

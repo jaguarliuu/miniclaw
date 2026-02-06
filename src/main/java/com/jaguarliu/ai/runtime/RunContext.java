@@ -32,6 +32,46 @@ public class RunContext {
     private final String sessionId;
 
     /**
+     * Agent ID（关联的 Agent Profile）
+     */
+    @Builder.Default
+    private final String agentId = "main";
+
+    /**
+     * 运行类型：main / subagent
+     */
+    @Builder.Default
+    private final String runKind = "main";
+
+    /**
+     * 执行通道：main / subagent
+     */
+    @Builder.Default
+    private final String lane = "main";
+
+    /**
+     * 父运行 ID（仅 subagent 有值）
+     */
+    private final String parentRunId;
+
+    /**
+     * 请求方会话 ID（subagent 的父会话）
+     */
+    private final String requesterSessionId;
+
+    /**
+     * 派生深度（main=0, 直接子代理=1）
+     */
+    @Builder.Default
+    private final int depth = 0;
+
+    /**
+     * 是否转发中间流到父会话
+     */
+    @Builder.Default
+    private final boolean deliver = false;
+
+    /**
      * 循环开始时间
      */
     private final Instant startTime;
@@ -107,7 +147,7 @@ public class RunContext {
     }
 
     /**
-     * 创建上下文
+     * 创建上下文（兼容旧接口，默认为 main run）
      */
     public static RunContext create(
             String runId,
@@ -119,10 +159,71 @@ public class RunContext {
                 .runId(runId)
                 .connectionId(connectionId)
                 .sessionId(sessionId)
+                .agentId("main")
+                .runKind("main")
+                .lane("main")
+                .depth(0)
+                .deliver(false)
                 .startTime(Instant.now())
                 .config(config)
                 .cancellationManager(cancellationManager)
                 .currentStep(0)
                 .build();
+    }
+
+    /**
+     * 创建子代理运行上下文
+     *
+     * @param runId              子运行 ID
+     * @param connectionId       连接 ID
+     * @param sessionId          子会话 ID
+     * @param agentId            Agent Profile ID
+     * @param parentRunId        父运行 ID
+     * @param requesterSessionId 请求方会话 ID
+     * @param deliver            是否转发中间流
+     * @param config             循环配置
+     * @param cancellationManager 取消管理器
+     * @return 子代理运行上下文
+     */
+    public static RunContext createSubagent(
+            String runId,
+            String connectionId,
+            String sessionId,
+            String agentId,
+            String parentRunId,
+            String requesterSessionId,
+            boolean deliver,
+            LoopConfig config,
+            CancellationManager cancellationManager) {
+        return RunContext.builder()
+                .runId(runId)
+                .connectionId(connectionId)
+                .sessionId(sessionId)
+                .agentId(agentId)
+                .runKind("subagent")
+                .lane("subagent")
+                .parentRunId(parentRunId)
+                .requesterSessionId(requesterSessionId)
+                .depth(1)
+                .deliver(deliver)
+                .startTime(Instant.now())
+                .config(config)
+                .cancellationManager(cancellationManager)
+                .currentStep(0)
+                .build();
+    }
+
+    /**
+     * 判断是否为子代理运行
+     */
+    public boolean isSubagent() {
+        return "subagent".equals(runKind);
+    }
+
+    /**
+     * 判断是否为主运行
+     */
+    public boolean isMain() {
+        return "main".equals(runKind);
     }
 }

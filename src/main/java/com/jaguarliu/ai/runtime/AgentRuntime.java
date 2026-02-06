@@ -91,6 +91,36 @@ public class AgentRuntime {
     }
 
     /**
+     * 执行 ReAct 多步循环（使用预构建的 RunContext）
+     * 用于 SubAgent 场景，允许外部构建带有 subagent 元数据的 context
+     *
+     * @param context       预构建的运行上下文
+     * @param messages      初始消息列表（会被修改）
+     * @param originalInput 原始用户输入（用于 skill 激活）
+     * @return 最终回复内容
+     * @throws TimeoutException 如果超时
+     */
+    public String executeLoopWithContext(RunContext context,
+                                          List<LlmRequest.Message> messages,
+                                          String originalInput) throws TimeoutException {
+        context.setOriginalInput(originalInput);
+
+        // 注册到取消管理器
+        cancellationManager.register(context.getRunId());
+
+        try {
+            log.info("Starting ReAct loop: runId={}, runKind={}, agentId={}, parentRunId={}",
+                    context.getRunId(), context.getRunKind(), context.getAgentId(), context.getParentRunId());
+            return doExecuteLoop(context, messages);
+        } finally {
+            // 清理取消标记
+            cancellationManager.clearCancellation(context.getRunId());
+            // 清理 flush 标记
+            flushHook.clearRun(context.getRunId());
+        }
+    }
+
+    /**
      * 从消息列表中提取原始用户输入
      */
     private String extractOriginalInput(List<LlmRequest.Message> messages) {
@@ -388,10 +418,16 @@ public class AgentRuntime {
 
     /**
      * 设置工具执行上下文
-     * 如果有激活的 skill，将其资源目录添加到允许路径中
+     * 传递运行时信息（如 skill 资源目录、subagent 元数据）到工具实现
      */
     private void setupToolExecutionContext(RunContext context) {
-        ToolExecutionContext.Builder builder = ToolExecutionContext.builder();
+        ToolExecutionContext.Builder builder = ToolExecutionContext.builder()
+                .runId(context.getRunId())
+                .sessionId(context.getSessionId())
+                .agentId(context.getAgentId())
+                .runKind(context.getRunKind())
+                .parentRunId(context.getParentRunId())
+                .depth(context.getDepth());
 
         // 如果有激活的 skill，添加其资源目录到允许路径
         if (context.getSkillBasePath() != null) {
