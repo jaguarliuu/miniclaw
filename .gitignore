@@ -36,3 +36,5 @@ workspace/
 
 /nul
 nul
+
+*.tar.gz
