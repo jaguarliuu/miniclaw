@@ -76,6 +76,30 @@ skills:
   watch-enabled: true  # 是否启用热更新
   index-token-budget: 2000  # 索引 token 预算
 
+# Agent Profiles 配置（多主代理身份）
+agents:
+  default-agent: main
+  profiles:
+    main:
+      sandbox: trusted
+      tools:
+        allow: []  # 空表示允许所有
+        deny: []
+      workspace: ./workspace
+      auth-dir: ./.miniclaw/auth/main
+      can-spawn: true
+    restricted:
+      sandbox: restricted
+      tools:
+        allow: [read_file, http_get, memory_search]
+        deny: [shell, shell_start, write_file, sessions_spawn]
+      workspace: ./workspace/restricted
+      auth-dir: ./.miniclaw/auth/restricted
+      can-spawn: false
+  lane:
+    main-max-concurrency: 4
+    subagent-max-concurrency: 8
+
 # Memory 配置（全局记忆，跨会话）
 memory:
   path: memory  # 相对于 workspace
