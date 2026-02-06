@@ -143,4 +143,11 @@ public class RunService {
     public List<RunEntity> listQueuedByLane(String lane) {
         return runRepository.findByLaneAndStatusOrderByCreatedAtAsc(lane, RunStatus.QUEUED.getValue());
     }
+
+    /**
+     * 获取指定请求会话的所有子代理运行
+     */
+    public List<RunEntity> listByRequesterSession(String requesterSessionId) {
+        return runRepository.findByRequesterSessionIdOrderByCreatedAtDesc(requesterSessionId);
+    }
 }
