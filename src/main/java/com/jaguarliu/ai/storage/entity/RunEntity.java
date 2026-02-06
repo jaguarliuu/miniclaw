@@ -25,6 +25,24 @@ public class RunEntity {
     @Column(nullable = false)
     private String status;
 
+    @Column(name = "agent_id")
+    private String agentId;
+
+    @Column(name = "run_kind", nullable = false)
+    private String runKind;
+
+    @Column(nullable = false)
+    private String lane;
+
+    @Column(name = "parent_run_id")
+    private String parentRunId;
+
+    @Column(name = "requester_session_id")
+    private String requesterSessionId;
+
+    @Column(nullable = false)
+    private Boolean deliver;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String prompt;
 
@@ -36,6 +54,15 @@ public class RunEntity {
 
     @PrePersist
     protected void onCreate() {
+        if (runKind == null || runKind.isBlank()) {
+            runKind = "main";
+        }
+        if (lane == null || lane.isBlank()) {
+            lane = "main";
+        }
+        if (deliver == null) {
+            deliver = false;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
