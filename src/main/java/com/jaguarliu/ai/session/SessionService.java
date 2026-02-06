@@ -26,25 +26,98 @@ public class SessionService {
     private final MessageRepository messageRepository;
 
     /**
-     * 创建新 Session
+     * 创建新 Session（主会话）
      */
     @Transactional
     public SessionEntity create(String name) {
+        return create(name, "main");
+    }
+
+    /**
+     * 创建新 Session（指定 agentId）
+     */
+    @Transactional
+    public SessionEntity create(String name, String agentId) {
         SessionEntity session = SessionEntity.builder()
                 .id(UUID.randomUUID().toString())
                 .name(name != null ? name : "New Session")
+                .agentId(agentId)
+                .sessionKind("main")
                 .build();
 
         session = sessionRepository.save(session);
-        log.info("Created session: id={}, name={}", session.getId(), session.getName());
+        log.info("Created session: id={}, name={}, agentId={}", session.getId(), session.getName(), agentId);
         return session;
     }
 
     /**
-     * 获取所有 Session（按创建时间倒序）
+     * 创建子代理会话
+     *
+     * @param parentSessionId 父会话 ID
+     * @param createdByRunId  创建此子会话的运行 ID
+     * @param agentId         Agent Profile ID
+     * @param taskSummary     任务摘要（用于生成会话名称）
+     * @return 新创建的子代理会话
+     */
+    @Transactional
+    public SessionEntity createSubagentSession(String parentSessionId,
+                                                String createdByRunId,
+                                                String agentId,
+                                                String taskSummary) {
+        String sessionId = UUID.randomUUID().toString();
+        String sessionKey = String.format("agent:%s:subagent:%s", agentId, sessionId);
+        String name = generateSubagentSessionName(taskSummary);
+
+        SessionEntity session = SessionEntity.builder()
+                .id(sessionId)
+                .name(name)
+                .agentId(agentId)
+                .sessionKind("subagent")
+                .sessionKey(sessionKey)
+                .parentSessionId(parentSessionId)
+                .createdByRunId(createdByRunId)
+                .build();
+
+        session = sessionRepository.save(session);
+        log.info("Created subagent session: id={}, parentSessionId={}, createdByRunId={}, agentId={}, sessionKey={}",
+                session.getId(), parentSessionId, createdByRunId, agentId, sessionKey);
+        return session;
+    }
+
+    /**
+     * 生成子代理会话名称
+     */
+    private String generateSubagentSessionName(String taskSummary) {
+        if (taskSummary == null || taskSummary.isBlank()) {
+            return "SubAgent Task";
+        }
+        // 截取前 50 个字符作为名称
+        String name = taskSummary.trim();
+        if (name.length() > 50) {
+            name = name.substring(0, 47) + "...";
+        }
+        return name;
+    }
+
+    /**
+     * 获取所有主会话（按创建时间倒序）
      */
     public List<SessionEntity> list() {
         return sessionRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    /**
+     * 获取所有主会话（排除子代理会话）
+     */
+    public List<SessionEntity> listMainSessions() {
+        return sessionRepository.findBySessionKindOrderByCreatedAtDesc("main");
+    }
+
+    /**
+     * 获取指定父会话的所有子代理会话
+     */
+    public List<SessionEntity> listSubagentSessions(String parentSessionId) {
+        return sessionRepository.findByParentSessionIdOrderByCreatedAtDesc(parentSessionId);
     }
 
     /**
@@ -52,6 +125,13 @@ public class SessionService {
      */
     public Optional<SessionEntity> get(String id) {
         return sessionRepository.findById(id);
+    }
+
+    /**
+     * 根据 sessionKey 获取 Session
+     */
+    public Optional<SessionEntity> getBySessionKey(String sessionKey) {
+        return sessionRepository.findBySessionKey(sessionKey);
     }
 
     /**

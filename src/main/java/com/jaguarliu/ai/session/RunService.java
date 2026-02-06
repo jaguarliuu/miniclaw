@@ -22,19 +22,69 @@ public class RunService {
     private final RunRepository runRepository;
 
     /**
-     * 创建新 Run
+     * 创建新 Run（主运行）
      */
     @Transactional
     public RunEntity create(String sessionId, String prompt) {
+        return create(sessionId, prompt, "main");
+    }
+
+    /**
+     * 创建新 Run（指定 agentId）
+     */
+    @Transactional
+    public RunEntity create(String sessionId, String prompt, String agentId) {
         RunEntity run = RunEntity.builder()
                 .id(UUID.randomUUID().toString())
                 .sessionId(sessionId)
                 .status(RunStatus.QUEUED.getValue())
                 .prompt(prompt)
+                .agentId(agentId)
+                .runKind("main")
+                .lane("main")
+                .deliver(false)
                 .build();
 
         run = runRepository.save(run);
-        log.info("Created run: id={}, sessionId={}, status={}", run.getId(), sessionId, run.getStatus());
+        log.info("Created run: id={}, sessionId={}, agentId={}, status={}",
+                run.getId(), sessionId, agentId, run.getStatus());
+        return run;
+    }
+
+    /**
+     * 创建子代理运行
+     *
+     * @param sessionId          子会话 ID
+     * @param parentRunId        父运行 ID
+     * @param requesterSessionId 请求方会话 ID（父会话）
+     * @param agentId            Agent Profile ID
+     * @param prompt             任务提示
+     * @param deliver            是否转发中间流
+     * @return 新创建的子代理运行
+     */
+    @Transactional
+    public RunEntity createSubagentRun(String sessionId,
+                                        String parentRunId,
+                                        String requesterSessionId,
+                                        String agentId,
+                                        String prompt,
+                                        boolean deliver) {
+        RunEntity run = RunEntity.builder()
+                .id(UUID.randomUUID().toString())
+                .sessionId(sessionId)
+                .status(RunStatus.QUEUED.getValue())
+                .prompt(prompt)
+                .agentId(agentId)
+                .runKind("subagent")
+                .lane("subagent")
+                .parentRunId(parentRunId)
+                .requesterSessionId(requesterSessionId)
+                .deliver(deliver)
+                .build();
+
+        run = runRepository.save(run);
+        log.info("Created subagent run: id={}, sessionId={}, parentRunId={}, requesterSessionId={}, agentId={}, deliver={}",
+                run.getId(), sessionId, parentRunId, requesterSessionId, agentId, deliver);
         return run;
     }
 
@@ -71,5 +121,26 @@ public class RunService {
      */
     public List<RunEntity> listBySession(String sessionId) {
         return runRepository.findBySessionIdOrderByCreatedAtDesc(sessionId);
+    }
+
+    /**
+     * 获取指定父运行的所有子代理运行
+     */
+    public List<RunEntity> listSubagentRuns(String parentRunId) {
+        return runRepository.findByParentRunIdOrderByCreatedAtDesc(parentRunId);
+    }
+
+    /**
+     * 获取指定 lane 的运行中的 Run 数量
+     */
+    public long countRunningByLane(String lane) {
+        return runRepository.countByLaneAndStatus(lane, RunStatus.RUNNING.getValue());
+    }
+
+    /**
+     * 获取指定 lane 的排队中的 Run
+     */
+    public List<RunEntity> listQueuedByLane(String lane) {
+        return runRepository.findByLaneAndStatusOrderByCreatedAtAsc(lane, RunStatus.QUEUED.getValue());
     }
 }
