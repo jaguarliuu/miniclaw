@@ -38,6 +38,7 @@
 | 技能系统是怎么按需加载、自动选择的 | `SkillRegistry` + `SkillSelector` |
 | 长期记忆是怎么存储和检索的 | `MemoryStore` + `MemoryIndexer` |
 | WebSocket 是怎么实现流式输出的 | `EventBus` + `GatewayWebSocketHandler` |
+| 子代理是怎么并行执行和结果回传的 | `SubagentService` + `SubagentCompletionTracker` |
 
 ---
 
@@ -46,7 +47,7 @@
 因为：
 
 1. **Mini** - 我们只实现了核心功能，没有多租户、没有插件商店、没有分布式调度
-2. **Claw** - 致敬 OpenClaw（Claude Code 的内部代号）
+2. **Claw** - 致敬 OpenClaw
 
 ```
 OpenClaw（完整版）           MiniClaw（学习版）
@@ -144,6 +145,7 @@ AI：我已经创建了 hello.py 并运行成功，输出是 "Hello, World!"
 | `http_get` | HTTP 请求 | 🟢 安全 |
 | `memory_search` | 搜索记忆 | 🟢 安全 |
 | `memory_write` | 写入记忆 | 🟢 安全 |
+| `sessions_spawn` | 派生子代理 | 🟢 仅主会话可用 |
 
 **智能 HITL（Human-in-the-Loop）**：
 - `ls`, `npm install`, `git status` → 直接执行
@@ -198,6 +200,32 @@ cron: "0 8 * * *"
 prompt: "帮我汇总昨天的 Git 提交记录"
 delivery: log  # 或者 webhook、email
 ```
+
+### 🔀 SubAgent 子代理
+
+主 Agent 可以将子任务异步派生到独立子会话并行执行，完成后自动回传结果并汇总：
+
+```
+你：帮我同时 ping baidu.com 和 google.com，汇总结果
+
+AI 内心独白：
+  1. 🧠 两个任务可以并行，用 sessions_spawn 派生两个子代理
+  2. 🔧 [sessions_spawn] → 子代理 A: ping baidu.com
+  3. 🔧 [sessions_spawn] → 子代理 B: ping google.com
+  4. ⏳ 等待所有子代理完成...
+  5. 📨 子代理 A 完成: baidu.com 可达, 延迟 12ms
+  6. 📨 子代理 B 完成: google.com 可达, 延迟 45ms
+  7. 🧠 汇总结果回复用户
+
+AI：两个目标均可达。baidu.com 延迟 12ms，google.com 延迟 45ms。
+```
+
+核心机制：
+- **独立会话**：每个子代理运行在隔离的子会话中，不污染主会话上下文
+- **双层队列**：session 内串行 + main/subagent 全局 lane 独立并发配额
+- **屏障等待**：主循环自动等待所有子代理完成后再由 LLM 汇总
+- **禁止嵌套**：子代理不能再派生子代理
+- **右侧面板**：前端点击 SubagentCard 可在右侧面板查看子代理工作详情（类 Claude Artifacts）
 
 ---
 
@@ -254,6 +282,7 @@ miniclaw/
 │   ├── gateway/          # 🚪 控制平面：WebSocket、RPC、事件
 │   ├── runtime/          # 🔄 执行引擎：ReAct 循环、HITL、上下文构建
 │   ├── tools/            # 🔧 工具系统：内置工具、工具注册、危险检测
+│   ├── subagent/         # 🔀 子代理系统：spawn、announce、完成跟踪、运维
 │   ├── skills/           # 🎯 技能系统：解析、注册、选择、热更新
 │   ├── memory/           # 🧠 记忆系统：存储、分块、索引、检索
 │   ├── llm/              # 🤖 LLM 接入：OpenAI 兼容客户端
@@ -294,7 +323,7 @@ miniclaw/
 | 多租户 | ✅ | ❌ (个人使用) |
 | 分布式节点 | ✅ | ❌ |
 | MCP 支持 | ✅ | 🚧 (计划中) |
-| SubAgent | ✅ | 🚧 (计划中) |
+| SubAgent | ✅ | ✅ (独立子会话 + 屏障等待) |
 | Sandbox | ✅ | 🚧 (计划中) |
 
 ---
@@ -307,8 +336,8 @@ miniclaw/
 - [x] 全局记忆（Markdown + 向量检索）
 - [x] HITL 人工确认（智能危险命令检测）
 - [x] Cron 定时任务
+- [x] SubAgent 子代理（独立子会话 + 屏障等待 + 右侧面板）
 - [ ] MCP (Model Context Protocol) 接入
-- [ ] SubAgent 支持
 - [ ] Sandbox 代码执行
 - [ ] 更多内置技能
 
