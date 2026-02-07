@@ -245,3 +245,32 @@ export interface NodeRegisterPayload {
   tags?: string
   safetyPolicy?: SafetyPolicy
 }
+
+// ==================== Audit Log Types ====================
+
+export interface AuditLogEntry {
+  id: string
+  eventType: string
+  runId: string | null
+  sessionId: string | null
+  nodeAlias: string | null
+  connectorType: string | null
+  toolName: string | null
+  command: string | null
+  safetyLevel: string | null
+  safetyPolicy: string | null
+  hitlRequired: boolean
+  hitlDecision: string | null
+  resultStatus: string
+  resultSummary: string | null
+  durationMs: number | null
+  createdAt: string
+}
+
+export interface AuditLogPage {
+  logs: AuditLogEntry[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}

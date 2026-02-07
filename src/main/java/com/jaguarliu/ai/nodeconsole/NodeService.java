@@ -152,6 +152,13 @@ public class NodeService {
     }
 
     /**
+     * 按别名查找节点（不含凭据解密）
+     */
+    public Optional<NodeEntity> findByAlias(String alias) {
+        return nodeRepository.findByAlias(alias);
+    }
+
+    /**
      * 获取节点安全策略
      */
     public String getSafetyPolicy(String alias) {

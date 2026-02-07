@@ -1,5 +1,7 @@
 package com.jaguarliu.ai.tools.builtin;
 
+import com.jaguarliu.ai.nodeconsole.AuditLogService;
+import com.jaguarliu.ai.nodeconsole.NodeEntity;
 import com.jaguarliu.ai.nodeconsole.NodeService;
 import com.jaguarliu.ai.nodeconsole.RemoteCommandClassifier;
 import com.jaguarliu.ai.nodeconsole.RemoteCommandClassifier.SafetyLevel;
@@ -23,6 +25,7 @@ public class KubectlExecTool implements Tool {
 
     private final NodeService nodeService;
     private final RemoteCommandClassifier classifier;
+    private final AuditLogService auditLogService;
 
     @Override
     public ToolDefinition getDefinition() {
@@ -60,17 +63,58 @@ public class KubectlExecTool implements Tool {
                 return ToolResult.error("command is required");
             }
 
+            // 获取节点信息
+            String nodeId = null;
+            String connectorType = null;
+            var nodeOpt = nodeService.findByAlias(alias);
+            if (nodeOpt.isPresent()) {
+                NodeEntity node = nodeOpt.get();
+                nodeId = node.getId();
+                connectorType = node.getConnectorType();
+            }
+
             // 安全检查：Level 2 直接拒绝
             String policy = nodeService.getSafetyPolicy(alias);
             // 添加 kubectl 前缀用于分类
             String fullCommand = "kubectl " + command;
             var classification = classifier.classify(fullCommand, policy);
+            String safetyLevel = classification.level().name().toLowerCase();
+
             if (classification.level() == SafetyLevel.DESTRUCTIVE) {
+                auditLogService.logCommandExecution(
+                        "command.reject", alias, nodeId, connectorType,
+                        "kubectl_exec", command, safetyLevel, policy,
+                        false, null,
+                        "blocked", classification.reason(), 0);
                 return ToolResult.error("Command rejected (destructive): " + classification.reason());
             }
 
-            String output = nodeService.executeCommand(alias, command);
-            return ToolResult.success(output);
+            // 如果被调用，说明 HITL 已通过（或不需要）
+            boolean hitlRequired = classification.level() == SafetyLevel.SIDE_EFFECT;
+
+            long startTime = System.currentTimeMillis();
+            try {
+                String output = nodeService.executeCommand(alias, command);
+                long durationMs = System.currentTimeMillis() - startTime;
+
+                auditLogService.logCommandExecution(
+                        "command.execute", alias, nodeId, connectorType,
+                        "kubectl_exec", command, safetyLevel, policy,
+                        hitlRequired, hitlRequired ? "approve" : null,
+                        "success", output, durationMs);
+
+                return ToolResult.success(output);
+            } catch (Exception e) {
+                long durationMs = System.currentTimeMillis() - startTime;
+
+                auditLogService.logCommandExecution(
+                        "command.execute", alias, nodeId, connectorType,
+                        "kubectl_exec", command, safetyLevel, policy,
+                        hitlRequired, hitlRequired ? "approve" : null,
+                        "error", e.getMessage(), durationMs);
+
+                return ToolResult.error(e.getMessage());
+            }
         });
     }
 }
