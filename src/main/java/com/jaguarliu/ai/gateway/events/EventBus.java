@@ -77,6 +77,11 @@ public class EventBus {
             return;
         }
 
+        // 定时任务使用占位 connectionId，无需推送到 WebSocket
+        if ("__scheduled__".equals(connectionId)) {
+            return;
+        }
+
         WebSocketSession session = connectionManager.get(connectionId);
         if (session == null) {
             log.warn("Connection not found: connectionId={}", connectionId);

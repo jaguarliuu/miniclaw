@@ -137,7 +137,17 @@ public class ChannelService {
     @SuppressWarnings("unchecked")
     public String sendEmail(String channelNameOrType, String to, String subject, String body, String cc) {
         ChannelEntity channel = resolveChannel(channelNameOrType, "email");
+        return doSendEmail(channel, to, subject, body, cc);
+    }
 
+    public String sendEmailById(String channelId, String to, String subject, String body, String cc) {
+        ChannelEntity channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new IllegalArgumentException("Channel not found: " + channelId));
+        return doSendEmail(channel, to, subject, body, cc);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String doSendEmail(ChannelEntity channel, String to, String subject, String body, String cc) {
         try {
             Map<String, Object> config = objectMapper.readValue(channel.getConfig(), Map.class);
             String host = (String) config.get("host");
@@ -195,7 +205,17 @@ public class ChannelService {
     @SuppressWarnings("unchecked")
     public String sendWebhook(String channelNameOrType, String payload) {
         ChannelEntity channel = resolveChannel(channelNameOrType, "webhook");
+        return doSendWebhook(channel, payload);
+    }
 
+    public String sendWebhookById(String channelId, String payload) {
+        ChannelEntity channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new IllegalArgumentException("Channel not found: " + channelId));
+        return doSendWebhook(channel, payload);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String doSendWebhook(ChannelEntity channel, String payload) {
         try {
             Map<String, Object> config = objectMapper.readValue(channel.getConfig(), Map.class);
             String url = (String) config.get("url");

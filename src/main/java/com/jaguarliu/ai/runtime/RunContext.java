@@ -226,4 +226,41 @@ public class RunContext {
     public boolean isMain() {
         return "main".equals(runKind);
     }
+
+    /**
+     * 判断是否为定时任务运行
+     */
+    public boolean isScheduled() {
+        return "scheduled".equals(runKind);
+    }
+
+    /**
+     * 创建定时任务运行上下文
+     *
+     * @param runId              运行 ID
+     * @param sessionId          会话 ID
+     * @param config             循环配置
+     * @param cancellationManager 取消管理器
+     * @return 定时任务运行上下文
+     */
+    public static RunContext createScheduled(
+            String runId,
+            String sessionId,
+            LoopConfig config,
+            CancellationManager cancellationManager) {
+        return RunContext.builder()
+                .runId(runId)
+                .connectionId("__scheduled__")
+                .sessionId(sessionId)
+                .agentId("main")
+                .runKind("scheduled")
+                .lane("main")
+                .depth(0)
+                .deliver(false)
+                .startTime(Instant.now())
+                .config(config)
+                .cancellationManager(cancellationManager)
+                .currentStep(0)
+                .build();
+    }
 }

@@ -360,8 +360,10 @@ public class AgentRuntime {
 
         Map<String, Object> arguments = parseArguments(argumentsJson);
 
+        // 定时任务运行时跳过所有 HITL 确认
+        boolean isScheduledRun = "scheduled".equals(context.getRunKind());
         // 检查是否需要 HITL 确认（传入参数以便检测危险命令）
-        boolean requiresHitl = toolDispatcher.requiresHitl(toolName, null, arguments);
+        boolean requiresHitl = !isScheduledRun && toolDispatcher.requiresHitl(toolName, null, arguments);
 
         if (requiresHitl) {
             log.info("Tool requires HITL confirmation: name={}, callId={}", toolName, callId);

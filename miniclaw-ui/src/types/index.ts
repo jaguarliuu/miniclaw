@@ -313,3 +313,32 @@ export interface AuditLogPage {
   totalElements: number
   totalPages: number
 }
+
+// ==================== Schedule Types ====================
+
+export interface ScheduleInfo {
+  id: string
+  name: string
+  cronExpr: string
+  prompt: string
+  channelId: string
+  channelType: ChannelType
+  emailTo: string | null
+  emailCc: string | null
+  enabled: boolean
+  lastRunAt: string | null
+  lastRunSuccess: boolean | null
+  lastRunError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ScheduleCreatePayload {
+  name: string
+  cronExpr: string
+  prompt: string
+  channelId: string
+  channelType: ChannelType
+  emailTo?: string
+  emailCc?: string
+}
