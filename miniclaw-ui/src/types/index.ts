@@ -247,6 +247,44 @@ export interface NodeRegisterPayload {
   safetyPolicy?: SafetyPolicy
 }
 
+// ==================== Channel Types ====================
+
+export type ChannelType = 'email' | 'webhook'
+
+export interface ChannelInfo {
+  id: string
+  name: string
+  type: ChannelType
+  enabled: boolean
+  config: EmailChannelConfig | WebhookChannelConfig
+  lastTestedAt: string | null
+  lastTestSuccess: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmailChannelConfig {
+  host: string
+  port: number
+  username: string
+  from: string
+  tls: boolean
+}
+
+export interface WebhookChannelConfig {
+  url: string
+  method: string
+  headers: Record<string, string>
+  secret: boolean
+}
+
+export interface ChannelCreatePayload {
+  name: string
+  type: ChannelType
+  config: EmailChannelConfig | WebhookChannelConfig
+  credential?: string
+}
+
 // ==================== Audit Log Types ====================
 
 export interface AuditLogEntry {

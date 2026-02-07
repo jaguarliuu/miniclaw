@@ -7,6 +7,7 @@ import SettingsSidebar from '@/components/settings/SettingsSidebar.vue'
 import SkillsSection from '@/components/settings/SkillsSection.vue'
 import MemorySection from '@/components/settings/MemorySection.vue'
 import NodesSection from '@/components/settings/NodesSection.vue'
+import ChannelsSection from '@/components/settings/ChannelsSection.vue'
 import AuditLogSection from '@/components/settings/AuditLogSection.vue'
 import PlaceholderSection from '@/components/settings/PlaceholderSection.vue'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
@@ -45,6 +46,7 @@ onUnmounted(() => {
         <SkillsSection v-if="currentSection === 'skills'" />
         <MemorySection v-else-if="currentSection === 'memory'" />
         <NodesSection v-else-if="currentSection === 'nodes'" />
+        <ChannelsSection v-else-if="currentSection === 'channels'" />
         <AuditLogSection v-else-if="currentSection === 'audit'" />
         <PlaceholderSection v-else-if="currentSection === 'tasks'" title="Tasks" message="Task management coming soon" />
         <PlaceholderSection v-else title="Not Found" message="Section not found" />
