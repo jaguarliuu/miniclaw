@@ -126,11 +126,6 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 content = delta.get("content").asText();
             }
 
-            // 解析 tool_calls delta
-            if (delta != null && delta.has("tool_calls")) {
-                parseToolCallsDelta(delta.get("tool_calls"), accumulators);
-            }
-
             String finishReason = null;
             if (finishReasonNode != null && !finishReasonNode.isNull()) {
                 finishReason = finishReasonNode.asText();
@@ -143,6 +138,25 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                     .delta(content)
                     .finishReason(finishReason)
                     .done(isDone);
+
+            // 解析 tool_calls delta
+            if (delta != null && delta.has("tool_calls")) {
+                parseToolCallsDelta(delta.get("tool_calls"), accumulators);
+
+                // 附加 delta 信息到 chunk（用于 artifact 流式提取）
+                JsonNode firstTc = delta.get("tool_calls").get(0);
+                if (firstTc != null) {
+                    int idx = firstTc.has("index") ? firstTc.get("index").asInt() : 0;
+                    ToolCallAccumulator acc = accumulators.get(idx);
+                    if (acc != null && acc.functionName != null) {
+                        chunkBuilder.toolCallFunctionName(acc.functionName);
+                    }
+                    if (firstTc.has("function") && firstTc.get("function").has("arguments")) {
+                        chunkBuilder.toolCallArgumentsDelta(
+                                firstTc.get("function").get("arguments").asText());
+                    }
+                }
+            }
 
             // 如果是 tool_calls 结束，附带完整的 tool_calls
             if ("tool_calls".equals(finishReason) && !accumulators.isEmpty()) {

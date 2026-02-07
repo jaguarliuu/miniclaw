@@ -52,7 +52,10 @@ public class AgentEvent {
         SUBAGENT_STARTED("subagent.started"),
         SUBAGENT_ANNOUNCED("subagent.announced"),
         SUBAGENT_FAILED("subagent.failed"),
-        SESSION_RENAMED("session.renamed");
+        SESSION_RENAMED("session.renamed"),
+        // Artifact 流式预览事件
+        ARTIFACT_OPEN("artifact.open"),
+        ARTIFACT_DELTA("artifact.delta");
 
         private final String value;
 
@@ -183,6 +186,30 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 artifact.open 事件（AI 开始写文件，打开预览面板）
+     */
+    public static AgentEvent artifactOpen(String connectionId, String runId, String path) {
+        return AgentEvent.builder()
+                .type(EventType.ARTIFACT_OPEN)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new ArtifactOpenData(path))
+                .build();
+    }
+
+    /**
+     * 创建 artifact.delta 事件（文件内容增量到达）
+     */
+    public static AgentEvent artifactDelta(String connectionId, String runId, String content) {
+        return AgentEvent.builder()
+                .type(EventType.ARTIFACT_DELTA)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new ArtifactDeltaData(content))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -239,6 +266,18 @@ public class AgentEvent {
     public static class SessionRenamedData {
         private String sessionId;
         private String name;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ArtifactOpenData {
+        private String path;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ArtifactDeltaData {
+        private String content;
     }
 
     // ==================== SubAgent 事件 ====================

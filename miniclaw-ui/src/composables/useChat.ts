@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { useWebSocket } from './useWebSocket'
+import { useArtifact } from './useArtifact'
 import type {
   Session,
   Message,
@@ -42,6 +43,7 @@ let eventCleanups: (() => void)[] = []
 let isSetup = false
 
 const { request, onEvent } = useWebSocket()
+const { artifact, openArtifact, startStreaming, appendContent, finishStreaming } = useArtifact()
 
 // Computed
 const currentSession = computed(() =>
@@ -497,6 +499,21 @@ function setupEventListeners() {
         }
         createToolBlock(toolCall)
       }
+
+      // Detect write_file and open artifact panel
+      if (payload.toolName === 'write_file' && payload.arguments) {
+        const args = payload.arguments as Record<string, unknown>
+        const path = (args.path || args.filePath) as string | undefined
+        const content = args.content as string | undefined
+        if (path && content) {
+          // If already streaming, finish with final content; otherwise open directly (fallback)
+          if (artifact.value?.streaming) {
+            finishStreaming(content)
+          } else {
+            openArtifact(path, content)
+          }
+        }
+      }
     }
   }))
 
@@ -539,6 +556,26 @@ function setupEventListeners() {
       const session = sessions.value.find(s => s.id === payload.sessionId)
       if (session) {
         session.name = payload.name
+      }
+    }
+  }))
+
+  // Handle artifact.open - AI 开始写文件，打开流式预览面板
+  eventCleanups.push(onEvent('artifact.open', (event: RpcEvent) => {
+    if (currentRun.value && event.runId === currentRun.value.id) {
+      const payload = event.payload as { path: string }
+      if (payload?.path) {
+        startStreaming(payload.path)
+      }
+    }
+  }))
+
+  // Handle artifact.delta - 文件内容增量到达
+  eventCleanups.push(onEvent('artifact.delta', (event: RpcEvent) => {
+    if (currentRun.value && event.runId === currentRun.value.id) {
+      const payload = event.payload as { content: string }
+      if (payload?.content) {
+        appendContent(payload.content)
       }
     }
   }))

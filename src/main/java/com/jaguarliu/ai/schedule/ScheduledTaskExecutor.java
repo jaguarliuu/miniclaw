@@ -44,8 +44,8 @@ public class ScheduledTaskExecutor {
     public void execute(ScheduledTaskEntity task) {
         log.info("Scheduled task executing: name={}, id={}", task.getName(), task.getId());
         try {
-            // 1. 创建专用会话
-            SessionEntity session = sessionService.create("[Scheduled] " + task.getName());
+            // 1. 创建专用会话（scheduled kind，不在主列表显示）
+            SessionEntity session = sessionService.createScheduledSession("[Scheduled] " + task.getName());
 
             // 2. 创建 run
             RunEntity run = runService.create(session.getId(), task.getPrompt());

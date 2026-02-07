@@ -37,6 +37,16 @@ public class LlmChunk {
     private boolean done;
 
     /**
+     * 工具调用函数名（首次 delta 时有值）
+     */
+    private String toolCallFunctionName;
+
+    /**
+     * 工具调用参数增量片段（原始 JSON 片段）
+     */
+    private String toolCallArgumentsDelta;
+
+    /**
      * 是否有工具调用
      */
     public boolean hasToolCalls() {

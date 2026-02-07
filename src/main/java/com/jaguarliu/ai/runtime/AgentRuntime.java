@@ -328,6 +328,7 @@ public class AgentRuntime {
     private StepResult streamLlmCall(String connectionId, String runId, LlmRequest request) {
         StringBuilder content = new StringBuilder();
         List<ToolCall> toolCalls = new ArrayList<>();
+        ArtifactStreamExtractor artifactExtractor = new ArtifactStreamExtractor();
 
         llmClient.stream(request)
                 .doOnNext(chunk -> {
@@ -340,6 +341,22 @@ public class AgentRuntime {
                     if (chunk.hasToolCalls()) {
                         toolCalls.clear();
                         toolCalls.addAll(chunk.getToolCalls());
+                    }
+
+                    // Artifact 流式提取
+                    if ("write_file".equals(chunk.getToolCallFunctionName())) {
+                        artifactExtractor.activate();
+                    }
+                    if (artifactExtractor.isActive() && chunk.getToolCallArgumentsDelta() != null) {
+                        var result = artifactExtractor.append(chunk.getToolCallArgumentsDelta());
+                        if (result.pathDetected() != null) {
+                            eventBus.publish(AgentEvent.artifactOpen(
+                                    connectionId, runId, result.pathDetected()));
+                        }
+                        if (result.contentDelta() != null) {
+                            eventBus.publish(AgentEvent.artifactDelta(
+                                    connectionId, runId, result.contentDelta()));
+                        }
                     }
                 })
                 .blockLast();

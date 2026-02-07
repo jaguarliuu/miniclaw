@@ -100,6 +100,22 @@ public class SessionService {
     }
 
     /**
+     * 创建定时任务会话（session_kind = "scheduled"，不在主列表中显示）
+     */
+    @Transactional
+    public SessionEntity createScheduledSession(String name) {
+        SessionEntity session = SessionEntity.builder()
+                .id(UUID.randomUUID().toString())
+                .name(name != null ? name : "Scheduled Task")
+                .sessionKind("scheduled")
+                .build();
+
+        session = sessionRepository.save(session);
+        log.info("Created scheduled session: id={}, name={}", session.getId(), session.getName());
+        return session;
+    }
+
+    /**
      * 获取所有主会话（按创建时间倒序）
      */
     public List<SessionEntity> list() {
