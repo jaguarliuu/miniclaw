@@ -8,6 +8,7 @@ const router = useRouter()
 const sections = [
   { id: 'skills', label: '/skills' },
   { id: 'memory', label: '/memory' },
+  { id: 'nodes', label: '/nodes' },
   { id: 'tasks', label: '/tasks' }
 ]
 

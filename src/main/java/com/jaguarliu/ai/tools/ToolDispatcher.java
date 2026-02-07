@@ -5,6 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import com.jaguarliu.ai.nodeconsole.RemoteCommandClassifier;
+import com.jaguarliu.ai.nodeconsole.NodeService;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -20,11 +23,18 @@ public class ToolDispatcher {
 
     private final ToolRegistry toolRegistry;
     private final DangerousCommandDetector dangerousCommandDetector;
+    private final RemoteCommandClassifier remoteCommandClassifier;
+    private final Optional<NodeService> nodeService;
 
     /**
      * 需要进行危险命令检测的工具
      */
     private static final Set<String> COMMAND_TOOLS = Set.of("shell", "shell_start");
+
+    /**
+     * 需要进行远程命令安全分类的工具
+     */
+    private static final Set<String> REMOTE_COMMAND_TOOLS = Set.of("remote_exec", "kubectl_exec");
 
     /**
      * 执行工具调用
@@ -144,7 +154,23 @@ public class ToolDispatcher {
             }
         }
 
-        // 3. 使用工具默认配置
+        // 3. 对于远程命令工具，使用 RemoteCommandClassifier 判断
+        if (REMOTE_COMMAND_TOOLS.contains(toolName) && arguments != null) {
+            String command = (String) arguments.get("command");
+            String alias = (String) arguments.get("alias");
+            if (command != null) {
+                String fullCommand = "kubectl_exec".equals(toolName) ? "kubectl " + command : command;
+                String policy = nodeService.map(ns -> alias != null ? ns.getSafetyPolicy(alias) : "strict")
+                        .orElse("strict");
+                var cls = remoteCommandClassifier.classify(fullCommand, policy);
+                if (cls.level() == RemoteCommandClassifier.SafetyLevel.SIDE_EFFECT) {
+                    log.info("Tool {} requires HITL (remote command classified as SIDE_EFFECT: {})", toolName, cls.reason());
+                    return true;
+                }
+            }
+        }
+
+        // 4. 使用工具默认配置
         return toolRegistry.get(toolName)
                 .map(tool -> tool.getDefinition().isHitl())
                 .orElse(false);

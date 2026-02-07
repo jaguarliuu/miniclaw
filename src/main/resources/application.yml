@@ -117,3 +117,8 @@ memory:
   flush:
     enabled: true
     token-threshold: 100000
+
+# Node Console 配置（远程机器管理）
+node-console:
+  encryption-key: ${NODE_CONSOLE_ENCRYPTION_KEY:}
+  default-safety-policy: strict

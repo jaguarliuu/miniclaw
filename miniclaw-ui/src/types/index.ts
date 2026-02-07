@@ -209,3 +209,39 @@ export interface SubagentFailedPayload {
   task: string
   error: string
 }
+
+// ==================== Node Console Types ====================
+
+export type ConnectorType = 'ssh' | 'k8s' | 'db'
+export type AuthType = 'password' | 'key' | 'kubeconfig' | 'token'
+export type SafetyPolicy = 'strict' | 'standard' | 'relaxed'
+
+export interface NodeInfo {
+  id: string
+  alias: string
+  displayName: string | null
+  connectorType: ConnectorType
+  host: string | null
+  port: number | null
+  username: string | null
+  authType: AuthType | null
+  tags: string | null
+  safetyPolicy: SafetyPolicy
+  lastTestedAt: string | null
+  lastTestSuccess: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NodeRegisterPayload {
+  alias: string
+  displayName?: string
+  connectorType: ConnectorType
+  host?: string
+  port?: number
+  username?: string
+  authType?: AuthType
+  credential: string
+  tags?: string
+  safetyPolicy?: SafetyPolicy
+}
