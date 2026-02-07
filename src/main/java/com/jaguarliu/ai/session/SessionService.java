@@ -121,6 +121,17 @@ public class SessionService {
     }
 
     /**
+     * 重命名 Session
+     */
+    @Transactional
+    public SessionEntity rename(String id, String newName) {
+        SessionEntity session = sessionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Session not found: " + id));
+        session.setName(newName);
+        return sessionRepository.save(session);
+    }
+
+    /**
      * 根据 ID 获取 Session
      */
     public Optional<SessionEntity> get(String id) {

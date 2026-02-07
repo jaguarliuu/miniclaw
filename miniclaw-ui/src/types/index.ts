@@ -102,6 +102,7 @@ export type AgentEventType =
   | 'tool.result'
   | 'tool.confirm_request'
   | 'skill.activated'
+  | 'session.renamed'
   | 'subagent.spawned'
   | 'subagent.started'
   | 'subagent.announced'

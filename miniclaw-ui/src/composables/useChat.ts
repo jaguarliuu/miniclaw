@@ -532,6 +532,17 @@ function setupEventListeners() {
     }
   }))
 
+  // Handle session.renamed - 更新会话名称
+  eventCleanups.push(onEvent('session.renamed', (event: RpcEvent) => {
+    const payload = event.payload as { sessionId: string; name: string }
+    if (payload?.sessionId) {
+      const session = sessions.value.find(s => s.id === payload.sessionId)
+      if (session) {
+        session.name = payload.name
+      }
+    }
+  }))
+
   // Handle subagent.spawned - 创建子代理块
   eventCleanups.push(onEvent('subagent.spawned', (event: RpcEvent) => {
     const payload = event.payload as SubagentSpawnedPayload

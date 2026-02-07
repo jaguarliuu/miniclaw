@@ -5,7 +5,9 @@ import com.jaguarliu.ai.gateway.events.EventBus;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
+import com.jaguarliu.ai.llm.model.LlmResponse;
 import com.jaguarliu.ai.runtime.AgentRuntime;
 import com.jaguarliu.ai.runtime.ContextBuilder;
 import com.jaguarliu.ai.runtime.SessionLaneManager;
@@ -24,6 +26,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -44,6 +47,7 @@ public class AgentRunHandler implements RpcHandler {
     private final EventBus eventBus;
     private final ContextBuilder contextBuilder;
     private final AgentRuntime agentRuntime;
+    private final LlmClient llmClient;
 
     /**
      * 历史消息数量限制（避免上下文过长）
@@ -158,6 +162,9 @@ public class AgentRunHandler implements RpcHandler {
 
             log.info("Run completed: id={}, response length={}", runId, response.length());
 
+            // 7. 自动生成会话标题（首轮对话）
+            tryGenerateSessionTitle(connectionId, runId, sessionId, prompt, response);
+
         } catch (java.util.concurrent.CancellationException e) {
             log.info("Run cancelled: id={}", runId);
             try {
@@ -177,6 +184,62 @@ public class AgentRunHandler implements RpcHandler {
             } catch (Exception ignored) {}
             eventBus.publish(AgentEvent.lifecycleError(connectionId, runId, e.getMessage()));
         }
+    }
+
+    /**
+     * 尝试自动生成会话标题（首轮对话时）
+     */
+    private void tryGenerateSessionTitle(String connectionId, String runId,
+                                          String sessionId, String prompt, String response) {
+        try {
+            var sessionOpt = sessionService.get(sessionId);
+            if (sessionOpt.isEmpty()) return;
+            String currentName = sessionOpt.get().getName();
+            // 只对默认名称的会话生成标题
+            if (!"New Conversation".equals(currentName) && !"New Session".equals(currentName)) return;
+
+            // 异步生成，不阻塞主流程
+            CompletableFuture.runAsync(() -> {
+                try {
+                    String title = generateTitle(prompt, response);
+                    if (title != null && !title.isBlank()) {
+                        sessionService.rename(sessionId, title);
+                        eventBus.publish(AgentEvent.sessionRenamed(connectionId, runId, sessionId, title));
+                        log.info("Auto-named session: id={}, title={}", sessionId, title);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to auto-name session: id={}", sessionId, e);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Failed to check session for auto-naming: id={}", sessionId, e);
+        }
+    }
+
+    /**
+     * 调用 LLM 生成会话标题
+     */
+    private String generateTitle(String prompt, String response) {
+        String truncatedPrompt = prompt.length() > 500 ? prompt.substring(0, 500) : prompt;
+        String truncatedResponse = response.length() > 500 ? response.substring(0, 500) : response;
+
+        LlmRequest request = LlmRequest.builder()
+                .messages(List.of(
+                        LlmRequest.Message.system("Generate a short title (max 8 words) for this conversation. " +
+                                "Return ONLY the title, no quotes, no punctuation at the end. " +
+                                "Use the same language as the user."),
+                        LlmRequest.Message.user("User: " + truncatedPrompt + "\n\nAssistant: " + truncatedResponse)
+                ))
+                .maxTokens(30)
+                .temperature(0.5)
+                .build();
+
+        LlmResponse llmResponse = llmClient.chat(request);
+        String title = llmResponse.getContent();
+        if (title == null) return null;
+        title = title.trim();
+        if (title.length() > 80) title = title.substring(0, 77) + "...";
+        return title;
     }
 
     private String extractSessionId(Object payload) {

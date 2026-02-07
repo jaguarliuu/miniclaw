@@ -51,7 +51,8 @@ public class AgentEvent {
         SUBAGENT_SPAWNED("subagent.spawned"),
         SUBAGENT_STARTED("subagent.started"),
         SUBAGENT_ANNOUNCED("subagent.announced"),
-        SUBAGENT_FAILED("subagent.failed");
+        SUBAGENT_FAILED("subagent.failed"),
+        SESSION_RENAMED("session.renamed");
 
         private final String value;
 
@@ -170,6 +171,18 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 session.renamed 事件
+     */
+    public static AgentEvent sessionRenamed(String connectionId, String runId, String sessionId, String name) {
+        return AgentEvent.builder()
+                .type(EventType.SESSION_RENAMED)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new SessionRenamedData(sessionId, name))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -219,6 +232,13 @@ public class AgentEvent {
     public static class SkillActivatedData {
         private String skillName;
         private String source;  // "manual" or "auto"
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SessionRenamedData {
+        private String sessionId;
+        private String name;
     }
 
     // ==================== SubAgent 事件 ====================
