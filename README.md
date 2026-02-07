@@ -28,7 +28,7 @@
 
 如果你曾好奇过 Claude Code 背后是怎么工作的 —— 它是怎么理解你的需求、选择工具、执行命令、记住上下文的 —— 那这个项目就是为你准备的。
 
-我们用 **Java + Spring Boot** 重新实现了 OpenClaw 的核心架构，包括：
+我们用 **Java + Spring Boot** 重新实现了 OpenClaw 的核心架构，MVP 功能已全部就绪：
 
 | 你能学到的 | 对应模块 |
 |-----------|---------|
@@ -39,6 +39,8 @@
 | 长期记忆是怎么存储和检索的 | `MemoryStore` + `MemoryIndexer` |
 | WebSocket 是怎么实现流式输出的 | `EventBus` + `GatewayWebSocketHandler` |
 | 子代理是怎么并行执行和结果回传的 | `SubagentService` + `SubagentCompletionTracker` |
+| 定时任务是怎么调度和推送结果的 | `ScheduledTaskService` + `ChannelService` |
+| 远程节点是怎么安全连接和审计的 | `NodeService` + `AuditLogService` |
 
 ---
 
@@ -132,7 +134,7 @@ AI：我已经创建了 hello.py 并运行成功，输出是 "Hello, World!"
 
 ### 🛠️ 工具系统
 
-内置 7 个工具，覆盖文件操作、命令执行、网络请求：
+内置 10 个工具，覆盖文件操作、命令执行、网络请求、记忆和子代理：
 
 | 工具 | 功能 | 危险等级 |
 |-----|------|---------|
@@ -227,6 +229,48 @@ AI：两个目标均可达。baidu.com 延迟 12ms，google.com 延迟 45ms。
 - **禁止嵌套**：子代理不能再派生子代理
 - **右侧面板**：前端点击 SubagentCard 可在右侧面板查看子代理工作详情（类 Claude Artifacts）
 
+### 📡 渠道推送
+
+任务执行结果自动推送到指定渠道：
+
+| 渠道类型 | 说明 |
+|----------|------|
+| **Email** | SMTP 发送，支持 TLS、HTML/纯文本自动转换 |
+| **Webhook** | HTTP POST/PUT，支持自定义 Header 和签名密钥 |
+
+凭据全程 AES 加密，日志中不可见。支持连接测试，确保渠道配置正确。
+
+### 🖥️ 远程节点管理
+
+通过 SSH / Kubernetes 连接远程机器，执行命令并审计：
+
+- **多连接器**：SSH（JSch）和 K8s 两种连接方式
+- **安全策略**：`strict` / `relaxed`，影响危险命令确认行为
+- **审计日志**：每次远程命令的完整记录（节点、命令、安全等级、执行结果、耗时）
+- **凭据加密**：与渠道共用加密组件，密码/密钥永不明文存储
+
+### 📄 文件预览面板
+
+Agent 生成文件时，前端实时渲染预览：
+
+- **流式渲染**：`write_file` 执行时逐字符预览，体验类似 Claude Artifacts
+- **双视图**：源码高亮 / 渲染预览（HTML、SVG、Markdown、Mermaid）
+- **13+ 语言**：自动识别 JS、TS、Python、Java、SQL、CSS、JSON、HTML、Markdown 等
+- **可拖拽宽度**：面板宽度可自由调整
+
+### 💬 会话自动命名
+
+首次发送消息时，后端调用 LLM 自动生成简短的会话标题，侧边栏实时更新。
+
+### 👤 多 Agent 身份
+
+支持配置多个 Agent Profile，控制不同场景下的工具权限和安全级别：
+
+| Profile | 权限 | 说明 |
+|---------|------|------|
+| `main` | 全部工具 + 可派生子代理 | 默认主交互 Agent |
+| `restricted` | 仅 read_file / http_get / memory_search | 受限只读 Agent |
+
 ---
 
 ## 快速开始
@@ -285,14 +329,21 @@ miniclaw/
 │   ├── subagent/         # 🔀 子代理系统：spawn、announce、完成跟踪、运维
 │   ├── skills/           # 🎯 技能系统：解析、注册、选择、热更新
 │   ├── memory/           # 🧠 记忆系统：存储、分块、索引、检索
+│   ├── agents/           # 👤 Agent 身份：Profile 配置、工具权限、沙箱级别
 │   ├── llm/              # 🤖 LLM 接入：OpenAI 兼容客户端
 │   ├── session/          # 💬 会话管理
-│   └── cron/             # ⏰ 定时任务
+│   ├── schedule/         # ⏰ 定时任务：Cron 调度、自动执行
+│   ├── channel/          # 📡 渠道推送：邮件 SMTP、Webhook HTTP
+│   ├── nodeconsole/      # 🖥️ 远程节点：SSH/K8s 连接、命令审计
+│   └── storage/          # 💾 持久化：JPA 实体、Repository、Flyway 迁移
 ├── miniclaw-ui/          # 🖥️ Vue 3 前端
+│   ├── src/components/   # 组件：聊天、工具卡片、SubAgent 面板、Artifact 预览
+│   ├── src/composables/  # 组合式：useChat、useWebSocket、useArtifact、useSubagent
+│   └── src/views/        # 视图：Workspace 对话页、Settings 配置页
 ├── workspace/            # 📁 工作目录（技能、记忆都在这里）
 │   ├── .miniclaw/skills/ # 技能目录
 │   └── memory/           # 记忆目录
-└── docs/                 # 📚 设计文档
+└── docs/                 # 📚 设计文档与实施计划
 ```
 
 ---
@@ -319,26 +370,40 @@ miniclaw/
 | Skills 系统 | ✅ | ✅ |
 | Memory 系统 | ✅ | ✅ |
 | HITL 确认 | ✅ | ✅ (智能检测危险命令) |
-| Cron 调度 | ✅ | ✅ (Quartz) |
+| Cron 调度 | ✅ | ✅ (Spring TaskScheduler + 渠道推送) |
+| SubAgent | ✅ | ✅ (独立子会话 + 屏障等待) |
+| 渠道推送 | - | ✅ (邮件 / Webhook) |
+| 远程节点 | - | ✅ (SSH / K8s + 审计日志) |
+| 文件预览 | ✅ (Artifacts) | ✅ (ArtifactPanel 流式渲染) |
+| 多 Agent 身份 | ✅ | ✅ (Profile + 工具权限) |
 | 多租户 | ✅ | ❌ (个人使用) |
 | 分布式节点 | ✅ | ❌ |
 | MCP 支持 | ✅ | 🚧 (计划中) |
-| SubAgent | ✅ | ✅ (独立子会话 + 屏障等待) |
 | Sandbox | ✅ | 🚧 (计划中) |
 
 ---
 
 ## Roadmap
 
+### MVP (已完成)
+
 - [x] ReAct 循环核心
-- [x] 工具系统
+- [x] 工具系统（10 个内置工具）
 - [x] Skills 系统（Claude Skills 兼容）
 - [x] 全局记忆（Markdown + 向量检索）
 - [x] HITL 人工确认（智能危险命令检测）
-- [x] Cron 定时任务
 - [x] SubAgent 子代理（独立子会话 + 屏障等待 + 右侧面板）
+- [x] Cron 定时任务（Spring TaskScheduler + 渠道推送）
+- [x] 渠道管理（邮件 SMTP / Webhook HTTP）
+- [x] 远程节点管理（SSH / K8s + 审计日志）
+- [x] 文件预览面板（流式渲染，类 Claude Artifacts）
+- [x] 会话自动命名
+- [x] 多 Agent 身份配置
+
+### Next
+
 - [ ] MCP (Model Context Protocol) 接入
-- [ ] Sandbox 代码执行
+- [ ] Sandbox 安全代码执行
 - [ ] 更多内置技能
 
 ---
@@ -349,8 +414,9 @@ miniclaw/
 
 - 🐛 Bug 修复
 - 📝 文档改进
-- 🎯 新技能（放到 `docs/skills/` 下）
+- 🎯 新技能（放到 `workspace/.miniclaw/skills/` 下）
 - 🔧 新工具
+- 🔌 MCP 协议集成
 
 ---
 

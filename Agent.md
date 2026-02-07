@@ -1,6 +1,6 @@
 # MiniClaw Agent 启动前置文档
 
-> 最后更新：2026-02-07
+> 最后更新：2026-02-07（MVP 完成版）
 > 适用范围：当前工作区 `miniclaw`（后端 `src` + 前端 `miniclaw-ui`）
 
 ## 1. 文档目标
@@ -56,7 +56,10 @@ MiniClaw 是 OpenClaw 的 Java 学习版复刻，目标是做出可教学、可�
   - 记忆文件：`workspace/memory/*.md`
 
 - **Automation Plane**
-  - 设计目标是 Quartz/Cron；当前代码库尚未看到对应落地模块
+  - 定时任务：`ScheduledTaskService` + `ScheduledTaskExecutor`（基于 Spring `TaskScheduler` + `CronTrigger`）
+  - 渠道推送：`ChannelService`（邮件 SMTP / Webhook HTTP）
+  - 远程节点：`NodeService` + `ConnectorFactory`（SSH / K8s 连接器）
+  - 审计日志：`AuditLogService`（命令执行全链路审计）
 
 ### 3.2 前端架构
 
@@ -64,12 +67,17 @@ MiniClaw 是 OpenClaw 的 Java 学习版复刻，目标是做出可教学、可�
   - `useWebSocket`：RPC 请求与事件订阅
   - `useChat`：会话/消息/流式块/工具确认/取消/SubAgent 面板控制
   - `useSubagent`：子代理运维 RPC（list/stop/send）
-  - 组件：`MessageList`, `ToolCallCard`, `SkillActivationCard`, `SubagentCard`, `SubagentPanel`, `MessageInput`
-  - 布局：三栏式（侧边栏 / 主聊天 / SubAgentPanel 右侧面板）
+  - `useArtifact`：文件生成预览（流式内容追加、语言检测、多格式渲染）
+  - 组件：`MessageList`, `ToolCallCard`, `SkillActivationCard`, `SubagentCard`, `SubagentPanel`, `ArtifactPanel`, `MessageInput`
+  - 布局：三栏式（侧边栏 / 主聊天 / SubAgentPanel 或 ArtifactPanel 右侧面板）
 
 - **Settings**（配置视图）
   - Skills：`skills.list` / `skills.get`
   - Memory：`memory.status` / `memory.rebuild`
+  - Schedules：`schedule.list` / `schedule.create` / `schedule.delete` / `schedule.toggle` / `schedule.run`
+  - Channels：`channel.list` / `channel.create` / `channel.delete` / `channel.test`
+  - Nodes：`node.list` / `node.register` / `node.update` / `node.delete` / `node.test`
+  - Audit：`audit.list`（分页 + 多条件过滤）
 
 ---
 
@@ -152,6 +160,28 @@ graph TD
       SkillWatcher[SkillFileWatcher] --> SkillReg
       SkillSelector --> SkillReg
       Ctx --> SkillReg
+    end
+
+    subgraph Automation
+      SchedSvc[ScheduledTaskService] --> SchedExec[ScheduledTaskExecutor]
+      SchedExec --> SessionSvc
+      SchedExec --> Lane
+      SchedExec --> ChanSvc[ChannelService]
+      ChanSvc --> Email[SMTP]
+      ChanSvc --> Webhook[HTTP POST]
+    end
+
+    subgraph NodeConsole
+      NodeSvc[NodeService] --> ConnFactory[ConnectorFactory]
+      ConnFactory --> SSH[SshConnector]
+      ConnFactory --> K8s[K8sConnector]
+      NodeSvc --> AuditSvc[AuditLogService]
+    end
+
+    subgraph Agents
+      AgentReg[AgentRegistry] --> AgentProf[AgentProfile]
+      Runtime --> AgentReg
+      SubSvc --> AgentReg
     end
 
     SessionSvc --> DB[(PostgreSQL)]
@@ -248,10 +278,11 @@ sequenceDiagram
 |---|---|---|
 | Phase 1 基础主链路 | ✅ 已完成 | WS/RPC、Session/Run/Message 持久化、流式输出、基础前端对话已落地 |
 | Phase 2 ReAct + 工具 | ✅ 已完成（并扩展） | Function Calling、多步循环、HITL、工具事件、异步 shell 工具族已落地 |
-| Phase 3 Skills | ✅ 高完成度 | 解析/Gating/注册/热更新/索引/选择/RPC/前端列表详情已落地 |
-| Phase 4 Memory | ✅ 高完成度 | 全局记忆存储、索引、检索、status/rebuild RPC、预压缩 flush 已落地 |
-| Phase 5 Cron + 客户端完善 | ⏳ 部分进行中 | 前端设置页持续完善；Cron/CLI 未在当前代码中看到完整落地 |
+| Phase 3 Skills | ✅ 已完成 | 解析/Gating/注册/热更新/索引/选择/RPC/前端列表详情已落地 |
+| Phase 4 Memory | ✅ 已完成 | 全局记忆存储、索引、检索、status/rebuild RPC、预压缩 flush 已落地 |
+| Phase 5 自动化 + 客户端 | ✅ 已完成 | Cron 定时任务、渠道推送（邮件/Webhook）、远程节点管理、审计日志、设置页已落地 |
 | Phase SA SubAgent | ✅ 已完成 | spawn/announce/barrier/双层队列/前端面板/会话隔离已落地 |
+| 附加功能 | ✅ 已完成 | 会话自动命名、文件生成预览面板（ArtifactPanel）、多 Agent 身份配置 |
 
 ---
 
@@ -343,17 +374,148 @@ Session Lane（内层）
 
 ---
 
+## 7A. 定时任务与渠道推送
+
+### 7A.1 Schedule（定时任务）
+
+| 组件 | 职责 |
+|------|------|
+| `ScheduledTaskEntity` | JPA 实体，含 cronExpr、prompt、channelId、执行状态等字段 |
+| `ScheduledTaskService` | 核心调度服务：加载/创建/删除/切换/手动运行任务，Spring `TaskScheduler` + `CronTrigger` |
+| `ScheduledTaskExecutor` | 任务执行器：创建无头会话、执行 Agent 循环、通过 ChannelService 推送结果 |
+
+- Cron 表达式支持 Unix 5段格式，自动转换为 Spring 6段格式
+- 每个定时任务创建独立会话（`session_kind=scheduled`），不显示在 UI 侧边栏
+- 执行结果追踪：`lastRunAt`、`lastRunSuccess`、`lastRunError`
+
+### 7A.2 Channel（渠道管理）
+
+| 渠道类型 | 实现 |
+|----------|------|
+| Email | SMTP 发送，支持 TLS、HTML/纯文本转换、连接测试 |
+| Webhook | HTTP POST/PUT，支持自定义 Header、签名密钥、30秒超时 |
+
+- 凭据全程加密：`CredentialCipher`（AES + IV），日志中不可见
+- 渠道解析优先级：精确名称匹配 → 类型匹配 → 兜底
+
+### 7A.3 RPC 接口
+
+```
+schedule.list / schedule.create / schedule.delete / schedule.toggle / schedule.run
+channel.list / channel.create / channel.delete / channel.test
+```
+
+---
+
+## 7B. 远程节点管理与审计
+
+### 7B.1 NodeConsole（远程节点）
+
+| 组件 | 职责 |
+|------|------|
+| `NodeService` | 节点注册/更新/删除/列表/测试连接/执行命令 |
+| `ConnectorFactory` | 工厂模式，按连接器类型（ssh/k8s）返回实例 |
+| `SshConnector` | SSH 远程执行（基于 JSch） |
+| `K8sConnector` | Kubernetes 集群命令执行 |
+| `RemoteCommandClassifier` | 命令安全等级分类 |
+
+- 安全策略：`strict` / `relaxed`，影响 HITL 确认行为
+- 凭据加密：与 Channel 共用 `CredentialCipher`
+- 输出截断：可配置最大输出长度
+
+### 7B.2 AuditLog（审计日志）
+
+| 字段 | 说明 |
+|------|------|
+| `eventType` | 事件类型 |
+| `nodeAlias` / `command` | 执行目标与命令 |
+| `safetyLevel` / `safetyPolicy` | 安全等级与策略 |
+| `hitlRequired` / `hitlDecision` | 人工确认状态 |
+| `resultStatus` / `durationMs` | 执行结果与耗时 |
+
+- 全链路审计：记录每次远程命令的完整上下文
+- 分页查询 + 多条件过滤（节点、事件类型、安全等级、结果状态）
+
+### 7B.3 RPC 接口
+
+```
+node.list / node.register / node.update / node.delete / node.test
+audit.list
+```
+
+---
+
+## 7C. Agent 身份配置
+
+### 7C.1 核心模型
+
+| 组件 | 职责 |
+|------|------|
+| `AgentRegistry` | Agent 身份注册表，启动时加载所有 Profile |
+| `AgentProfile` | 单个 Agent 配置：sandbox 级别、workspace、工具权限 |
+| `AgentsProperties` | 配置属性，从 `application.yml` 注入 |
+
+### 7C.2 Profile 配置项
+
+- `sandbox`：`trusted`（全权限） / `restricted`（受限）
+- `tools.allow[]`：工具白名单（空 = 全部允许）
+- `tools.deny[]`：工具黑名单（优先级高于 allow）
+- `canSpawn`：是否允许派生子代理
+
+### 7C.3 内置 Profile
+
+| Profile | Sandbox | 工具 | 可派生 |
+|---------|---------|------|--------|
+| `main` | trusted | 全部 | ✅ |
+| `restricted` | restricted | read_file, http_get, memory_search | ❌ |
+
+---
+
+## 7D. 文件生成预览面板（ArtifactPanel）
+
+### 7D.1 功能
+
+- **流式预览**：Agent 执行 `write_file` 时，前端实时渲染文件内容
+- **语言检测**：根据文件扩展名自动识别 13+ 种语言/格式
+- **双视图**：`code`（语法高亮源码）/ `preview`（渲染预览：HTML、SVG、Markdown、Mermaid）
+- **可拖拽调整**：面板宽度可拖拽，默认 560px
+
+### 7D.2 前端组件
+
+| 组件 | 职责 |
+|------|------|
+| `ArtifactPanel.vue` | 文件预览/编辑面板，支持多种渲染模式 |
+| `useArtifact.ts` | Composable：openArtifact / startStreaming / appendContent / setViewMode |
+
+### 7D.3 支持格式
+
+代码类：JavaScript、TypeScript、Python、Java、SQL、CSS、JSON
+标记类：HTML、Markdown、SVG
+图表类：Mermaid
+
+---
+
+## 7E. 会话自动命名
+
+当用户首次发送消息时，后端调用 LLM 根据消息内容自动生成简短的会话标题，前端侧边栏实时更新显示。
+
+---
+
 ## 8. 已知差异与待补项
 
-1. **Cron 模块差异**
-   - 设计文档与 README 提到 Cron 能力
-   - 当前 `src/main/java/com/jaguarliu/ai` 下未见 `cron` 相关实现目录
+1. **MCP 接入**
+   - 设计对标 OpenClaw 的 MCP (Model Context Protocol) 支持
+   - 当前状态：计划中，尚未启动开发
 
-2. **`memory_get` 差异**
+2. **Sandbox 执行**
+   - 安全隔离代码执行（如 Docker 容器内运行用户代码）
+   - 当前状态：计划中
+
+3. **`memory_get` 差异**
    - 设计中包含 `memory_get`
    - 当前工具实现可见 `memory_search` / `memory_write`，`memory_get` 未落地
 
-3. **手动 Slash Skill 触发链路待确认**
+4. **手动 Slash Skill 触发链路待确认**
    - `ContextBuilder` 提供 `buildSmart()`（含手动 `/skill` 解析）
    - `AgentRunHandler` 当前主路径使用 `buildMessages()`，需评估是否完全接入手动触发路径
 
@@ -368,16 +530,22 @@ Session Lane（内层）
 5. `src/main/java/com/jaguarliu/ai/skills/registry/SkillRegistry.java`（技能系统）
 6. `src/main/java/com/jaguarliu/ai/memory`（记忆系统）
 7. `src/main/java/com/jaguarliu/ai/subagent/SubagentService.java`（子代理编排）
-8. `miniclaw-ui/src/composables/useChat.ts`（前端事件编排 + SubAgent 面板控制）
+8. `src/main/java/com/jaguarliu/ai/agents/AgentRegistry.java`（Agent 身份配置）
+9. `src/main/java/com/jaguarliu/ai/schedule/ScheduledTaskService.java`（定时任务调度）
+10. `src/main/java/com/jaguarliu/ai/channel/ChannelService.java`（渠道推送）
+11. `src/main/java/com/jaguarliu/ai/nodeconsole/NodeService.java`（远程节点管理）
+12. `miniclaw-ui/src/composables/useChat.ts`（前端事件编排 + SubAgent 面板控制）
 
 ---
 
 ## 10. 使用建议
 
-当后续继续开发时，建议优先按以下顺序推进：
+MVP 功能已全部就绪，后续建议按以下方向推进：
 
-1. 补齐 `Phase 5` 的 Cron 与 CLI 最小闭环
-2. 对齐 `memory_get` 工具能力与系统提示/文档
-3. 核查并打通手动 `/skill` 在 `agent.run` 主链路的完整路径
-4. 增加端到端验证脚本（从 `agent.run` 到工具/HITL/记忆回写）
+1. **MCP (Model Context Protocol) 接入**：对标 OpenClaw，允许外部工具通过标准协议注册和调用
+2. **Sandbox 安全执行**：为用户代码提供隔离运行环境（Docker / 进程沙箱）
+3. **对齐 `memory_get`**：补齐精确记忆读取工具，与 `memory_search` / `memory_write` 形成完整三件套
+4. **核查手动 `/skill` 触发链路**：确认 `buildSmart()` 在 `agent.run` 主路径中完全接入
+5. **端到端验证脚本**：从 `agent.run` 到工具/HITL/记忆回写的完整自动化测试
+6. **更多内置技能**：丰富 `workspace/.miniclaw/skills/` 技能库
 
