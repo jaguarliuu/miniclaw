@@ -2,7 +2,7 @@ package com.jaguarliu.ai.memory.search;
 
 import com.jaguarliu.ai.memory.MemoryProperties;
 import com.jaguarliu.ai.memory.embedding.EmbeddingModel;
-import com.jaguarliu.ai.memory.index.MemoryChunkRepository;
+import com.jaguarliu.ai.memory.index.MemoryChunkSearchOps;
 import com.jaguarliu.ai.memory.index.MemoryIndexer;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 class MemorySearchServiceTest {
 
     @Mock
-    private MemoryChunkRepository chunkRepository;
+    private MemoryChunkSearchOps searchOps;
 
     @Mock
     private MemoryIndexer indexer;
@@ -75,13 +75,13 @@ class MemorySearchServiceTest {
             List<Object[]> ftsRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content1", 0.8}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test query");
 
             assertEquals(1, results.size());
             assertEquals("fts", results.get(0).getSource());
-            verify(chunkRepository, never()).searchByVector(anyString(), anyInt());
+            verify(searchOps, never()).searchByVector(anyString(), anyInt());
         }
 
         @Test
@@ -96,12 +96,12 @@ class MemorySearchServiceTest {
             List<Object[]> vectorRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "vector content", 0.9}
             );
-            when(chunkRepository.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
+            when(searchOps.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
 
             List<Object[]> ftsRows = rows(
                     new Object[]{"id2", "test.md", 20, 30, "fts content", 0.7}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test query");
 
@@ -124,12 +124,12 @@ class MemorySearchServiceTest {
             List<Object[]> vectorRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content", 0.9}
             );
-            when(chunkRepository.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
+            when(searchOps.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
 
             List<Object[]> ftsRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content", 0.7}  // 相同位置
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test");
 
@@ -152,8 +152,8 @@ class MemorySearchServiceTest {
                     new Object[]{"id1", "test.md", 1, 10, "high", 0.8},
                     new Object[]{"id2", "test.md", 20, 30, "low", 0.3}  // 低于阈值
             );
-            when(chunkRepository.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(List.of());
+            when(searchOps.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(List.of());
 
             List<SearchResult> results = searchService.search("test");
 
@@ -173,7 +173,7 @@ class MemorySearchServiceTest {
                     new Object[]{"id3", "c.md", 1, 10, "c3", 0.7},
                     new Object[]{"id4", "d.md", 1, 10, "c4", 0.6}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test");
 
@@ -192,7 +192,7 @@ class MemorySearchServiceTest {
             List<Object[]> ftsRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "fts result", 0.7}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test");
 
@@ -210,7 +210,7 @@ class MemorySearchServiceTest {
             List<Object[]> ftsRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, longContent, 0.7}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(ftsRows);
 
             List<SearchResult> results = searchService.search("test");
 
@@ -248,7 +248,7 @@ class MemorySearchServiceTest {
             List<Object[]> rowList = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content", 0.85}
             );
-            when(chunkRepository.searchByVector(anyString(), eq(5))).thenReturn(rowList);
+            when(searchOps.searchByVector(anyString(), eq(5))).thenReturn(rowList);
 
             List<SearchResult> results = searchService.searchByVectorOnly("test", 5);
 
@@ -284,7 +284,7 @@ class MemorySearchServiceTest {
             List<Object[]> rowList = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content", 0.75}
             );
-            when(chunkRepository.searchByFts("keyword", 10)).thenReturn(rowList);
+            when(searchOps.searchByFts("keyword", 10)).thenReturn(rowList);
 
             List<SearchResult> results = searchService.searchByFtsOnly("keyword", 10);
 
@@ -299,7 +299,7 @@ class MemorySearchServiceTest {
                     new Object[]{"id1", "a.md", 1, 10, "c", 1.5},  // > 1
                     new Object[]{"id2", "b.md", 1, 10, "c", -0.1}  // < 0
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(rowList);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(rowList);
 
             List<SearchResult> results = searchService.searchByFtsOnly("test", 10);
 
@@ -311,7 +311,7 @@ class MemorySearchServiceTest {
         @Test
         @DisplayName("无结果时返回空列表")
         void returnsEmptyWhenNoResults() {
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(List.of());
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(List.of());
 
             List<SearchResult> results = searchService.searchByFtsOnly("nonexistent", 10);
 
@@ -406,8 +406,8 @@ class MemorySearchServiceTest {
             List<Object[]> vectorRows = rows(
                     new Object[]{"id1", "test.md", 1, 10, "content", 0.9}
             );
-            when(chunkRepository.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
-            when(chunkRepository.searchByFts(anyString(), anyInt()))
+            when(searchOps.searchByVector(anyString(), anyInt())).thenReturn(vectorRows);
+            when(searchOps.searchByFts(anyString(), anyInt()))
                     .thenThrow(new RuntimeException("FTS error"));
 
             List<SearchResult> results = searchService.search("test");
@@ -425,7 +425,7 @@ class MemorySearchServiceTest {
             when(mockModel.embed(anyString())).thenThrow(new RuntimeException("Embed error"));
             when(indexer.getEmbeddingModel()).thenReturn(mockModel);
 
-            when(chunkRepository.searchByFts(anyString(), anyInt()))
+            when(searchOps.searchByFts(anyString(), anyInt()))
                     .thenThrow(new RuntimeException("FTS error"));
 
             List<SearchResult> results = searchService.search("test");
@@ -441,7 +441,7 @@ class MemorySearchServiceTest {
             List<Object[]> rowList = rows(
                     new Object[]{"id1", "test.md", 1, 10, null, 0.7}
             );
-            when(chunkRepository.searchByFts(anyString(), anyInt())).thenReturn(rowList);
+            when(searchOps.searchByFts(anyString(), anyInt())).thenReturn(rowList);
 
             List<SearchResult> results = searchService.search("test");
 

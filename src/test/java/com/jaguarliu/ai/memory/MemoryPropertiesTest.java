@@ -281,9 +281,9 @@ class MemoryPropertiesTest {
         }
 
         @Test
-        @DisplayName("tokenThreshold 默认值为 6000")
+        @DisplayName("tokenThreshold 默认值为 80000")
         void defaultTokenThreshold() {
-            assertEquals(6000, properties.getFlush().getTokenThreshold());
+            assertEquals(80000, properties.getFlush().getTokenThreshold());
         }
 
         @Test

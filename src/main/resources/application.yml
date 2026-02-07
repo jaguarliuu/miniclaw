@@ -1,17 +1,8 @@
 spring:
   application:
     name: miniclaw
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/miniclaw
-    username: miniclaw
-    password: miniclaw
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      minimum-idle: 5
-      maximum-pool-size: 10
-      auto-commit: true
-      connection-timeout: 30000
+  profiles:
+    default: sqlite
 
   jpa:
     hibernate:
@@ -20,11 +11,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
     baseline-on-migrate: true
 
 server:

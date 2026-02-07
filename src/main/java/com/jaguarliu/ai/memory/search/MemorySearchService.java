@@ -2,7 +2,7 @@ package com.jaguarliu.ai.memory.search;
 
 import com.jaguarliu.ai.memory.MemoryProperties;
 import com.jaguarliu.ai.memory.embedding.EmbeddingModel;
-import com.jaguarliu.ai.memory.index.MemoryChunkRepository;
+import com.jaguarliu.ai.memory.index.MemoryChunkSearchOps;
 import com.jaguarliu.ai.memory.index.MemoryIndexer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MemorySearchService {
 
-    private final MemoryChunkRepository chunkRepository;
+    private final MemoryChunkSearchOps searchOps;
     private final MemoryIndexer indexer;
     private final MemoryProperties properties;
 
@@ -132,7 +132,7 @@ public class MemorySearchService {
         String vectorStr = formatVector(queryVector);
 
         // 执行检索
-        List<Object[]> rows = chunkRepository.searchByVector(vectorStr, topK);
+        List<Object[]> rows = searchOps.searchByVector(vectorStr, topK);
         int snippetMax = properties.getSearch().getSnippetMaxChars();
 
         return rows.stream()
@@ -151,7 +151,7 @@ public class MemorySearchService {
      * 全文检索实现
      */
     private List<SearchResult> searchByFts(String query, int topK) {
-        List<Object[]> rows = chunkRepository.searchByFts(query, topK);
+        List<Object[]> rows = searchOps.searchByFts(query, topK);
         int snippetMax = properties.getSearch().getSnippetMaxChars();
 
         return rows.stream()

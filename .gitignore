@@ -38,3 +38,5 @@ workspace/
 nul
 
 *.tar.gz
+
+miniclaw.db

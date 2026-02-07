@@ -39,6 +39,7 @@ public class MemoryIndexer {
     private final MemoryStore memoryStore;
     private final MemoryChunker chunker;
     private final MemoryChunkRepository chunkRepository;
+    private final MemoryChunkSearchOps searchOps;
     private final EmbeddingModelFactory embeddingFactory;
     private final MemoryProperties properties;
 
@@ -154,7 +155,7 @@ public class MemoryIndexer {
             return 0;
         }
 
-        List<Object[]> pendingRows = chunkRepository.findChunksWithoutEmbedding(batchSize);
+        List<Object[]> pendingRows = searchOps.findChunksWithoutEmbedding(batchSize);
         if (pendingRows.isEmpty()) {
             return 0;
         }
@@ -171,7 +172,7 @@ public class MemoryIndexer {
 
             for (int i = 0; i < ids.size() && i < vectors.size(); i++) {
                 String vectorStr = formatVector(vectors.get(i));
-                chunkRepository.updateEmbedding(ids.get(i), vectorStr);
+                searchOps.updateEmbedding(ids.get(i), vectorStr);
             }
 
             log.info("Generated embeddings for {} pending chunks", ids.size());
@@ -204,7 +205,7 @@ public class MemoryIndexer {
 
                 for (int j = 0; j < batch.size() && j < vectors.size(); j++) {
                     String vectorStr = formatVector(vectors.get(j));
-                    chunkRepository.updateEmbedding(batch.get(j).getId(), vectorStr);
+                    searchOps.updateEmbedding(batch.get(j).getId(), vectorStr);
                 }
 
                 log.debug("Generated embeddings for batch {}-{}", i, end);
@@ -241,8 +242,8 @@ public class MemoryIndexer {
      * 获取索引状态
      */
     public IndexStatus getStatus() {
-        long total = chunkRepository.countTotal();
-        long withEmbedding = vectorSearchEnabled ? chunkRepository.countWithEmbedding() : 0;
+        long total = searchOps.countTotal();
+        long withEmbedding = vectorSearchEnabled ? searchOps.countWithEmbedding() : 0;
 
         return new IndexStatus(
                 total,

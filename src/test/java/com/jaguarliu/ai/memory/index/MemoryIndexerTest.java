@@ -41,6 +41,9 @@ class MemoryIndexerTest {
     private MemoryChunkRepository chunkRepository;
 
     @Mock
+    private MemoryChunkSearchOps searchOps;
+
+    @Mock
     private EmbeddingModelFactory embeddingFactory;
 
     @Spy
@@ -187,7 +190,7 @@ class MemoryIndexerTest {
             indexer.indexFile("test.md");
 
             verify(embeddingModel).embed(anyList());
-            verify(chunkRepository).updateEmbedding(anyString(), anyString());
+            verify(searchOps).updateEmbedding(anyString(), anyString());
         }
 
         @Test
@@ -290,7 +293,7 @@ class MemoryIndexerTest {
             when(embeddingFactory.create()).thenReturn(NoOpEmbeddingModel.INSTANCE);
             indexer.init();
 
-            when(chunkRepository.countTotal()).thenReturn(100L);
+            when(searchOps.countTotal()).thenReturn(100L);
 
             MemoryIndexer.IndexStatus status = indexer.getStatus();
 
@@ -309,8 +312,8 @@ class MemoryIndexerTest {
             when(embeddingFactory.create()).thenReturn(mockModel);
             indexer.init();
 
-            when(chunkRepository.countTotal()).thenReturn(100L);
-            when(chunkRepository.countWithEmbedding()).thenReturn(80L);
+            when(searchOps.countTotal()).thenReturn(100L);
+            when(searchOps.countWithEmbedding()).thenReturn(80L);
 
             MemoryIndexer.IndexStatus status = indexer.getStatus();
 
@@ -337,7 +340,7 @@ class MemoryIndexerTest {
             int result = indexer.indexPendingEmbeddings(10);
 
             assertEquals(0, result);
-            verify(chunkRepository, never()).findChunksWithoutEmbedding(anyInt());
+            verify(searchOps, never()).findChunksWithoutEmbedding(anyInt());
         }
 
         @Test
@@ -349,7 +352,7 @@ class MemoryIndexerTest {
             when(embeddingFactory.create()).thenReturn(mockModel);
             indexer.init();
 
-            when(chunkRepository.findChunksWithoutEmbedding(10)).thenReturn(List.of());
+            when(searchOps.findChunksWithoutEmbedding(10)).thenReturn(List.of());
 
             int result = indexer.indexPendingEmbeddings(10);
 
@@ -373,12 +376,12 @@ class MemoryIndexerTest {
                     new Object[]{"id1", "path", 1, 10, "content1"},
                     new Object[]{"id2", "path", 11, 20, "content2"}
             );
-            when(chunkRepository.findChunksWithoutEmbedding(10)).thenReturn(pendingRows);
+            when(searchOps.findChunksWithoutEmbedding(10)).thenReturn(pendingRows);
 
             int result = indexer.indexPendingEmbeddings(10);
 
             assertEquals(2, result);
-            verify(chunkRepository, times(2)).updateEmbedding(anyString(), anyString());
+            verify(searchOps, times(2)).updateEmbedding(anyString(), anyString());
         }
     }
 

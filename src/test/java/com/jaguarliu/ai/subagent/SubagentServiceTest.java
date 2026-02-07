@@ -52,6 +52,7 @@ class SubagentServiceTest {
     @Mock private LoopConfig loopConfig;
     @Mock private CancellationManager cancellationManager;
     @Mock private SubagentAnnounceService announceService;
+    @Mock private SubagentCompletionTracker completionTracker;
 
     private SubagentService subagentService;
 
@@ -68,7 +69,8 @@ class SubagentServiceTest {
                 eventBus,
                 loopConfig,
                 cancellationManager,
-                announceService
+                announceService,
+                completionTracker
         );
     }
 
