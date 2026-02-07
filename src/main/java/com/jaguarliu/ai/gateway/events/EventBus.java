@@ -11,6 +11,8 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
+
 /**
  * 事件总线
  * 负责 Agent 事件的发布和订阅
@@ -29,6 +31,13 @@ public class EventBus {
     private final Sinks.Many<AgentEvent> sink = Sinks.many().multicast().onBackpressureBuffer();
 
     /**
+     * 多线程安全的 EmitFailureHandler
+     * 当并发线程同时 emit 导致 FAIL_NON_SERIALIZED 时自旋重试
+     */
+    private static final Sinks.EmitFailureHandler RETRY_NON_SERIALIZED =
+            Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1));
+
+    /**
      * 发布事件
      */
     public void publish(AgentEvent event) {
@@ -39,7 +48,8 @@ public class EventBus {
         pushToConnection(event);
 
         // 同时发布到全局流（供其他订阅者使用）
-        sink.emitNext(event, Sinks.EmitFailureHandler.FAIL_FAST);
+        // 使用 busyLooping 策略处理多线程并发 emit（subagent 并行场景）
+        sink.emitNext(event, RETRY_NON_SERIALIZED);
     }
 
     /**

@@ -32,7 +32,7 @@ public class SessionListHandler implements RpcHandler {
     @Override
     public Mono<RpcResponse> handle(String connectionId, RpcRequest request) {
         return Mono.fromCallable(() -> {
-            List<SessionEntity> sessions = sessionService.list();
+            List<SessionEntity> sessions = sessionService.listMainSessions();
             List<Map<String, Object>> sessionDtos = sessions.stream()
                     .map(this::toSessionDto)
                     .toList();

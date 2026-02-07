@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,6 +47,7 @@ public class SubagentService {
     private final LoopConfig loopConfig;
     private final CancellationManager cancellationManager;
     private final SubagentAnnounceService announceService;
+    private final SubagentCompletionTracker completionTracker;
 
     /**
      * 派生子代理
@@ -115,7 +117,10 @@ public class SubagentService {
                     LaneAwareQueueManager.LANE_SUBAGENT
             ));
 
-            // 8. 提交到 subagent lane 异步执行
+            // 8. 注册完成跟踪（在提交执行之前，确保 future 存在于 tracker 中）
+            completionTracker.register(subRun.getId());
+
+            // 9. 提交到 subagent lane 异步执行
             long sequence = queueManager.nextSequence(subSession.getId());
             queueManager.submit(
                     subSession.getId(),
@@ -194,6 +199,12 @@ public class SubagentService {
                 announceService.announce(connectionId, subRun, subSession, response, null, startTime);
             }
 
+            // 9. 完成跟踪 future（通知主循环）
+            long durationMs = Duration.between(startTime, LocalDateTime.now()).toMillis();
+            completionTracker.complete(runId, new SubagentCompletionTracker.SubagentResult(
+                    runId, task, "completed", response, null, durationMs
+            ));
+
             log.info("Subagent run completed: runId={}, response length={}", runId, response.length());
 
         } catch (java.util.concurrent.CancellationException e) {
@@ -234,6 +245,14 @@ public class SubagentService {
         if (request.isAnnounce()) {
             announceService.announce(connectionId, subRun, subSession, null, errorMessage, startTime);
         }
+
+        // 完成跟踪 future（通知主循环）
+        long durationMs = startTime != null
+                ? Duration.between(startTime, LocalDateTime.now()).toMillis()
+                : 0;
+        completionTracker.complete(subRun.getId(), new SubagentCompletionTracker.SubagentResult(
+                subRun.getId(), request.getTask(), "failed", null, errorMessage, durationMs
+        ));
     }
 
     /**

@@ -8,6 +8,7 @@ import com.jaguarliu.ai.llm.model.ToolCall;
 import com.jaguarliu.ai.memory.flush.PreCompactionFlushHook;
 import com.jaguarliu.ai.skills.selector.SkillSelector;
 import com.jaguarliu.ai.skills.selector.SkillSelection;
+import com.jaguarliu.ai.subagent.SubagentCompletionTracker;
 import com.jaguarliu.ai.tools.ToolDispatcher;
 import com.jaguarliu.ai.tools.ToolExecutionContext;
 import com.jaguarliu.ai.tools.ToolRegistry;
@@ -21,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -47,6 +50,7 @@ public class AgentRuntime {
     private final ContextBuilder contextBuilder;
     private final SkillSelector skillSelector;
     private final PreCompactionFlushHook flushHook;
+    private final SubagentCompletionTracker subagentCompletionTracker;
 
     /**
      * 执行 ReAct 多步循环
@@ -142,6 +146,9 @@ public class AgentRuntime {
                 context.getRunId(), context.getConfig().getMaxSteps(),
                 context.getConfig().getRunTimeoutSeconds());
 
+        // 跟踪本次运行中 spawn 的子代理 subRunId（用于屏障等待）
+        List<String> pendingSubRunIds = new ArrayList<>();
+
         while (!context.isMaxStepsReached()) {
             // 检查取消
             if (context.isAborted()) {
@@ -203,6 +210,26 @@ public class AgentRuntime {
                     }
                 }
 
+                // ===== SubAgent 屏障：等待所有已 spawn 的子代理完成 =====
+                if (!pendingSubRunIds.isEmpty() && context.isMain()) {
+                    log.info("Waiting for {} pending subagents before loop exit: runId={}",
+                            pendingSubRunIds.size(), context.getRunId());
+
+                    // 先将 LLM 的中间回复加入消息历史
+                    messages.add(LlmRequest.Message.assistant(result.content()));
+
+                    // 等待所有子代理完成，收集结果
+                    String subagentResultsSummary = waitForPendingSubagents(pendingSubRunIds, context);
+                    pendingSubRunIds.clear();
+
+                    // 将子代理结果作为用户消息注入，让 LLM 在下一轮总结
+                    messages.add(LlmRequest.Message.user(subagentResultsSummary));
+
+                    log.info("Subagent results injected, continuing loop for summary: runId={}",
+                            context.getRunId());
+                    continue;
+                }
+
                 // 正常结束
                 messages.add(LlmRequest.Message.assistant(result.content()));
                 log.info("Loop completed normally: runId={}, steps={}",
@@ -219,6 +246,16 @@ public class AgentRuntime {
             for (ToolCall toolCall : result.toolCalls()) {
                 ToolResult toolResult = executeToolCall(context, toolCall);
                 messages.add(LlmRequest.Message.toolResult(toolCall.getId(), toolResult.getContent()));
+
+                // 跟踪 sessions_spawn 结果中的 subRunId
+                if ("sessions_spawn".equals(toolCall.getName()) && toolResult.isSuccess()) {
+                    String subRunId = parseSubRunIdFromToolResult(toolResult.getContent());
+                    if (subRunId != null) {
+                        pendingSubRunIds.add(subRunId);
+                        log.info("Tracked spawned subagent: subRunId={}, runId={}",
+                                subRunId, context.getRunId());
+                    }
+                }
             }
 
             // 增加步数并发布事件
@@ -437,6 +474,110 @@ public class AgentRuntime {
         }
 
         ToolExecutionContext.set(builder.build());
+    }
+
+    // ==================== SubAgent 屏障辅助方法 ====================
+
+    /**
+     * 等待所有已 spawn 的子代理完成，并构建结果摘要
+     *
+     * @param subRunIds 待等待的子运行 ID 列表
+     * @param context   当前运行上下文
+     * @return 格式化的子代理结果摘要（注入到 LLM 上下文中）
+     */
+    private String waitForPendingSubagents(List<String> subRunIds, RunContext context) {
+        long remainingSeconds = context.getConfig().getRunTimeoutSeconds() - context.getElapsedSeconds();
+        long waitTimeoutSeconds = Math.max(30, Math.min(remainingSeconds, 600));
+
+        List<SubagentCompletionTracker.SubagentResult> results = new ArrayList<>();
+
+        for (String subRunId : subRunIds) {
+            if (context.isAborted()) {
+                log.info("Subagent barrier aborted by cancellation: runId={}", context.getRunId());
+                break;
+            }
+
+            CompletableFuture<SubagentCompletionTracker.SubagentResult> future =
+                    subagentCompletionTracker.getFuture(subRunId);
+
+            if (future == null) {
+                log.warn("No completion future for subRunId={}, skipping", subRunId);
+                results.add(new SubagentCompletionTracker.SubagentResult(
+                        subRunId, "unknown", "unknown", null, "Completion tracking lost", 0));
+                continue;
+            }
+
+            try {
+                SubagentCompletionTracker.SubagentResult result =
+                        future.get(waitTimeoutSeconds, TimeUnit.SECONDS);
+                results.add(result);
+                log.info("Subagent completed: subRunId={}, status={}", subRunId, result.status());
+            } catch (TimeoutException e) {
+                log.warn("Timed out waiting for subagent: subRunId={}", subRunId);
+                results.add(new SubagentCompletionTracker.SubagentResult(
+                        subRunId, "unknown", "timeout", null, "Timed out waiting for result", 0));
+            } catch (Exception e) {
+                log.error("Error waiting for subagent: subRunId={}", subRunId, e);
+                results.add(new SubagentCompletionTracker.SubagentResult(
+                        subRunId, "unknown", "error", null, "Error: " + e.getMessage(), 0));
+            }
+        }
+
+        return formatSubagentResults(results);
+    }
+
+    /**
+     * 将子代理结果格式化为 LLM 可读的消息
+     */
+    private String formatSubagentResults(List<SubagentCompletionTracker.SubagentResult> results) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[All spawned SubAgents have completed. Here are their results:]\n\n");
+
+        for (int i = 0; i < results.size(); i++) {
+            SubagentCompletionTracker.SubagentResult r = results.get(i);
+            sb.append("--- SubAgent ").append(i + 1).append(" ---\n");
+            sb.append("Task: ").append(r.task() != null ? r.task() : "unknown").append("\n");
+            sb.append("Status: ").append(r.status()).append("\n");
+
+            if (r.isSuccess() && r.result() != null) {
+                // 截取结果避免上下文过长
+                String resultText = r.result().length() > 2000
+                        ? r.result().substring(0, 1997) + "..."
+                        : r.result();
+                sb.append("Result:\n").append(resultText).append("\n");
+            }
+
+            if (!r.isSuccess() && r.error() != null) {
+                sb.append("Error: ").append(r.error()).append("\n");
+            }
+
+            sb.append("\n");
+        }
+
+        sb.append("Please summarize the above subagent results for the user. ");
+        sb.append("If any subagent failed, explain what happened. ");
+        sb.append("Provide a clear, consolidated response.");
+
+        return sb.toString();
+    }
+
+    /**
+     * 从 sessions_spawn 工具结果 JSON 中解析 subRunId
+     */
+    private String parseSubRunIdFromToolResult(String resultContent) {
+        if (resultContent == null || resultContent.isBlank()) return null;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = mapper.readValue(resultContent, Map.class);
+            Object accepted = map.get("accepted");
+            if (Boolean.TRUE.equals(accepted)) {
+                return (String) map.get("subRunId");
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse subRunId from tool result: {}", resultContent, e);
+        }
+        return null;
     }
 
     /**
