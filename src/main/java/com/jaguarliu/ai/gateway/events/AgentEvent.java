@@ -227,12 +227,14 @@ public class AgentEvent {
      * 创建 subagent.spawned 事件（子代理已派生）
      */
     public static AgentEvent subagentSpawned(String connectionId, String parentRunId,
-                                              String subRunId, String subSessionId, String sessionKey) {
+                                              String subRunId, String subSessionId,
+                                              String sessionKey, String agentId,
+                                              String task, String lane) {
         return AgentEvent.builder()
                 .type(EventType.SUBAGENT_SPAWNED)
                 .connectionId(connectionId)
                 .runId(parentRunId)
-                .data(new SubagentSpawnedData(subRunId, subSessionId, sessionKey))
+                .data(new SubagentSpawnedData(subRunId, subSessionId, sessionKey, agentId, task, lane))
                 .build();
     }
 
@@ -252,13 +254,17 @@ public class AgentEvent {
      * 创建 subagent.announced 事件（子代理完成并回传结果）
      */
     public static AgentEvent subagentAnnounced(String connectionId, String parentRunId,
-                                                String subRunId, String subSessionId, String sessionKey,
-                                                String result, String error) {
+                                                String subRunId, String subSessionId,
+                                                String sessionKey, String agentId,
+                                                String task, String status,
+                                                String result, String error,
+                                                long durationMs) {
         return AgentEvent.builder()
                 .type(EventType.SUBAGENT_ANNOUNCED)
                 .connectionId(connectionId)
                 .runId(parentRunId)
-                .data(new SubagentAnnouncedData(subRunId, subSessionId, sessionKey, result, error))
+                .data(new SubagentAnnouncedData(subRunId, subSessionId, sessionKey,
+                        agentId, task, status, result, error, durationMs))
                 .build();
     }
 
@@ -266,12 +272,13 @@ public class AgentEvent {
      * 创建 subagent.failed 事件（子代理执行失败）
      */
     public static AgentEvent subagentFailed(String connectionId, String parentRunId,
-                                             String subRunId, String error) {
+                                             String subRunId, String agentId,
+                                             String task, String error) {
         return AgentEvent.builder()
                 .type(EventType.SUBAGENT_FAILED)
                 .connectionId(connectionId)
                 .runId(parentRunId)
-                .data(new SubagentFailedData(subRunId, error))
+                .data(new SubagentFailedData(subRunId, agentId, task, error))
                 .build();
     }
 
@@ -281,6 +288,9 @@ public class AgentEvent {
         private String subRunId;
         private String subSessionId;
         private String sessionKey;
+        private String agentId;
+        private String task;
+        private String lane;
     }
 
     @Data
@@ -295,14 +305,20 @@ public class AgentEvent {
         private String subRunId;
         private String subSessionId;
         private String sessionKey;
+        private String agentId;
+        private String task;
+        private String status;
         private String result;
         private String error;
+        private long durationMs;
     }
 
     @Data
     @AllArgsConstructor
     public static class SubagentFailedData {
         private String subRunId;
+        private String agentId;
+        private String task;
         private String error;
     }
 }

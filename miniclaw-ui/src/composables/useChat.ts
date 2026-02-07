@@ -11,7 +11,12 @@ import type {
   ToolResultPayload,
   ToolConfirmRequestPayload,
   SkillActivatedPayload,
-  SkillActivation
+  SkillActivation,
+  SubagentInfo,
+  SubagentSpawnedPayload,
+  SubagentStartedPayload,
+  SubagentAnnouncedPayload,
+  SubagentFailedPayload
 } from '@/types'
 
 const sessions = ref<Session[]>([])
@@ -26,6 +31,12 @@ const streamBlocks = ref<StreamBlock[]>([])
 // 工具调用索引（用于快速查找和更新）- 使用普通对象避免 Map 的响应式问题
 const toolCallIndex = ref<Record<string, ToolCall>>({})
 
+// 子代理索引（subRunId -> SubagentInfo）
+const subagentIndex = ref<Record<string, SubagentInfo>>({})
+
+// 右侧面板当前选中的 subagent
+const activeSubagentId = ref<string | null>(null)
+
 // 事件监听器清理函数
 let eventCleanups: (() => void)[] = []
 let isSetup = false
@@ -36,6 +47,54 @@ const { request, onEvent } = useWebSocket()
 const currentSession = computed(() =>
   sessions.value.find((s) => s.id === currentSessionId.value) ?? null
 )
+
+// 当前选中的 subagent（从 subagentIndex 或已保存 messages 的 blocks 中查找）
+const activeSubagent = computed<SubagentInfo | null>(() => {
+  const id = activeSubagentId.value
+  if (!id) return null
+  // 优先从当前流式 subagentIndex 中查找
+  if (subagentIndex.value[id]) return subagentIndex.value[id]
+  // 再从已保存消息的 blocks 中查找
+  for (const msg of messages.value) {
+    if (msg.blocks) {
+      for (const block of msg.blocks) {
+        if (block.type === 'subagent' && block.subagent?.subRunId === id) {
+          return block.subagent
+        }
+      }
+    }
+  }
+  return null
+})
+
+// 收集所有已知 subagent 子会话 ID（用于侧边栏过滤）
+const subagentSessionIds = computed<Set<string>>(() => {
+  const ids = new Set<string>()
+  // 从 subagentIndex 收集
+  for (const info of Object.values(subagentIndex.value)) {
+    if (info.subSessionId) ids.add(info.subSessionId)
+  }
+  // 从已保存消息的 blocks 中收集
+  for (const msg of messages.value) {
+    if (msg.blocks) {
+      for (const block of msg.blocks) {
+        if (block.type === 'subagent' && block.subagent?.subSessionId) {
+          ids.add(block.subagent.subSessionId)
+        }
+      }
+    }
+  }
+  return ids
+})
+
+// 过滤掉 subagent 子会话的会话列表
+const filteredSessions = computed(() =>
+  sessions.value.filter(s => !subagentSessionIds.value.has(s.id))
+)
+
+function setActiveSubagent(id: string | null) {
+  activeSubagentId.value = id
+}
 
 // Session API
 async function loadSessions() {
@@ -55,6 +114,7 @@ async function selectSession(sessionId: string) {
   currentRun.value = null
   streamBlocks.value = []
   toolCallIndex.value = {}
+  subagentIndex.value = {}
 
   // Load session messages
   await loadMessages(sessionId)
@@ -72,6 +132,7 @@ async function deleteSession(sessionId: string) {
       messages.value = []
       streamBlocks.value = []
       toolCallIndex.value = {}
+      subagentIndex.value = {}
       currentRun.value = null
     }
     console.log('[Chat] Deleted session:', sessionId)
@@ -84,7 +145,36 @@ async function deleteSession(sessionId: string) {
 async function loadMessages(sessionId: string) {
   try {
     const result = await request<{ messages: Message[] }>('message.list', { sessionId })
-    messages.value = result.messages
+    // 过滤 subagent_announce 消息，转化为带 SubagentCard 块的消息
+    messages.value = result.messages.map(msg => {
+      if (msg.role === 'assistant' && msg.content.startsWith('{"type":"subagent_announce"')) {
+        try {
+          const data = JSON.parse(msg.content)
+          const info: SubagentInfo = {
+            subRunId: data.subRunId,
+            subSessionId: data.subSessionId,
+            sessionKey: data.sessionKey || '',
+            agentId: data.agentId || '',
+            task: data.task || '',
+            lane: '',
+            status: data.status === 'completed' ? 'completed' : 'failed',
+            result: data.result,
+            error: data.error,
+            durationMs: data.durationMs,
+          }
+          return {
+            ...msg,
+            content: '',  // 清空原始 JSON
+            blocks: [{
+              id: `subagent-${info.subRunId}`,
+              type: 'subagent' as const,
+              subagent: info
+            }]
+          }
+        } catch { return msg }
+      }
+      return msg
+    })
   } catch (e) {
     console.error('Failed to load messages:', e)
     messages.value = []
@@ -119,6 +209,7 @@ async function sendMessage(prompt: string) {
   isStreaming.value = true
   streamBlocks.value = []
   toolCallIndex.value = {}
+  subagentIndex.value = {}
 
   try {
     const result = await request<{ runId: string; sessionId: string; status: string }>(
@@ -241,6 +332,44 @@ function createSkillBlock(activation: SkillActivation): StreamBlock {
 }
 
 /**
+ * 创建子代理块
+ */
+function createSubagentBlock(info: SubagentInfo): StreamBlock {
+  info.streamBlocks = []
+  info.toolCallIndex = {}
+  const block: StreamBlock = {
+    id: `subagent-${info.subRunId}`,
+    type: 'subagent',
+    subagent: info
+  }
+  streamBlocks.value.push(block)
+  subagentIndex.value[info.subRunId] = info
+  return block
+}
+
+/**
+ * 更新子代理块
+ */
+function updateSubagentBlock(subRunId: string, updater: (info: SubagentInfo) => void) {
+  const info = subagentIndex.value[subRunId]
+  if (info) {
+    updater(info)
+    return
+  }
+  // 也检查已保存的消息中的 subagent blocks
+  for (const msg of messages.value) {
+    if (msg.blocks) {
+      for (const block of msg.blocks) {
+        if (block.type === 'subagent' && block.subagent?.subRunId === subRunId) {
+          updater(block.subagent)
+          return
+        }
+      }
+    }
+  }
+}
+
+/**
  * 查找工具块并更新
  */
 function updateToolBlock(callId: string, updater: (toolCall: ToolCall) => void) {
@@ -248,6 +377,13 @@ function updateToolBlock(callId: string, updater: (toolCall: ToolCall) => void) 
   if (toolCall) {
     updater(toolCall)
   }
+}
+
+/**
+ * 根据 runId 查找对应的 subagent（subRunId === event.runId）
+ */
+function findSubagentByRunId(runId: string): SubagentInfo | undefined {
+  return subagentIndex.value[runId]
 }
 
 // Setup event listeners
@@ -266,6 +402,24 @@ function setupEventListeners() {
   eventCleanups.push(onEvent('assistant.delta', (event: RpcEvent) => {
     if (event.payload && typeof event.payload === 'object' && 'content' in event.payload) {
       const content = (event.payload as { content: string }).content
+
+      // 检查是否属于 subagent
+      const subagent = findSubagentByRunId(event.runId)
+      if (subagent && subagent.streamBlocks) {
+        const lastBlock = subagent.streamBlocks[subagent.streamBlocks.length - 1]
+        if (lastBlock && lastBlock.type === 'text') {
+          lastBlock.content = (lastBlock.content || '') + content
+        } else {
+          subagent.streamBlocks.push({
+            id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'text',
+            content
+          })
+        }
+        return
+      }
+
+      // 路由到主流
       const textBlock = getOrCreateTextBlock()
       textBlock.content = (textBlock.content || '') + content
     }
@@ -282,6 +436,21 @@ function setupEventListeners() {
         status: 'pending',
         requiresConfirm: true
       }
+
+      // 检查是否属于 subagent
+      const subagent = findSubagentByRunId(event.runId)
+      if (subagent && subagent.streamBlocks) {
+        subagent.streamBlocks.push({
+          id: `tool-${payload.callId}`,
+          type: 'tool',
+          toolCall
+        })
+        subagent.toolCallIndex![payload.callId] = toolCall
+        // 注意：confirm 仍需放入主 toolCallIndex 以便 confirmToolCall 能找到
+        toolCallIndex.value[payload.callId] = toolCall
+        return
+      }
+
       createToolBlock(toolCall)
     }
   }))
@@ -290,12 +459,35 @@ function setupEventListeners() {
   eventCleanups.push(onEvent('tool.call', (event: RpcEvent) => {
     const payload = event.payload as ToolCallPayload
     if (payload) {
+      // 检查是否属于 subagent
+      const subagent = findSubagentByRunId(event.runId)
+      if (subagent && subagent.streamBlocks) {
+        const existingCall = subagent.toolCallIndex?.[payload.callId]
+        if (existingCall) {
+          existingCall.status = 'executing'
+        } else {
+          const toolCall: ToolCall = {
+            callId: payload.callId,
+            toolName: payload.toolName,
+            arguments: payload.arguments,
+            status: 'executing',
+            requiresConfirm: false
+          }
+          subagent.streamBlocks.push({
+            id: `tool-${payload.callId}`,
+            type: 'tool',
+            toolCall
+          })
+          subagent.toolCallIndex![payload.callId] = toolCall
+        }
+        return
+      }
+
+      // 路由到主流
       const existingCall = toolCallIndex.value[payload.callId]
       if (existingCall) {
-        // 已存在（HITL 工具已确认），更新状态
         existingCall.status = 'executing'
       } else {
-        // 新工具调用（非 HITL 工具）
         const toolCall: ToolCall = {
           callId: payload.callId,
           toolName: payload.toolName,
@@ -312,6 +504,16 @@ function setupEventListeners() {
   eventCleanups.push(onEvent('tool.result', (event: RpcEvent) => {
     const payload = event.payload as ToolResultPayload
     if (payload) {
+      // 检查是否属于 subagent
+      const subagent = findSubagentByRunId(event.runId)
+      if (subagent && subagent.toolCallIndex?.[payload.callId]) {
+        const toolCall = subagent.toolCallIndex[payload.callId]
+        toolCall.status = payload.success ? 'success' : 'error'
+        toolCall.result = payload.content
+        return
+      }
+
+      // 路由到主流
       updateToolBlock(payload.callId, (toolCall) => {
         toolCall.status = payload.success ? 'success' : 'error'
         toolCall.result = payload.content
@@ -330,6 +532,57 @@ function setupEventListeners() {
     }
   }))
 
+  // Handle subagent.spawned - 创建子代理块
+  eventCleanups.push(onEvent('subagent.spawned', (event: RpcEvent) => {
+    const payload = event.payload as SubagentSpawnedPayload
+    if (payload) {
+      createSubagentBlock({
+        subRunId: payload.subRunId,
+        subSessionId: payload.subSessionId,
+        sessionKey: payload.sessionKey,
+        agentId: payload.agentId,
+        task: payload.task,
+        lane: payload.lane,
+        status: 'queued'
+      })
+    }
+  }))
+
+  // Handle subagent.started - 更新状态为 running
+  eventCleanups.push(onEvent('subagent.started', (event: RpcEvent) => {
+    const payload = event.payload as SubagentStartedPayload
+    if (payload) {
+      updateSubagentBlock(payload.subRunId, (info) => {
+        info.status = 'running'
+        info.startedAt = Date.now()
+      })
+    }
+  }))
+
+  // Handle subagent.announced - 更新为完成状态
+  eventCleanups.push(onEvent('subagent.announced', (event: RpcEvent) => {
+    const payload = event.payload as SubagentAnnouncedPayload
+    if (payload) {
+      updateSubagentBlock(payload.subRunId, (info) => {
+        info.status = payload.status === 'completed' ? 'completed' : 'failed'
+        info.result = payload.result
+        info.error = payload.error
+        info.durationMs = payload.durationMs
+      })
+    }
+  }))
+
+  // Handle subagent.failed - 更新为失败状态
+  eventCleanups.push(onEvent('subagent.failed', (event: RpcEvent) => {
+    const payload = event.payload as SubagentFailedPayload
+    if (payload) {
+      updateSubagentBlock(payload.subRunId, (info) => {
+        info.status = 'failed'
+        info.error = payload.error
+      })
+    }
+  }))
+
   // Handle lifecycle end - 保存到消息
   eventCleanups.push(onEvent('lifecycle.end', (event: RpcEvent) => {
     if (currentRun.value && event.runId === currentRun.value.id) {
@@ -343,7 +596,15 @@ function setupEventListeners() {
       const savedBlocks = streamBlocks.value.map(block => ({
         ...block,
         toolCall: block.toolCall ? { ...block.toolCall } : undefined,
-        skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined
+        skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined,
+        subagent: block.subagent ? {
+          ...block.subagent,
+          streamBlocks: block.subagent.streamBlocks?.map(sb => ({
+            ...sb,
+            toolCall: sb.toolCall ? { ...sb.toolCall } : undefined
+          })),
+          toolCallIndex: undefined  // 不需要保存索引
+        } : undefined
       }))
 
       // Add assistant message with blocks
@@ -362,6 +623,7 @@ function setupEventListeners() {
       isStreaming.value = false
       streamBlocks.value = []
       toolCallIndex.value = {}
+      subagentIndex.value = {}
       currentRun.value = null
     }
   }))
@@ -387,6 +649,7 @@ function setupEventListeners() {
       isStreaming.value = false
       streamBlocks.value = []
       toolCallIndex.value = {}
+      subagentIndex.value = {}
       currentRun.value = null
     }
   }))
@@ -402,6 +665,15 @@ export function useChat() {
     messages,
     streamBlocks,
     isStreaming,
+    subagentIndex,
+
+    // Panel state
+    activeSubagentId,
+    activeSubagent,
+    setActiveSubagent,
+
+    // Filtered sessions (excludes subagent child sessions)
+    filteredSessions,
 
     // Actions
     loadSessions,

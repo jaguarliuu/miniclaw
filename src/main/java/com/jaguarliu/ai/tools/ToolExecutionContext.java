@@ -22,6 +22,11 @@ public class ToolExecutionContext {
     private final Set<Path> additionalAllowedPaths;
 
     /**
+     * WebSocket 连接 ID（用于事件推送）
+     */
+    private final String connectionId;
+
+    /**
      * Agent ID（当前运行的 Agent Profile）
      */
     private final String agentId;
@@ -52,6 +57,7 @@ public class ToolExecutionContext {
     private final int depth;
 
     private ToolExecutionContext(Set<Path> additionalAllowedPaths,
+                                  String connectionId,
                                   String agentId,
                                   String runKind,
                                   String parentRunId,
@@ -59,6 +65,7 @@ public class ToolExecutionContext {
                                   String sessionId,
                                   int depth) {
         this.additionalAllowedPaths = Collections.unmodifiableSet(additionalAllowedPaths);
+        this.connectionId = connectionId;
         this.agentId = agentId;
         this.runKind = runKind;
         this.parentRunId = parentRunId;
@@ -106,6 +113,13 @@ public class ToolExecutionContext {
      */
     public Set<Path> getAdditionalAllowedPaths() {
         return additionalAllowedPaths;
+    }
+
+    /**
+     * 获取连接 ID
+     */
+    public String getConnectionId() {
+        return connectionId;
     }
 
     /**
@@ -173,6 +187,7 @@ public class ToolExecutionContext {
 
     public static class Builder {
         private final Set<Path> paths = new HashSet<>();
+        private String connectionId;
         private String agentId = "main";
         private String runKind = "main";
         private String parentRunId;
@@ -184,6 +199,11 @@ public class ToolExecutionContext {
             if (path != null) {
                 paths.add(path.toAbsolutePath().normalize());
             }
+            return this;
+        }
+
+        public Builder connectionId(String connectionId) {
+            this.connectionId = connectionId;
             return this;
         }
 
@@ -218,7 +238,7 @@ public class ToolExecutionContext {
         }
 
         public ToolExecutionContext build() {
-            return new ToolExecutionContext(paths, agentId, runKind, parentRunId, runId, sessionId, depth);
+            return new ToolExecutionContext(paths, connectionId, agentId, runKind, parentRunId, runId, sessionId, depth);
         }
     }
 }

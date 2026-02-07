@@ -424,6 +424,7 @@ public class AgentRuntime {
         ToolExecutionContext.Builder builder = ToolExecutionContext.builder()
                 .runId(context.getRunId())
                 .sessionId(context.getSessionId())
+                .connectionId(context.getConnectionId())
                 .agentId(context.getAgentId())
                 .runKind(context.getRunKind())
                 .parentRunId(context.getParentRunId())

@@ -229,6 +229,8 @@ public class SubagentOpsService {
                 connectionId,
                 subRun.getParentRunId(),
                 subRun.getId(),
+                subRun.getAgentId(),
+                subRun.getPrompt(),
                 errorMessage
         ));
 

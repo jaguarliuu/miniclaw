@@ -98,6 +98,7 @@ class SessionsSpawnToolTest {
             ToolExecutionContext context = ToolExecutionContext.builder()
                     .runId("main-run-123")
                     .sessionId("main-session-456")
+                    .connectionId("conn-789")
                     .agentId("main")
                     .runKind("main")
                     .depth(0)
@@ -153,7 +154,7 @@ class SessionsSpawnToolTest {
         }
 
         @Test
-        @DisplayName("传递所有参数到 SubagentService")
+        @DisplayName("传递所有参数到 SubagentService（含 connectionId）")
         void passesAllParametersToService() {
             when(subagentService.spawn(anyString(), anyString(), anyString(), any(), any()))
                     .thenReturn(SubagentSpawnResult.success("s", "r", "k"));
@@ -170,7 +171,7 @@ class SessionsSpawnToolTest {
                     eq("main-run-123"),
                     eq("main-session-456"),
                     eq("main"),
-                    isNull(),
+                    eq("conn-789"),
                     argThat(req ->
                             req.getTask().equals("分析AI芯片市场") &&
                             req.getAgentId().equals("researcher") &&

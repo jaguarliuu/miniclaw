@@ -79,8 +79,12 @@ public class SubagentAnnounceService {
                     subRun.getId(),
                     subSession.getId(),
                     subSession.getSessionKey(),
+                    subRun.getAgentId(),
+                    subRun.getPrompt(),
+                    error == null ? "completed" : "failed",
                     result,
-                    error
+                    error,
+                    durationMs
             ));
 
             log.info("Announced subagent completion: subRunId={}, parentSessionId={}, success={}, durationMs={}",

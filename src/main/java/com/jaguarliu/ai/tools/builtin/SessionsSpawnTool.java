@@ -120,14 +120,11 @@ public class SessionsSpawnTool implements Tool {
                 .build();
 
         // 5. 调用 SubagentService
-        // 注意：这里需要从上下文获取 parentRunId, parentSessionId, parentAgentId, connectionId
-        // 但当前 ToolExecutionContext 可能没有 connectionId，需要扩展或从其他地方获取
-        // 暂时使用 context 中的信息
         SubagentSpawnResult result = subagentService.spawn(
                 context.getRunId(),           // 当前 run 作为 parent
                 context.getSessionId(),       // 当前 session 作为 parent
                 context.getAgentId(),         // 当前 agentId
-                null,                         // connectionId 暂时为 null，由 SubagentService 处理
+                context.getConnectionId(),    // WebSocket 连接 ID，用于事件推送
                 request
         );
 

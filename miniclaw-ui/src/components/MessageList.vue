@@ -4,15 +4,18 @@ import type { Message, StreamBlock } from '@/types'
 import { useMarkdown } from '@/composables/useMarkdown'
 import MessageItem from './MessageItem.vue'
 import ToolCallCard from './ToolCallCard.vue'
+import SubagentCard from './SubagentCard.vue'
 
 const props = defineProps<{
   messages: Message[]
   streamBlocks: StreamBlock[]
   isStreaming: boolean
+  activeSubagentId?: string | null
 }>()
 
 const emit = defineEmits<{
   confirm: [callId: string, decision: 'approve' | 'reject']
+  'select-subagent': [subRunId: string]
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -24,10 +27,10 @@ function renderTextBlock(content: string | undefined): string {
   return render(content || '')
 }
 
-// 检查是否有内容（用于显示 thinking 状态）
+        // 检查是否有内容（用于显示 thinking 状态）
 const hasContent = computed(() => {
   return props.streamBlocks.some(block =>
-    (block.type === 'text' && block.content) || block.type === 'tool'
+    (block.type === 'text' && block.content) || block.type === 'tool' || block.type === 'subagent'
   )
 })
 
@@ -57,7 +60,9 @@ watch(
         v-for="message in messages"
         :key="message.id"
         :message="message"
+        :active-subagent-id="activeSubagentId"
         @confirm="(callId, decision) => emit('confirm', callId, decision)"
+        @select-subagent="(subRunId) => emit('select-subagent', subRunId)"
       />
 
       <!-- Streaming message with interleaved blocks -->
@@ -86,6 +91,14 @@ watch(
             v-else-if="block.type === 'tool' && block.toolCall"
             :tool-call="block.toolCall"
             @confirm="(callId, decision) => emit('confirm', callId, decision)"
+          />
+
+          <!-- SubAgent block -->
+          <SubagentCard
+            v-else-if="block.type === 'subagent' && block.subagent"
+            :subagent="block.subagent"
+            :active-subagent-id="activeSubagentId"
+            @select="(subRunId) => emit('select-subagent', subRunId)"
           />
         </template>
       </article>

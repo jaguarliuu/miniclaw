@@ -69,6 +69,42 @@ public class SystemPromptBuilder {
         - Respect file system boundaries (stay within workspace when possible)
         """;
 
+    // 子代理策略段落
+    private static final String SUBAGENT_SECTION = """
+        ## SubAgent (sessions_spawn)
+
+        You have the ability to spawn SubAgents — independent assistants that execute tasks asynchronously \
+        in isolated sessions. Use the `sessions_spawn` tool to delegate work.
+
+        **When to use SubAgents:**
+        - **Long-running tasks**: Tasks that may take significant time (network requests, large file processing, \
+        complex computations). Spawn a subagent so the user can continue chatting.
+        - **Parallel independent tasks**: Multiple tasks with no dependencies between them. Spawn one subagent \
+        per task to run them concurrently.
+        - **Isolated context tasks**: Tasks that benefit from a clean, focused context (e.g., researching a \
+        specific topic, generating a standalone artifact).
+
+        **Examples of good subagent use:**
+        - "Monitor this URL every 30 seconds for 5 minutes" → spawn a subagent for the monitoring
+        - "Analyze these 3 log files for errors" → spawn 3 subagents, one per file
+        - "Research best practices for X while I work on Y" → spawn a subagent for the research
+        - "Run these tests and report back" → spawn a subagent for test execution
+
+        **When NOT to use SubAgents:**
+        - Simple, fast operations (reading a file, quick calculations)
+        - Tasks that require interactive back-and-forth with the user
+        - Tasks that depend on the result of your current work
+
+        **How it works:**
+        1. Call `sessions_spawn` with a clear `task` description
+        2. The subagent runs independently; you'll be notified when it completes
+        3. Results are automatically announced back to the current session
+        4. You can continue responding to the user while subagents work
+
+        **Important**: Be proactive about using subagents. When you identify a task that fits the criteria above, \
+        spawn a subagent without waiting for explicit instructions. Explain to the user what you've delegated.
+        """;
+
     public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
                                 MemorySearchService memorySearchService) {
         this.toolRegistry = toolRegistry;
@@ -106,6 +142,12 @@ public class SystemPromptBuilder {
             sb.append("\n\n");
         }
 
+        // 3.5 SubAgent guidance (only in FULL mode, when sessions_spawn tool is available)
+        if (mode == PromptMode.FULL && hasSessionsSpawnTool(allowedTools)) {
+            sb.append(SUBAGENT_SECTION.trim());
+            sb.append("\n\n");
+        }
+
         // 4. Memory (only in FULL mode)
         if (mode == PromptMode.FULL) {
             sb.append(buildMemorySection());
@@ -139,6 +181,17 @@ public class SystemPromptBuilder {
         }
 
         return sb.toString().trim();
+    }
+
+    /**
+     * 检查 sessions_spawn 工具是否可用
+     */
+    private boolean hasSessionsSpawnTool(Set<String> allowedTools) {
+        List<ToolDefinition> tools = toolRegistry.listDefinitions();
+        boolean toolExists = tools.stream().anyMatch(t -> "sessions_spawn".equals(t.getName()));
+        if (!toolExists) return false;
+        // 如果有白名单，检查是否在白名单中
+        return allowedTools == null || allowedTools.contains("sessions_spawn");
     }
 
     /**

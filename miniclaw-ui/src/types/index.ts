@@ -45,10 +45,11 @@ export interface ToolCall {
 // Stream Block (流式内容块，用于交错显示文本和工具调用)
 export interface StreamBlock {
   id: string
-  type: 'text' | 'tool' | 'skill'
+  type: 'text' | 'tool' | 'skill' | 'subagent'
   content?: string      // type === 'text' 时的文本内容
   toolCall?: ToolCall   // type === 'tool' 时的工具调用
   skillActivation?: SkillActivation  // type === 'skill' 时的技能激活
+  subagent?: SubagentInfo            // type === 'subagent' 时的子代理信息
 }
 
 // Skill Activation (技能激活信息)
@@ -101,6 +102,10 @@ export type AgentEventType =
   | 'tool.result'
   | 'tool.confirm_request'
   | 'skill.activated'
+  | 'subagent.spawned'
+  | 'subagent.started'
+  | 'subagent.announced'
+  | 'subagent.failed'
 
 // Tool Event Payloads
 export interface ToolCallPayload {
@@ -148,4 +153,59 @@ export interface SkillDetail extends Skill {
   body: string
   allowedTools: readonly string[]
   confirmBefore: readonly string[]
+}
+
+// ==================== SubAgent Types ====================
+
+// SubAgent 状态
+export type SubagentStatus = 'queued' | 'running' | 'completed' | 'failed'
+
+// SubAgent 信息（用于前端 block 渲染）
+export interface SubagentInfo {
+  subRunId: string
+  subSessionId: string
+  sessionKey: string
+  agentId: string
+  task: string
+  lane: string
+  status: SubagentStatus
+  result?: string
+  error?: string
+  durationMs?: number
+  startedAt?: number    // timestamp ms
+  streamBlocks?: StreamBlock[]
+  toolCallIndex?: Record<string, ToolCall>
+}
+
+// SubAgent Event Payloads
+export interface SubagentSpawnedPayload {
+  subRunId: string
+  subSessionId: string
+  sessionKey: string
+  agentId: string
+  task: string
+  lane: string
+}
+
+export interface SubagentStartedPayload {
+  subRunId: string
+}
+
+export interface SubagentAnnouncedPayload {
+  subRunId: string
+  subSessionId: string
+  sessionKey: string
+  agentId: string
+  task: string
+  status: string
+  result?: string
+  error?: string
+  durationMs: number
+}
+
+export interface SubagentFailedPayload {
+  subRunId: string
+  agentId: string
+  task: string
+  error: string
 }

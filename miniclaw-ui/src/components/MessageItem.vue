@@ -4,13 +4,16 @@ import type { Message } from '@/types'
 import { useMarkdown } from '@/composables/useMarkdown'
 import ToolCallCard from './ToolCallCard.vue'
 import SkillActivationCard from './SkillActivationCard.vue'
+import SubagentCard from './SubagentCard.vue'
 
 const props = defineProps<{
   message: Message
+  activeSubagentId?: string | null
 }>()
 
 const emit = defineEmits<{
   confirm: [callId: string, decision: 'approve' | 'reject']
+  'select-subagent': [subRunId: string]
 }>()
 
 const { render } = useMarkdown()
@@ -57,6 +60,14 @@ function renderTextBlock(content: string | undefined): string {
           <SkillActivationCard
             v-else-if="block.type === 'skill' && block.skillActivation"
             :activation="block.skillActivation"
+          />
+
+          <!-- SubAgent block -->
+          <SubagentCard
+            v-else-if="block.type === 'subagent' && block.subagent"
+            :subagent="block.subagent"
+            :active-subagent-id="activeSubagentId"
+            @select="(subRunId) => emit('select-subagent', subRunId)"
           />
         </template>
       </template>

@@ -109,7 +109,10 @@ public class SubagentService {
                     parentRunId,
                     subRun.getId(),
                     subSession.getId(),
-                    subSession.getSessionKey()
+                    subSession.getSessionKey(),
+                    targetAgentId,
+                    request.getTask(),
+                    LaneAwareQueueManager.LANE_SUBAGENT
             ));
 
             // 8. 提交到 subagent lane 异步执行
@@ -222,6 +225,8 @@ public class SubagentService {
                 connectionId,
                 subRun.getParentRunId(),
                 subRun.getId(),
+                subRun.getAgentId(),
+                subRun.getPrompt(),
                 errorMessage
         ));
 

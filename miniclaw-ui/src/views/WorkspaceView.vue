@@ -6,15 +6,19 @@ import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import MessageList from '@/components/MessageList.vue'
 import MessageInput from '@/components/MessageInput.vue'
+import SubagentPanel from '@/components/SubagentPanel.vue'
 
 const { state: connectionState, connect, disconnect } = useWebSocket()
 const {
-  sessions,
   currentSession,
   currentSessionId,
   messages,
   streamBlocks,
   isStreaming,
+  filteredSessions,
+  activeSubagentId,
+  activeSubagent,
+  setActiveSubagent,
   loadSessions,
   createSession,
   selectSession,
@@ -50,6 +54,15 @@ function handleCancel() {
   cancelRun()
 }
 
+function handleSelectSubagent(subRunId: string) {
+  // Toggle: if already selected, close panel
+  if (activeSubagentId.value === subRunId) {
+    setActiveSubagent(null)
+  } else {
+    setActiveSubagent(subRunId)
+  }
+}
+
 onMounted(() => {
   connect()
   setupEventListeners()
@@ -71,7 +84,7 @@ onUnmounted(() => {
 <template>
   <div class="workspace">
     <SessionSidebar
-      :sessions="sessions"
+      :sessions="filteredSessions"
       :current-id="currentSessionId"
       @select="handleSelectSession"
       @create="handleCreateSession"
@@ -93,7 +106,9 @@ onUnmounted(() => {
         :messages="messages"
         :stream-blocks="streamBlocks"
         :is-streaming="isStreaming"
+        :active-subagent-id="activeSubagentId"
         @confirm="handleConfirmToolCall"
+        @select-subagent="handleSelectSubagent"
       />
 
       <MessageInput
@@ -103,6 +118,15 @@ onUnmounted(() => {
         @cancel="handleCancel"
       />
     </main>
+
+    <Transition name="panel-slide">
+      <SubagentPanel
+        v-if="activeSubagent"
+        :subagent="activeSubagent"
+        @close="setActiveSubagent(null)"
+        @confirm="handleConfirmToolCall"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -118,6 +142,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  transition: all 0.2s ease;
 }
 
 .main-header {
@@ -133,5 +158,18 @@ onUnmounted(() => {
   font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--color-gray-dark);
+}
+
+/* Panel slide transition */
+.panel-slide-enter-active,
+.panel-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.panel-slide-enter-from,
+.panel-slide-leave-to {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
 }
 </style>

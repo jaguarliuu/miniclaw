@@ -332,6 +332,69 @@ class SystemPromptBuilderTest {
         }
     }
 
+    // ==================== SubAgent 段落测试 ====================
+
+    @Nested
+    @DisplayName("SubAgent Section")
+    class SubagentSectionTests {
+
+        private final ToolDefinition spawnTool = ToolDefinition.builder()
+                .name("sessions_spawn")
+                .description("派生子代理执行异步任务")
+                .hitl(false)
+                .build();
+
+        @Test
+        @DisplayName("FULL 模式有 sessions_spawn 工具时包含 SubAgent 段落")
+        void fullModeWithSpawnToolContainsSubagentSection() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
+
+            assertTrue(result.contains("## SubAgent (sessions_spawn)"));
+            assertTrue(result.contains("sessions_spawn"));
+            assertTrue(result.contains("Long-running tasks"));
+            assertTrue(result.contains("Parallel independent tasks"));
+        }
+
+        @Test
+        @DisplayName("FULL 模式无 sessions_spawn 工具时不包含 SubAgent 段落")
+        void fullModeWithoutSpawnToolNoSubagentSection() {
+            ToolDefinition otherTool = ToolDefinition.builder()
+                    .name("read_file")
+                    .description("读取文件")
+                    .build();
+            when(toolRegistry.listDefinitions()).thenReturn(List.of(otherTool));
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
+
+            assertFalse(result.contains("## SubAgent (sessions_spawn)"));
+        }
+
+        @Test
+        @DisplayName("MINIMAL 模式不包含 SubAgent 段落")
+        void minimalModeNoSubagentSection() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
+
+            assertFalse(result.contains("## SubAgent (sessions_spawn)"));
+        }
+
+        @Test
+        @DisplayName("白名单不含 sessions_spawn 时不包含 SubAgent 段落")
+        void whitelistWithoutSpawnNoSubagentSection() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL, Set.of("read_file"));
+
+            assertFalse(result.contains("## SubAgent (sessions_spawn)"));
+        }
+    }
+
     // ==================== 自定义提示测试 ====================
 
     @Nested
