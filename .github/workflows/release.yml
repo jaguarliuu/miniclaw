@@ -70,6 +70,7 @@ jobs:
 
       - name: Build and publish Electron installer
         working-directory: electron
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
