@@ -8,6 +8,7 @@ import com.jaguarliu.ai.skills.model.SkillMetadata;
 import com.jaguarliu.ai.skills.parser.SkillParseResult;
 import com.jaguarliu.ai.skills.parser.SkillParser;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -39,6 +40,15 @@ public class SkillRegistry {
     private final SkillParser parser;
     private final SkillGatingService gatingService;
 
+    @Value("${skills.project-dir:}")
+    private String configProjectDir;
+
+    @Value("${skills.user-dir:}")
+    private String configUserDir;
+
+    @Value("${skills.builtin-dir:}")
+    private String configBuiltinDir;
+
     // skill name -> SkillEntry 映射
     private final Map<String, SkillEntry> registry = new ConcurrentHashMap<>();
 
@@ -63,13 +73,23 @@ public class SkillRegistry {
      */
     @PostConstruct
     public void init() {
-        // 设置默认目录
-        projectSkillsDir = Paths.get(System.getProperty("user.dir"), ".miniclaw", "skills");
-        userSkillsDir = Paths.get(System.getProperty("user.home"), ".miniclaw", "skills");
-        builtinSkillsDir = Paths.get(System.getProperty("user.dir"), "skills"); // 内置 skills
+        // 使用配置值（非空时），否则使用默认目录
+        projectSkillsDir = configProjectDir != null && !configProjectDir.isBlank()
+                ? Paths.get(configProjectDir)
+                : Paths.get(System.getProperty("user.dir"), ".miniclaw", "skills");
+        userSkillsDir = configUserDir != null && !configUserDir.isBlank()
+                ? Paths.get(configUserDir)
+                : Paths.get(System.getProperty("user.home"), ".miniclaw", "skills");
+        builtinSkillsDir = configBuiltinDir != null && !configBuiltinDir.isBlank()
+                ? Paths.get(configBuiltinDir)
+                : Paths.get(System.getProperty("user.dir"), "skills");
 
         refresh();
     }
+
+    public Path getProjectSkillsDir() { return projectSkillsDir; }
+    public Path getUserSkillsDir() { return userSkillsDir; }
+    public Path getBuiltinSkillsDir() { return builtinSkillsDir; }
 
     /**
      * 配置扫描目录（用于测试）

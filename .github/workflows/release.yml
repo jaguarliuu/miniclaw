@@ -52,6 +52,14 @@ jobs:
           rm -rf electron/resources/webapp
           cp -r miniclaw-ui/dist electron/resources/webapp
 
+      - name: Copy built-in skills to Electron resources
+        shell: bash
+        run: |
+          if [ -d .miniclaw/skills ]; then
+            rm -rf electron/resources/skills
+            cp -r .miniclaw/skills electron/resources/skills
+          fi
+
       - name: Download JRE
         working-directory: electron
         run: npm run download-jre
@@ -64,7 +72,9 @@ jobs:
         working-directory: electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish always
+        run: |
+          rm -f .npmrc
+          npx electron-builder --publish always
 
   publish:
     needs: build

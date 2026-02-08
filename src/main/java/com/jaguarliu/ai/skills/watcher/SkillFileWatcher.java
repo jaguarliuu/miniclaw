@@ -102,17 +102,9 @@ public class SkillFileWatcher {
      * 注册需要监听的目录
      */
     private void registerWatchPaths() {
-        // 项目级
-        Path projectSkills = Paths.get(System.getProperty("user.dir"), ".miniclaw", "skills");
-        registerDirectory(projectSkills, 0);
-
-        // 用户级
-        Path userSkills = Paths.get(System.getProperty("user.home"), ".miniclaw", "skills");
-        registerDirectory(userSkills, 1);
-
-        // 内置
-        Path builtinSkills = Paths.get(System.getProperty("user.dir"), "skills");
-        registerDirectory(builtinSkills, 2);
+        registerDirectory(registry.getProjectSkillsDir(), 0);
+        registerDirectory(registry.getUserSkillsDir(), 1);
+        registerDirectory(registry.getBuiltinSkillsDir(), 2);
     }
 
     /**

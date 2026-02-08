@@ -76,6 +76,20 @@ try {
   copyDir(distDir, webappDir);
   console.log(`Copied miniclaw-ui/dist/ → resources/webapp/`);
 
+  // Step 4.5: Copy built-in skills
+  console.log('\n=== Step 4.5: Copying built-in skills ===');
+  const srcSkillsDir = path.join(ROOT, '.miniclaw', 'skills');
+  const destSkillsDir = path.join(RESOURCES_DIR, 'skills');
+  if (fs.existsSync(srcSkillsDir)) {
+    if (fs.existsSync(destSkillsDir)) {
+      fs.rmSync(destSkillsDir, { recursive: true });
+    }
+    copyDir(srcSkillsDir, destSkillsDir);
+    console.log(`Copied .miniclaw/skills/ → resources/skills/`);
+  } else {
+    console.log('No .miniclaw/skills/ found, skipping');
+  }
+
   // Step 5: Check JRE
   console.log('\n=== Step 5: Checking JRE ===');
   const jreDir = path.join(RESOURCES_DIR, 'jre');

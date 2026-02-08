@@ -6,7 +6,13 @@ import SkillRow from './SkillRow.vue'
 import SkillDetailPanel from './SkillDetail.vue'
 import SlidePanel from '@/components/common/SlidePanel.vue'
 
-const { skills, loading, selectedSkill, selectedSkillDetail, detailLoading, loadSkills, selectSkill, clearSelection } = useSkills()
+const {
+  skills, loading, selectedSkill, selectedSkillDetail, detailLoading,
+  uploading, uploadError,
+  loadSkills, selectSkill, clearSelection, uploadSkill, clearUploadError
+} = useSkills()
+
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const availableSkills = computed(() => skills.value.filter(s => s.available))
 const unavailableSkills = computed(() => skills.value.filter(s => !s.available))
@@ -21,6 +27,22 @@ function handleClose() {
   clearSelection()
 }
 
+async function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  clearUploadError()
+  try {
+    await uploadSkill(file)
+  } catch {
+    // error is already set in composable
+  }
+
+  // Reset input so same file can be re-uploaded
+  input.value = ''
+}
+
 onMounted(() => {
   loadSkills()
 })
@@ -31,7 +53,16 @@ onMounted(() => {
     <header class="section-header">
       <h2 class="section-title">Skills</h2>
       <span class="section-count">{{ skills.length }} total</span>
+      <button class="upload-btn" @click="fileInput?.click()" :disabled="uploading">
+        {{ uploading ? 'Uploading...' : '+ Upload' }}
+      </button>
+      <input ref="fileInput" type="file" accept=".md,.zip" hidden @change="handleFileChange" />
     </header>
+
+    <div v-if="uploadError" class="upload-error">
+      <span>{{ uploadError }}</span>
+      <button class="dismiss-btn" @click="clearUploadError">&times;</button>
+    </div>
 
     <div v-if="loading" class="loading-state">
       <span>Loading skills...</span>
@@ -108,6 +139,50 @@ onMounted(() => {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-gray-dark);
+}
+
+.upload-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border: var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.upload-btn:hover:not(:disabled) {
+  background: var(--color-gray-bg);
+}
+
+.upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upload-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #c0392b;
+  background: #fdf0ef;
+  border-bottom: var(--border);
+}
+
+.dismiss-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #c0392b;
+  cursor: pointer;
+  padding: 0 4px;
 }
 
 .loading-state,

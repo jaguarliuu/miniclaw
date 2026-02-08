@@ -37,6 +37,10 @@
       {
         "from": "resources/webapp",
         "to": "webapp"
+      },
+      {
+        "from": "resources/skills",
+        "to": "skills"
       }
     ],
     "win": {

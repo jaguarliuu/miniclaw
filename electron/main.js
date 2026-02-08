@@ -24,10 +24,12 @@ const appDataPath = path.join(app.getPath('appData'), 'MiniClaw');
 const dataDir = path.join(appDataPath, 'data');
 const dbPath = path.join(appDataPath, 'miniclaw.db');
 const workspacePath = path.join(appDataPath, 'workspace');
+const skillsDir = path.join(appDataPath, 'skills');
+const builtinSkillsDir = path.join(resourcesPath, 'skills');
 
 function ensureDirectories() {
   const fs = require('fs');
-  for (const dir of [appDataPath, dataDir, workspacePath]) {
+  for (const dir of [appDataPath, dataDir, workspacePath, skillsDir]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
@@ -95,6 +97,8 @@ function startJavaBackend(port) {
     `--miniclaw.webapp-dir=${webappPath}`,
     `--spring.datasource.url=jdbc:sqlite:${dbPath}`,
     `--tools.workspace=${workspacePath}`,
+    `--skills.user-dir=${skillsDir}`,
+    `--skills.builtin-dir=${builtinSkillsDir}`,
   ];
 
   console.log(`Starting Java: ${javaExe} ${args.join(' ')}`);

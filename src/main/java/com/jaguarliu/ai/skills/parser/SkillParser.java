@@ -147,7 +147,7 @@ public class SkillParser {
         // 3. 验证 Schema
         List<SkillParseError> validationErrors = validator.validate(frontmatterMap);
         if (!validationErrors.isEmpty()) {
-            log.warn("Validation errors in {}: {}", sourcePath, validationErrors.size());
+            log.warn("Validation errors in {}: {}", sourcePath, validationErrors);
             return SkillParseResult.failureWithContext(validationErrors, rawFrontmatter, body);
         }
 

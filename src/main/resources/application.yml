@@ -67,6 +67,9 @@ tools:
   workspace: ${TOOLS_WORKSPACE:./workspace}
   max-file-size: 1048576  # 1MB
 skills:
+  project-dir: ""
+  user-dir: ""
+  builtin-dir: ""
   watch-enabled: true  # 是否启用热更新
   index-token-budget: 2000  # 索引 token 预算
 
