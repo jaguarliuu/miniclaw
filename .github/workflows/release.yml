@@ -64,6 +64,14 @@ jobs:
         working-directory: electron
         run: npm run download-jre
 
+      - name: Sync version from git tag
+        working-directory: electron
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version to $VERSION"
+          npm version "$VERSION" --no-git-tag-version
+
       - name: Install Electron dependencies
         working-directory: electron
         run: npm ci

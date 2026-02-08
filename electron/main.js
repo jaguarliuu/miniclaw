@@ -42,6 +42,7 @@ function createSplashWindow() {
     resizable: false,
     transparent: false,
     alwaysOnTop: true,
+    icon: path.join(resourcesPath, 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -165,6 +166,7 @@ function createMainWindow(port) {
     minWidth: 800,
     minHeight: 600,
     title: 'MiniClaw',
+    icon: path.join(resourcesPath, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

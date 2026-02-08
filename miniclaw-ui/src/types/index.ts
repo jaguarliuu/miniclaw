@@ -382,3 +382,11 @@ export interface SearchProviderEntry {
   enabled: boolean
   keyRequired: boolean
 }
+
+// Slash Command Autocomplete
+export interface SlashCommandItem {
+  type: 'tool' | 'skill'
+  name: string           // e.g. "read_file", "web_search"
+  description: string    // from backend
+  displayName: string    // formatted: "/read_file" or "/skillname"
+}

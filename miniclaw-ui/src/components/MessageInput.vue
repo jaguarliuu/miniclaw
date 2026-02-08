@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
+import type { SlashCommandItem } from '@/types'
+import { useSlashCommands } from '@/composables/useSlashCommands'
 
 const props = defineProps<{
   disabled: boolean
@@ -13,6 +15,35 @@ const emit = defineEmits<{
 
 const input = ref('')
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+
+// Slash command autocomplete
+const { loadCommands, filterCommands } = useSlashCommands()
+
+const showSlashMenu = ref(false)
+const slashItems = ref<SlashCommandItem[]>([])
+const selectedIndex = ref(0)
+const menuRef = ref<HTMLElement | null>(null)
+
+onMounted(() => {
+  loadCommands()
+})
+
+function scrollSelectedIntoView() {
+  nextTick(() => {
+    const menu = menuRef.value
+    if (!menu) return
+    const selected = menu.children[selectedIndex.value] as HTMLElement | undefined
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' })
+    }
+  })
+}
+
+function selectSlashCommand(item: SlashCommandItem) {
+  input.value = '/' + item.name + ' '
+  showSlashMenu.value = false
+  inputRef.value?.focus()
+}
 
 function handleSubmit() {
   if (!input.value.trim() || props.disabled) return
@@ -31,6 +62,32 @@ function handleCancel() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // Slash menu keyboard navigation
+  if (showSlashMenu.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      selectedIndex.value = (selectedIndex.value + 1) % slashItems.value.length
+      scrollSelectedIntoView()
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      selectedIndex.value = (selectedIndex.value - 1 + slashItems.value.length) % slashItems.value.length
+      scrollSelectedIntoView()
+      return
+    }
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      e.preventDefault()
+      selectSlashCommand(slashItems.value[selectedIndex.value])
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      showSlashMenu.value = false
+      return
+    }
+  }
+
   // Enter to submit (Shift+Enter for new line)
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -47,12 +104,41 @@ function handleInput(e: Event) {
   // Auto-resize
   target.style.height = 'auto'
   target.style.height = Math.min(target.scrollHeight, 200) + 'px'
+
+  // Slash command detection
+  const val = target.value
+  if (val.startsWith('/')) {
+    const query = val.substring(1).split(/\s/)[0]
+    if (!val.includes(' ')) {
+      slashItems.value = filterCommands(query)
+      showSlashMenu.value = slashItems.value.length > 0
+      selectedIndex.value = 0
+      return
+    }
+  }
+  showSlashMenu.value = false
 }
 </script>
 
 <template>
   <div class="input-area">
     <div class="input-container">
+      <!-- Slash command dropdown (positioned above input) -->
+      <div v-if="showSlashMenu" ref="menuRef" class="slash-menu">
+        <div
+          v-for="(item, i) in slashItems"
+          :key="item.name"
+          class="slash-item"
+          :class="{ selected: i === selectedIndex }"
+          @mousedown.prevent="selectSlashCommand(item)"
+          @mouseenter="selectedIndex = i"
+        >
+          <span class="slash-item-name">{{ item.displayName }}</span>
+          <span class="slash-item-type">{{ item.type }}</span>
+          <span class="slash-item-desc">{{ item.description }}</span>
+        </div>
+      </div>
+
       <textarea
         ref="inputRef"
         v-model="input"
@@ -111,6 +197,7 @@ function handleInput(e: Event) {
   display: flex;
   gap: 12px;
   align-items: flex-end;
+  position: relative;
 }
 
 textarea {
@@ -221,5 +308,53 @@ textarea:focus {
   50% {
     opacity: 0.4;
   }
+}
+
+/* Slash command autocomplete menu */
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--color-white);
+  border: var(--border);
+  z-index: 100;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.slash-item.selected {
+  background: var(--color-gray-bg);
+}
+
+.slash-item-name {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.slash-item-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border: var(--border-light);
+  color: var(--color-gray-dark);
+}
+
+.slash-item-desc {
+  color: var(--color-gray-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
