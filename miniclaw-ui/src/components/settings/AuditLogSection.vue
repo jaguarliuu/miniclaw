@@ -320,6 +320,7 @@ onMounted(() => {
   margin-top: 12px;
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -398,6 +399,7 @@ onMounted(() => {
 .badge {
   display: inline-block;
   padding: 2px 6px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
@@ -466,6 +468,7 @@ onMounted(() => {
   padding: 8px;
   background: var(--color-white);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   font-size: 11px;
   font-family: var(--font-mono);
   white-space: pre-wrap;
@@ -488,6 +491,7 @@ onMounted(() => {
 .page-btn {
   padding: 6px 14px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -514,6 +518,7 @@ onMounted(() => {
   padding: 12px 16px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
 }

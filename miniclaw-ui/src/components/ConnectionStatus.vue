@@ -49,7 +49,7 @@ const stateText = computed(() => {
 }
 
 .connected .dot {
-  background: var(--color-black);
+  background: var(--color-success);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -59,7 +59,7 @@ const stateText = computed(() => {
 }
 
 .error .dot {
-  background: var(--color-black);
+  background: var(--color-error);
 }
 
 .text {

@@ -138,6 +138,7 @@ onMounted(() => {
   margin-top: 12px;
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -159,6 +160,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
+  border-radius: var(--radius-md);
   background: var(--color-gray-bg);
   border-left: 3px solid var(--color-black);
   font-size: 14px;
@@ -181,6 +183,7 @@ onMounted(() => {
 .status-card {
   padding: 16px;
   border: var(--border);
+  border-radius: var(--radius-lg);
   background: var(--color-white);
 }
 
@@ -231,6 +234,7 @@ onMounted(() => {
 .rebuild-btn {
   padding: 10px 20px;
   border: none;
+  border-radius: var(--radius-md);
   background: var(--color-black);
   color: var(--color-white);
   font-family: var(--font-mono);
@@ -257,6 +261,7 @@ onMounted(() => {
   padding: 12px 16px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
 }

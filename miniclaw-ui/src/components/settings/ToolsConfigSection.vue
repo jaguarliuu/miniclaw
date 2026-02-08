@@ -277,6 +277,7 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -328,6 +329,7 @@ onMounted(async () => {
 .add-btn {
   padding: 8px 14px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -349,6 +351,7 @@ onMounted(async () => {
 .form-input {
   padding: 8px 10px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -359,6 +362,7 @@ onMounted(async () => {
 .form-input:focus {
   outline: none;
   border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
 }
 
 .form-hint {
@@ -381,6 +385,7 @@ onMounted(async () => {
 .visibility-toggle {
   padding: 8px 12px;
   border: var(--border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   background: var(--color-gray-bg);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -397,6 +402,7 @@ onMounted(async () => {
 /* Provider Cards */
 .provider-card {
   border: var(--border);
+  border-radius: var(--radius-lg);
   margin-bottom: -1px;
   padding: 14px 16px;
 }
@@ -439,6 +445,7 @@ onMounted(async () => {
   color: #166534;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm);
   padding: 2px 8px;
 }
 
@@ -496,6 +503,7 @@ onMounted(async () => {
   padding: 10px 14px;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
   color: #166534;
   font-size: 13px;
   max-width: 600px;
@@ -506,6 +514,7 @@ onMounted(async () => {
   padding: 10px 14px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
   max-width: 600px;
@@ -520,6 +529,7 @@ onMounted(async () => {
 .save-btn {
   padding: 8px 16px;
   border: none;
+  border-radius: var(--radius-md);
   background: var(--color-black);
   color: var(--color-white);
   font-family: var(--font-mono);
@@ -548,6 +558,7 @@ onMounted(async () => {
   margin-top: 12px;
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   cursor: pointer;
   font-family: var(--font-mono);

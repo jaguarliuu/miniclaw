@@ -43,6 +43,7 @@ defineEmits<{
   padding: 12px 16px;
   border: none;
   border-bottom: var(--border-light);
+  border-radius: var(--radius-md);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -55,6 +56,7 @@ defineEmits<{
 
 .skill-row.selected {
   background: var(--color-black);
+  border-radius: var(--radius-md);
   color: var(--color-white);
 }
 

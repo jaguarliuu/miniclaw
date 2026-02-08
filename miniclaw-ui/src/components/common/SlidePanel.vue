@@ -101,6 +101,7 @@ watch(() => props.open, (open) => {
   font-family: var(--font-mono);
   font-size: 14px;
   cursor: pointer;
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
 }
 
@@ -118,12 +119,12 @@ watch(() => props.open, (open) => {
 /* Transitions */
 .panel-enter-active,
 .panel-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
 .panel-enter-active .slide-panel,
 .panel-leave-active .slide-panel {
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 .panel-enter-from,

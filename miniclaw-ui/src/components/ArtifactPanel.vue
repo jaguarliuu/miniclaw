@@ -227,9 +227,10 @@ function startResize(e: MouseEvent) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 2px 6px;
-  background: var(--color-gray-bg);
+  background: var(--color-gray-100);
   border: var(--border-light);
   color: var(--color-gray-dark);
+  border-radius: var(--radius-sm);
 }
 
 .panel-actions {
@@ -242,6 +243,8 @@ function startResize(e: MouseEvent) {
 .view-toggle {
   display: flex;
   border: var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .toggle-btn {
@@ -251,7 +254,7 @@ function startResize(e: MouseEvent) {
   border: none;
   background: var(--color-white);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .toggle-btn + .toggle-btn {
@@ -274,7 +277,8 @@ function startResize(e: MouseEvent) {
   border: var(--border);
   background: var(--color-white);
   cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .action-btn:hover {
@@ -292,7 +296,8 @@ function startResize(e: MouseEvent) {
   background: var(--color-white);
   font-size: 18px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .panel-close:hover {

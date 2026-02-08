@@ -55,7 +55,8 @@ function switchTo(mode: 'workspace' | 'settings') {
   background: var(--color-white);
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .mode-btn:hover {
