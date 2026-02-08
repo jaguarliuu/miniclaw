@@ -74,10 +74,10 @@ function getCronDescription(cron: string): string {
   // Simple descriptions for common patterns
   if (min === '0' && hour === '*' && dom === '*' && mon === '*' && dow === '*') return 'Every hour at :00'
   if (min === '0' && hour !== '*' && dom === '*' && mon === '*' && dow === '*') return `Daily at ${hour}:00`
-  if (min !== '*' && hour !== '*' && dom === '*' && mon === '*' && dow === '*') return `Daily at ${hour}:${min.padStart(2, '0')}`
+  if (min !== '*' && hour !== '*' && dom === '*' && mon === '*' && dow === '*') return `Daily at ${hour}:${min!.padStart(2, '0')}`
   if (min === '0' && hour !== '*' && dom === '*' && mon === '*' && dow !== '*') {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const dayName = days[parseInt(dow)] || `day ${dow}`
+    const dayName = days[parseInt(dow!)] || `day ${dow}`
     return `Every ${dayName} at ${hour}:00`
   }
   if (min === '0' && hour !== '*' && dom !== '*' && mon === '*' && dow === '*') return `Monthly on day ${dom} at ${hour}:00`

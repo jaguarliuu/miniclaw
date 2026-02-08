@@ -40,3 +40,10 @@ nul
 *.tar.gz
 
 miniclaw.db
+
+data/
+
+# Electron
+electron/resources/
+electron/release/
+electron/node_modules/

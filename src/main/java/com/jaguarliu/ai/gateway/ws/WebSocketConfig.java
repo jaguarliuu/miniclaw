@@ -26,7 +26,7 @@ public class WebSocketConfig {
         Map<String, Object> urlMap = Map.of("/ws", gatewayWebSocketHandler);
         SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
         mapping.setUrlMap(urlMap);
-        mapping.setOrder(1);
+        mapping.setOrder(-10);
         return mapping;
     }
 

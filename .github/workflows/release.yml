@@ -1,0 +1,61 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '24'
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build Spring Boot JAR
+        run: mvn clean package -DskipTests
+
+      - name: Build Vue frontend
+        working-directory: miniclaw-ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy JAR to Electron resources
+        shell: pwsh
+        run: |
+          New-Item -Path electron/resources -ItemType Directory -Force
+          $jar = Get-ChildItem target/*.jar -Exclude *-plain.jar,*original* | Select-Object -First 1
+          Copy-Item $jar.FullName electron/resources/app.jar
+
+      - name: Copy webapp to Electron resources
+        shell: pwsh
+        run: |
+          if (Test-Path electron/resources/webapp) { Remove-Item -Recurse -Force electron/resources/webapp }
+          Copy-Item -Recurse miniclaw-ui/dist electron/resources/webapp
+
+      - name: Download JRE
+        working-directory: electron
+        run: npm run download-jre
+
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm ci
+
+      - name: Build and publish Electron installer
+        working-directory: electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish always

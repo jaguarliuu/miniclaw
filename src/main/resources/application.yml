@@ -37,12 +37,17 @@ llm:
   # DeepSeek: https://api.deepseek.com
   # 通义千问: https://dashscope.aliyuncs.com/compatible-mode
   # GLM (智谱): https://open.bigmodel.cn/api/paas/v4  (已含 /v4，不会再追加)
-  endpoint: ${LLM_ENDPOINT}
-  api-key: ${LLM_API_KEY}
-  model: ${LLM_MODEL}
+  endpoint: ${LLM_ENDPOINT:}
+  api-key: ${LLM_API_KEY:}
+  model: ${LLM_MODEL:}
   temperature: 0.7
   max-tokens: 8192
   timeout: 300
+
+# MiniClaw 配置
+miniclaw:
+  config-dir: ${MINICLAW_CONFIG_DIR:./data}
+  webapp-dir: ${MINICLAW_WEBAPP_DIR:}
 
 # Agent 配置
 agent:

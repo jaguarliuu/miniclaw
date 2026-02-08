@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
+import { useLlmConfig } from '@/composables/useLlmConfig'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import MessageList from '@/components/MessageList.vue'
@@ -11,6 +13,8 @@ import ArtifactPanel from '@/components/ArtifactPanel.vue'
 import { useArtifact } from '@/composables/useArtifact'
 
 const { state: connectionState, connect, disconnect } = useWebSocket()
+const { checkStatus } = useLlmConfig()
+const router = useRouter()
 const { artifact } = useArtifact()
 const {
   currentSession,
@@ -70,10 +74,18 @@ onMounted(() => {
   connect()
   setupEventListeners()
 
-  // Load sessions once connected
-  const checkConnection = setInterval(() => {
+  // Load sessions once connected, and check LLM config
+  const checkConnection = setInterval(async () => {
     if (connectionState.value === 'connected') {
       clearInterval(checkConnection)
+
+      // Check if LLM is configured — redirect to setup if not
+      const status = await checkStatus()
+      if (!status.llmConfigured) {
+        router.replace('/setup')
+        return
+      }
+
       loadSessions()
     }
   }, 200)

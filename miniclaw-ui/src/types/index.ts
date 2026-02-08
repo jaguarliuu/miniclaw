@@ -342,3 +342,28 @@ export interface ScheduleCreatePayload {
   emailTo?: string
   emailCc?: string
 }
+
+// ==================== LLM Config Types ====================
+
+export interface LlmConfig {
+  endpoint: string
+  apiKey: string    // 脱敏值
+  model: string
+  configured: boolean
+}
+
+export interface LlmConfigInput {
+  endpoint: string
+  apiKey: string
+  model: string
+}
+
+export interface LlmTestResult {
+  success: boolean
+  message: string
+  latencyMs?: number
+}
+
+export interface AppStatus {
+  llmConfigured: boolean
+}

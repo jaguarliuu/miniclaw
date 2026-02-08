@@ -1,0 +1,56 @@
+{
+  "name": "miniclaw-desktop",
+  "version": "1.0.0",
+  "description": "MiniClaw Desktop - AI Agent Platform",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "download-jre": "node scripts/download-jre.js",
+    "build": "node scripts/build.js",
+    "release": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "portfinder": "^1.0.32"
+  },
+  "devDependencies": {
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.jaguarliu.miniclaw",
+    "productName": "MiniClaw",
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "resources/jre",
+        "to": "jre"
+      },
+      {
+        "from": "resources/app.jar",
+        "to": "app.jar"
+      },
+      {
+        "from": "resources/webapp",
+        "to": "webapp"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "jaguarliuu",
+      "repo": "miniclaw"
+    }
+  }
+}

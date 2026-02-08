@@ -524,7 +524,7 @@ function setupEventListeners() {
       // 检查是否属于 subagent
       const subagent = findSubagentByRunId(event.runId)
       if (subagent && subagent.toolCallIndex?.[payload.callId]) {
-        const toolCall = subagent.toolCallIndex[payload.callId]
+        const toolCall = subagent.toolCallIndex[payload.callId]!
         toolCall.status = payload.success ? 'success' : 'error'
         toolCall.result = payload.content
         return

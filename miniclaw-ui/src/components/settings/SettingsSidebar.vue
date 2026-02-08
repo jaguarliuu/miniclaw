@@ -6,6 +6,7 @@ const route = useRoute()
 const router = useRouter()
 
 const sections = [
+  { id: 'llm', label: '/llm' },
   { id: 'skills', label: '/skills' },
   { id: 'memory', label: '/memory' },
   { id: 'nodes', label: '/nodes' },

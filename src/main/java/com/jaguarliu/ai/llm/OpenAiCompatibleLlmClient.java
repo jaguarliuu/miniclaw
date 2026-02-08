@@ -32,20 +32,37 @@ import java.util.Map;
 public class OpenAiCompatibleLlmClient implements LlmClient {
 
     private final LlmProperties properties;
-    private final WebClient webClient;
+    private volatile WebClient webClient;
     private final ObjectMapper objectMapper;
 
     public OpenAiCompatibleLlmClient(LlmProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
 
-        String endpoint = normalizeEndpoint(properties.getEndpoint());
-        this.webClient = WebClient.builder()
+        if (properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
+            String endpoint = normalizeEndpoint(properties.getEndpoint());
+            this.webClient = buildWebClient(endpoint, properties.getApiKey());
+            log.info("LLM Client initialized: endpoint={}, model={}", endpoint, properties.getModel());
+        } else {
+            log.info("LLM Client created without endpoint — waiting for configuration");
+        }
+    }
+
+    /**
+     * 运行时重新配置 LLM Client（热更新）
+     */
+    public void reconfigure(String endpoint, String apiKey) {
+        String normalizedEndpoint = normalizeEndpoint(endpoint);
+        this.webClient = buildWebClient(normalizedEndpoint, apiKey);
+        log.info("LLM Client reconfigured: endpoint={}", normalizedEndpoint);
+    }
+
+    private WebClient buildWebClient(String endpoint, String apiKey) {
+        return WebClient.builder()
                 .baseUrl(endpoint)
-                .defaultHeader("Authorization", "Bearer " + properties.getApiKey())
+                .defaultHeader("Authorization", "Bearer " + apiKey)
                 .defaultHeader("Content-Type", "application/json")
                 .build();
-        log.info("LLM Client initialized: endpoint={}, model={}", endpoint, properties.getModel());
     }
 
     /**
