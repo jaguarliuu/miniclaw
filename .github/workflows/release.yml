@@ -76,13 +76,3 @@ jobs:
         run: |
           rm -f .npmrc
           npx electron-builder --publish always
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit ${{ github.ref_name }} --draft=false
