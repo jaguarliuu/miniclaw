@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
 import { useLlmConfig } from '@/composables/useLlmConfig'
+import { useFileUpload } from '@/composables/useFileUpload'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import MessageList from '@/components/MessageList.vue'
@@ -16,6 +17,7 @@ const { state: connectionState, connect, disconnect } = useWebSocket()
 const { checkStatus } = useLlmConfig()
 const router = useRouter()
 const { artifact } = useArtifact()
+const { files: attachedFiles, uploadFile, removeFile, clearFiles } = useFileUpload()
 const {
   currentSession,
   currentSessionId,
@@ -49,8 +51,14 @@ function handleDeleteSession(id: string) {
   deleteSession(id)
 }
 
-function handleSend(prompt: string) {
-  sendMessage(prompt)
+function handleSend(prompt: string, filePaths: string[]) {
+  // 传递文件路径和附件信息给 sendMessage
+  sendMessage(
+    prompt,
+    filePaths.length > 0 ? filePaths : undefined,
+    attachedFiles.value.length > 0 ? attachedFiles.value : undefined
+  )
+  clearFiles()
 }
 
 function handleConfirmToolCall(callId: string, decision: 'approve' | 'reject') {
@@ -59,6 +67,14 @@ function handleConfirmToolCall(callId: string, decision: 'approve' | 'reject') {
 
 function handleCancel() {
   cancelRun()
+}
+
+async function handleAttachFile(file: File) {
+  await uploadFile(file)
+}
+
+function handleRemoveFile(fileId: string) {
+  removeFile(fileId)
 }
 
 function handleSelectSubagent(subRunId: string) {
@@ -129,8 +145,11 @@ onUnmounted(() => {
       <MessageInput
         :disabled="isStreaming || connectionState !== 'connected'"
         :is-running="isStreaming"
+        :attached-files="attachedFiles"
         @send="handleSend"
         @cancel="handleCancel"
+        @attach-file="handleAttachFile"
+        @remove-file="handleRemoveFile"
       />
     </main>
 

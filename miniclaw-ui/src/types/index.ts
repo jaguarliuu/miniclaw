@@ -20,6 +20,7 @@ export interface Message {
   content: string                 // 纯文本内容（用于用户消息或简单显示）
   createdAt: string
   blocks?: StreamBlock[]          // 交错的内容块（用于 assistant 消息的详细显示）
+  attachedFiles?: AttachedFile[]  // 用户消息附带的文件（仅前端展示用）
 }
 
 // Run
@@ -389,4 +390,15 @@ export interface SlashCommandItem {
   name: string           // e.g. "read_file", "web_search"
   description: string    // from backend
   displayName: string    // formatted: "/read_file" or "/skillname"
+}
+
+// ==================== File Attachment Types ====================
+
+/** 附加的本地文件（已上传到 workspace，等待 Agent 通过 read_file 读取） */
+export interface AttachedFile {
+  id: string          // 前端唯一标识
+  filePath: string    // workspace 相对路径（后端返回）
+  filename: string    // 原始文件名
+  size: number        // 文件大小（字节）
+  uploading?: boolean // 上传中
 }

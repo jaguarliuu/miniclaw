@@ -17,7 +17,8 @@ import type {
   SubagentSpawnedPayload,
   SubagentStartedPayload,
   SubagentAnnouncedPayload,
-  SubagentFailedPayload
+  SubagentFailedPayload,
+  AttachedFile
 } from '@/types'
 
 const sessions = ref<Session[]>([])
@@ -184,7 +185,7 @@ async function loadMessages(sessionId: string) {
 }
 
 // Agent API
-async function sendMessage(prompt: string) {
+async function sendMessage(prompt: string, filePaths?: string[], attachedFiles?: AttachedFile[]) {
   if (!prompt.trim()) return
 
   let sessionId = currentSessionId.value
@@ -196,14 +197,22 @@ async function sendMessage(prompt: string) {
     currentSessionId.value = sessionId
   }
 
-  // Add user message to UI immediately
+  // 如果有附件文件路径，拼接到 prompt 前面让 Agent 看到
+  let fullPrompt = prompt
+  if (filePaths && filePaths.length > 0) {
+    const fileList = filePaths.map(p => `- ${p}`).join('\n')
+    fullPrompt = `[Attached Files]\n${fileList}\n\n${prompt}`
+  }
+
+  // Add user message to UI immediately（保存 attachedFiles 用于展示）
   const userMessage: Message = {
     id: `temp-${Date.now()}`,
     sessionId,
     runId: '',
     role: 'user',
     content: prompt,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    attachedFiles: attachedFiles && attachedFiles.length > 0 ? [...attachedFiles] : undefined
   }
   messages.value.push(userMessage)
 
@@ -214,9 +223,11 @@ async function sendMessage(prompt: string) {
   subagentIndex.value = {}
 
   try {
+    const payload: Record<string, unknown> = { sessionId, prompt: fullPrompt }
+
     const result = await request<{ runId: string; sessionId: string; status: string }>(
       'agent.run',
-      { sessionId, prompt }
+      payload
     )
 
     currentRun.value = {

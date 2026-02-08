@@ -1,20 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
-import type { SlashCommandItem } from '@/types'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import type { SlashCommandItem, AttachedFile } from '@/types'
 import { useSlashCommands } from '@/composables/useSlashCommands'
+import FileChip from '@/components/FileChip.vue'
 
 const props = defineProps<{
   disabled: boolean
   isRunning?: boolean
+  attachedFiles?: AttachedFile[]
 }>()
 
 const emit = defineEmits<{
-  send: [message: string]
+  send: [message: string, filePaths: string[]]
   cancel: []
+  'attach-file': [file: File]
+  'remove-file': [fileId: string]
 }>()
 
 const input = ref('')
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // Slash command autocomplete
 const { loadCommands, filterCommands } = useSlashCommands()
@@ -23,6 +28,12 @@ const showSlashMenu = ref(false)
 const slashItems = ref<SlashCommandItem[]>([])
 const selectedIndex = ref(0)
 const menuRef = ref<HTMLElement | null>(null)
+
+// 是否有文件正在上传
+const hasUploading = computed(() => props.attachedFiles?.some(f => f.uploading) ?? false)
+
+// 发送按钮是否禁用：常规禁用 OR 有文件正在上传
+const sendDisabled = computed(() => props.disabled || hasUploading.value || !input.value.trim())
 
 onMounted(() => {
   loadCommands()
@@ -46,15 +57,34 @@ function selectSlashCommand(item: SlashCommandItem) {
 }
 
 function handleSubmit() {
-  if (!input.value.trim() || props.disabled) return
+  if (sendDisabled.value) return
 
-  emit('send', input.value.trim())
+  // 收集已上传完成的文件路径
+  const filePaths = (props.attachedFiles || [])
+    .filter(f => !f.uploading && f.filePath)
+    .map(f => f.filePath)
+
+  emit('send', input.value.trim(), filePaths)
   input.value = ''
 
   // Reset textarea height
   if (inputRef.value) {
     inputRef.value.style.height = 'auto'
   }
+}
+
+function handleAttachClick() {
+  fileInputRef.value?.click()
+}
+
+function handleFileChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    emit('attach-file', file)
+  }
+  // Reset so same file can be selected again
+  target.value = ''
 }
 
 function handleCancel() {
@@ -140,7 +170,36 @@ function handleInput(e: Event) {
         </div>
       </div>
 
+      <!-- File attachment chips -->
+      <div v-if="attachedFiles && attachedFiles.length > 0" class="attached-files">
+        <FileChip
+          v-for="file in attachedFiles"
+          :key="file.id"
+          :file="file"
+          @remove="emit('remove-file', $event)"
+        />
+      </div>
+
       <div class="input-wrap">
+        <!-- Hidden file input -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".pdf,.docx,.txt,.md,.xlsx,.pptx,.csv,.json,.yaml,.yml,.xml,.html"
+          style="display: none"
+          @change="handleFileChange"
+        />
+
+        <!-- Attach button -->
+        <button
+          class="attach-btn"
+          :disabled="disabled"
+          @click="handleAttachClick"
+          title="Attach file"
+        >
+          <span class="paperclip">+</span>
+        </button>
+
         <textarea
           ref="inputRef"
           v-model="input"
@@ -165,15 +224,19 @@ function handleInput(e: Event) {
         <button
           v-else
           class="send-btn"
-          :disabled="disabled || !input.trim()"
+          :disabled="sendDisabled"
           @click="handleSubmit"
+          :title="hasUploading ? 'Waiting for upload...' : 'Send'"
         >
           <span class="arrow">↑</span>
         </button>
       </div>
     </div>
     <div class="input-hint">
-      <template v-if="isRunning">
+      <template v-if="hasUploading">
+        <span class="uploading-hint">Uploading file...</span>
+      </template>
+      <template v-else-if="isRunning">
         <span class="running">Running...</span>
         <span class="separator">·</span>
         <span>Esc to cancel</span>
@@ -293,6 +356,44 @@ textarea:disabled {
   font-weight: 500;
 }
 
+.attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.attach-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  flex-shrink: 0;
+}
+
+.attach-btn:hover:not(:disabled) {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.paperclip {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 300;
+}
+
 .input-hint {
   max-width: 720px;
   margin: 8px auto 0;
@@ -309,6 +410,10 @@ textarea:disabled {
 }
 
 .running {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.uploading-hint {
   animation: pulse 1.5s ease-in-out infinite;
 }
 

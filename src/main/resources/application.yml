@@ -65,7 +65,8 @@ agent:
 # Tools 配置
 tools:
   workspace: ${TOOLS_WORKSPACE:./workspace}
-  max-file-size: 1048576  # 1MB
+  max-file-size: 20971520  # 20MB
+  upload-dir: uploads
 skills:
   project-dir: ""
   user-dir: ""
@@ -114,6 +115,8 @@ memory:
   flush:
     enabled: true
     token-threshold: 100000
+
+# (files 配置已移至 tools.upload-dir)
 
 # Node Console 配置（远程机器管理）
 node-console:

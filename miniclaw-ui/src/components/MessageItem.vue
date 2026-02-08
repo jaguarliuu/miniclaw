@@ -5,6 +5,7 @@ import { useMarkdown } from '@/composables/useMarkdown'
 import ToolCallCard from './ToolCallCard.vue'
 import SkillActivationCard from './SkillActivationCard.vue'
 import SubagentCard from './SubagentCard.vue'
+import FileChip from './FileChip.vue'
 
 const props = defineProps<{
   message: Message
@@ -75,6 +76,15 @@ function renderTextBlock(content: string | undefined): string {
 
       <!-- 简单消息：直接显示内容 -->
       <template v-else>
+        <!-- 用户消息附带的文件 -->
+        <div v-if="message.role === 'user' && message.attachedFiles && message.attachedFiles.length > 0" class="user-files">
+          <FileChip
+            v-for="file in message.attachedFiles"
+            :key="file.id"
+            :file="file"
+            :readonly="true"
+          />
+        </div>
         <div class="message-content markdown-body" v-html="renderedContent"></div>
       </template>
     </div>
@@ -153,6 +163,19 @@ function renderTextBlock(content: string | undefined): string {
 .message.user .message-content {
   text-align: right;
   color: var(--color-gray-700);
+}
+
+.user-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 30px;
+  margin-bottom: 6px;
+  justify-content: flex-end;
+}
+
+.message.user .user-files {
+  padding-left: 0;
 }
 
 /* Assistant messages - full width, prominent */

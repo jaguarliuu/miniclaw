@@ -82,6 +82,25 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Apache Tika (document parsing: PDF, DOCX, PPTX, TXT, MD) -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+
+        <!-- Apache POI (XLSX cell-level parsing) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
         <!-- Jakarta Mail (SMTP) -->
         <dependency>
             <groupId>jakarta.mail</groupId>

@@ -20,5 +20,10 @@ public class ToolsProperties {
     /**
      * 最大文件大小（字节）
      */
-    private long maxFileSize = 1048576; // 1MB
+    private long maxFileSize = 20971520; // 20MB
+
+    /**
+     * 文件上传存放目录（相对于工作空间）
+     */
+    private String uploadDir = "uploads";
 }
