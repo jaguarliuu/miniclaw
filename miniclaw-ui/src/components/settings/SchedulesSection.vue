@@ -397,6 +397,7 @@ onMounted(() => {
   margin-bottom: 24px;
   padding: 20px;
   border: var(--border);
+  border-radius: var(--radius-lg);
   background: var(--color-gray-bg);
 }
 
@@ -457,6 +458,7 @@ onMounted(() => {
 .preset-btn {
   padding: 3px 8px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -486,6 +488,7 @@ onMounted(() => {
   margin-bottom: 12px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
 }
@@ -499,6 +502,7 @@ onMounted(() => {
 .cancel-btn {
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -512,6 +516,7 @@ onMounted(() => {
 .submit-btn {
   padding: 8px 16px;
   border: none;
+  border-radius: var(--radius-md);
   background: var(--color-black);
   color: var(--color-white);
   font-family: var(--font-mono);
@@ -534,6 +539,7 @@ onMounted(() => {
 .task-card {
   padding: 14px 16px;
   border: var(--border);
+  border-radius: var(--radius-lg);
   background: var(--color-white);
   transition: border-color 0.15s ease;
 }
@@ -567,6 +573,7 @@ onMounted(() => {
 
 .type-badge {
   padding: 2px 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
@@ -610,6 +617,7 @@ onMounted(() => {
 .run-btn, .toggle-btn, .delete-btn, .confirm-delete-btn, .cancel-delete-btn {
   padding: 4px 10px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -691,6 +699,7 @@ onMounted(() => {
   padding: 6px 10px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -709,6 +718,7 @@ onMounted(() => {
   margin-top: 12px;
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -729,6 +739,7 @@ onMounted(() => {
   padding: 12px 16px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
 }

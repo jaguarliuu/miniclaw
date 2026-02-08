@@ -169,6 +169,7 @@ watch(
   background: var(--color-white);
   font-size: 18px;
   cursor: pointer;
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
 }
 
@@ -184,6 +185,7 @@ watch(
   padding: 8px;
   background: var(--color-gray-bg);
   border: var(--border-light);
+  border-radius: var(--radius-md);
 }
 
 .panel-body {

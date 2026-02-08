@@ -47,7 +47,7 @@ function navigateTo(sectionId: string) {
   width: var(--settings-nav-width);
   height: 100%;
   border-right: var(--border);
-  background: var(--color-white);
+  background: var(--color-gray-50);
   display: flex;
   flex-direction: column;
 }
@@ -59,7 +59,7 @@ function navigateTo(sectionId: string) {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-400);
   border-bottom: var(--border-light);
 }
 
@@ -72,12 +72,13 @@ function navigateTo(sectionId: string) {
   width: 100%;
   padding: 10px 12px;
   border: none;
+  border-radius: var(--radius-md);
   background: transparent;
   font-family: var(--font-mono);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
   color: var(--color-gray-dark);
 }
 
@@ -87,7 +88,9 @@ function navigateTo(sectionId: string) {
 }
 
 .nav-item.active {
-  background: var(--color-black);
-  color: var(--color-white);
+  background: var(--color-white);
+  color: var(--color-black);
+  font-weight: 500;
+  box-shadow: var(--shadow-xs);
 }
 </style>

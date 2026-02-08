@@ -27,7 +27,8 @@ defineProps<{
   margin: 12px 0;
   padding: 12px 16px;
   border: var(--border);
-  background: linear-gradient(135deg, var(--color-gray-bg) 0%, var(--color-white) 100%);
+  border-radius: var(--radius-lg);
+  background: var(--color-gray-50);
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -62,5 +63,6 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
 }
 </style>

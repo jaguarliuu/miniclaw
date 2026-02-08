@@ -205,17 +205,18 @@ const downloadFileName = computed(() => {
   margin: 12px 0;
   padding: 12px 16px;
   border: var(--border);
-  background: var(--color-gray-bg);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 12px;
 }
 
 .tool-card.success {
-  border-color: #2d2;
+  border-color: var(--color-success);
 }
 
 .tool-card.error {
-  border-color: #d22;
+  border-color: var(--color-error);
 }
 
 .tool-card.rejected {
@@ -224,7 +225,7 @@ const downloadFileName = computed(() => {
 }
 
 .tool-card.pending {
-  border-color: #fa0;
+  border-color: var(--color-warning);
 }
 
 .tool-card.executing {
@@ -235,7 +236,11 @@ const downloadFileName = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  background: var(--color-gray-50);
+  border-bottom: var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  margin: -12px -16px 12px -16px;
+  padding: 10px 16px;
 }
 
 .tool-icon {
@@ -255,8 +260,9 @@ const downloadFileName = computed(() => {
 }
 
 .tool-args {
-  background: var(--color-white);
+  background: var(--color-gray-50);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   padding: 8px;
   max-height: 120px;
   overflow: auto;
@@ -278,6 +284,7 @@ const downloadFileName = computed(() => {
   flex: 1;
   padding: 8px 16px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -285,16 +292,21 @@ const downloadFileName = computed(() => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .btn-approve {
   background: var(--color-black) !important;
   color: var(--color-white);
+  border-radius: var(--radius-md);
 }
 
 .btn-approve:hover {
   opacity: 0.8;
+}
+
+.btn-reject {
+  border-radius: var(--radius-md);
 }
 
 .btn-reject:hover {
@@ -306,6 +318,7 @@ const downloadFileName = computed(() => {
   padding: 8px;
   background: var(--color-white);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   max-height: 200px;
   overflow: auto;
   position: relative;
@@ -316,8 +329,8 @@ const downloadFileName = computed(() => {
 }
 
 .tool-result.error {
-  border-color: #d22;
-  color: #d22;
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 .result-header {
@@ -389,13 +402,14 @@ const downloadFileName = computed(() => {
   display: inline-block;
   padding: 6px 12px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 11px;
   text-decoration: none;
   color: var(--color-black);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .download-btn:hover {

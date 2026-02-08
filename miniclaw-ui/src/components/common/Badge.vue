@@ -21,17 +21,18 @@ defineProps<{
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
+  border-radius: var(--radius-sm);
 }
 
 .default {
-  background: var(--color-black);
-  color: var(--color-white);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
 }
 
 .outline {
   background: transparent;
-  border: 1px solid var(--color-black);
-  color: var(--color-black);
+  border: 1px solid var(--color-gray-300);
+  color: var(--color-gray-600);
 }
 
 .muted {

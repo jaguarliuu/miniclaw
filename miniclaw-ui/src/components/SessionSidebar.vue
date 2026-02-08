@@ -100,7 +100,7 @@ async function handleDelete(e: Event, sessionId: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px;
+  padding: 16px 20px;
   border-bottom: var(--border);
 }
 
@@ -123,13 +123,14 @@ async function handleDelete(e: Event, sessionId: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--border);
-  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-gray-100);
   font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 400;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .new-btn:hover {
@@ -157,19 +158,23 @@ async function handleDelete(e: Event, sessionId: string) {
   gap: 8px;
   padding: 12px;
   border: none;
+  border-radius: var(--radius-md);
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease;
+  margin-bottom: 2px;
+  transition: background var(--duration-fast) var(--ease-in-out);
 }
 
 .session-item:hover {
-  background: var(--color-gray-bg);
+  background: var(--color-gray-50);
 }
 
 .session-item.active {
   background: var(--color-black);
   color: var(--color-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .session-content {
@@ -193,7 +198,7 @@ async function handleDelete(e: Event, sessionId: string) {
 .session-date {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-400);
 }
 
 .session-item.active .session-date {
@@ -213,7 +218,7 @@ async function handleDelete(e: Event, sessionId: string) {
   font-weight: 500;
   color: var(--color-gray-dark);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
   flex-shrink: 0;
 }
 
@@ -222,7 +227,7 @@ async function handleDelete(e: Event, sessionId: string) {
 }
 
 .delete-btn:hover {
-  color: #d22;
+  color: var(--color-error);
 }
 
 .session-item.active .delete-btn {
@@ -230,7 +235,7 @@ async function handleDelete(e: Event, sessionId: string) {
 }
 
 .session-item.active .delete-btn:hover {
-  color: #faa;
+  color: #ffaaaa;
 }
 
 .sidebar-footer {

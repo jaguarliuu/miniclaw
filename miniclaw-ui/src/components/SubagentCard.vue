@@ -180,8 +180,8 @@ async function handleStop(e: Event) {
 .subagent-card {
   margin: 12px 0;
   padding: 14px 16px;
-  border: 1px solid var(--color-gray-dark);
-  border-left: 3px solid var(--color-gray-dark);
+  border: var(--border);
+  border-radius: var(--radius-lg);
   background: var(--color-gray-bg);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -189,7 +189,7 @@ async function handleStop(e: Event) {
 
 .subagent-card.clickable {
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--duration-fast) var(--ease-in-out), border-color var(--duration-fast) var(--ease-in-out);
 }
 
 .subagent-card.clickable:hover {
@@ -200,23 +200,15 @@ async function handleStop(e: Event) {
 .subagent-card.active {
   background: var(--color-white);
   border-color: var(--color-black);
-  box-shadow: 0 0 0 1px var(--color-black);
-}
-
-.subagent-card.queued {
-  border-left-color: #999;
-}
-
-.subagent-card.running {
-  border-left-color: #111;
+  box-shadow: var(--shadow-sm);
 }
 
 .subagent-card.completed {
-  border-left-color: #2d2;
+  border-color: var(--color-success);
 }
 
 .subagent-card.failed {
-  border-left-color: #d22;
+  border-color: var(--color-error);
 }
 
 .subagent-header {
@@ -258,6 +250,7 @@ async function handleStop(e: Event) {
   background: var(--color-black);
   color: var(--color-white);
   letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
 }
 
 .subagent-status {
@@ -275,6 +268,7 @@ async function handleStop(e: Event) {
   padding: 8px;
   background: var(--color-white);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   line-height: 1.5;
 }
 
@@ -287,6 +281,7 @@ async function handleStop(e: Event) {
 .btn-stop {
   padding: 4px 12px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -294,21 +289,22 @@ async function handleStop(e: Event) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
 }
 
 .btn-stop:hover {
   background: var(--color-gray-bg);
-  border-color: #d22;
-  color: #d22;
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 .subagent-error {
   margin-top: 8px;
   padding: 8px;
   background: #fff5f5;
-  border: 1px solid #d22;
-  color: #d22;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
   line-height: 1.5;
 }
 
@@ -324,6 +320,7 @@ async function handleStop(e: Event) {
   padding: 8px;
   background: var(--color-white);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   max-height: 200px;
   overflow: auto;
   position: relative;

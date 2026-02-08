@@ -147,7 +147,7 @@ onMounted(() => {
   font-size: 11px;
   padding: 4px 10px;
   border: var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text);
   cursor: pointer;
@@ -168,6 +168,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
+  border-radius: var(--radius-md);
   font-family: var(--font-mono);
   font-size: 11px;
   color: #c0392b;

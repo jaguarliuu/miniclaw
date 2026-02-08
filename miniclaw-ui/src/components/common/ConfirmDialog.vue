@@ -86,6 +86,8 @@ function handleKeydown(e: KeyboardEvent) {
   max-width: 400px;
   width: 90%;
   margin: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
 }
 
 .confirm-dialog::backdrop {
@@ -135,6 +137,7 @@ function handleKeydown(e: KeyboardEvent) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
 }
 
@@ -157,12 +160,12 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .btn-confirm.danger {
-  background: #d22;
-  border-color: #d22;
+  background: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .btn-confirm.danger:hover {
-  background: #b11;
-  border-color: #b11;
+  background: #b33;
+  border-color: #b33;
 }
 </style>

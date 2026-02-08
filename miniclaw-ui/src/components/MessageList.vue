@@ -69,7 +69,11 @@ watch(
       <article v-if="isStreaming" class="message assistant streaming">
         <div class="message-meta">
           <span class="role">Assistant</span>
-          <span class="streaming-indicator"></span>
+          <span class="streaming-indicator">
+            <span class="streaming-dot"></span>
+            <span class="streaming-dot"></span>
+            <span class="streaming-dot"></span>
+          </span>
         </div>
 
         <!-- Thinking state when no content yet -->
@@ -139,13 +143,13 @@ watch(
 
 .empty-hint {
   font-size: 14px;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-400);
 }
 
 /* Streaming message styles */
 .message {
-  padding: 24px 0;
-  border-bottom: var(--border-light);
+  padding: 20px 0;
+  border-bottom: 1px solid var(--color-gray-100);
 }
 
 .message-meta {
@@ -161,23 +165,26 @@ watch(
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-500);
 }
 
 .streaming-indicator {
-  width: 6px;
-  height: 6px;
-  background: var(--color-black);
-  animation: blink 0.6s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
-
-@keyframes blink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.2;
-  }
+.streaming-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-black);
+  animation: stream-bounce 1.4s ease-in-out infinite;
+}
+.streaming-dot:nth-child(2) { animation-delay: 0.16s; }
+.streaming-dot:nth-child(3) { animation-delay: 0.32s; }
+@keyframes stream-bounce {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
 }
 
 .message-content {

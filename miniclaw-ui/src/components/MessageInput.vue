@@ -140,35 +140,37 @@ function handleInput(e: Event) {
         </div>
       </div>
 
-      <textarea
-        ref="inputRef"
-        v-model="input"
-        :disabled="disabled"
-        placeholder="Type your message..."
-        rows="1"
-        @keydown="handleKeydown"
-        @input="handleInput"
-      ></textarea>
+      <div class="input-wrap">
+        <textarea
+          ref="inputRef"
+          v-model="input"
+          :disabled="disabled"
+          placeholder="Type your message..."
+          rows="1"
+          @keydown="handleKeydown"
+          @input="handleInput"
+        ></textarea>
 
-      <!-- Cancel button when running -->
-      <button
-        v-if="isRunning"
-        class="cancel-btn"
-        @click="handleCancel"
-        title="Cancel (Esc)"
-      >
-        <span class="icon">x</span>
-      </button>
+        <!-- Cancel button when running -->
+        <button
+          v-if="isRunning"
+          class="cancel-btn"
+          @click="handleCancel"
+          title="Cancel (Esc)"
+        >
+          <span class="icon">x</span>
+        </button>
 
-      <!-- Send button -->
-      <button
-        v-else
-        class="send-btn"
-        :disabled="disabled || !input.trim()"
-        @click="handleSubmit"
-      >
-        <span class="arrow">→</span>
-      </button>
+        <!-- Send button -->
+        <button
+          v-else
+          class="send-btn"
+          :disabled="disabled || !input.trim()"
+          @click="handleSubmit"
+        >
+          <span class="arrow">↑</span>
+        </button>
+      </div>
     </div>
     <div class="input-hint">
       <template v-if="isRunning">
@@ -195,28 +197,40 @@ function handleInput(e: Event) {
 .input-container {
   max-width: 720px;
   margin: 0 auto;
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
   position: relative;
+}
+
+.input-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 8px 8px 8px 16px;
+  background: var(--color-white);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration-fast) var(--ease-in-out), box-shadow var(--duration-fast) var(--ease-in-out);
+}
+
+.input-wrap:focus-within {
+  border-color: var(--color-gray-400);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
 }
 
 textarea {
   flex: 1;
-  padding: 14px 0;
+  padding: 6px 0;
   border: none;
-  border-bottom: 2px solid var(--color-black);
   background: transparent;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
   resize: none;
   outline: none;
-  transition: border-color 0.2s ease;
 }
 
 textarea::placeholder {
-  color: var(--color-gray-dark);
+  color: var(--color-gray-400);
 }
 
 textarea:disabled {
@@ -224,63 +238,58 @@ textarea:disabled {
   cursor: not-allowed;
 }
 
-textarea:focus {
-  border-bottom-color: var(--color-black);
-}
-
 .send-btn {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--border);
+  border: none;
+  border-radius: var(--radius-md);
   background: var(--color-black);
   color: var(--color-white);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
   flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
-  background: var(--color-white);
-  color: var(--color-black);
+  opacity: 0.85;
 }
 
 .send-btn:disabled {
-  background: var(--color-gray-light);
-  border-color: var(--color-gray-light);
+  background: var(--color-gray-200);
   cursor: not-allowed;
 }
 
 .cancel-btn {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-black);
+  border: var(--border-strong);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   color: var(--color-black);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-in-out);
   flex-shrink: 0;
 }
 
 .cancel-btn:hover {
-  background: var(--color-black);
-  color: var(--color-white);
+  background: var(--color-gray-100);
 }
 
 .cancel-btn .icon {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .arrow {
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -289,9 +298,10 @@ textarea:focus {
   margin: 8px auto 0;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-400);
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 
 .separator {
@@ -320,8 +330,11 @@ textarea:focus {
   max-height: 240px;
   overflow-y: auto;
   background: var(--color-white);
-  border: var(--border);
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   z-index: 100;
+  padding: 4px;
 }
 
 .slash-item {
@@ -332,10 +345,11 @@ textarea:focus {
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 12px;
+  border-radius: var(--radius-md);
 }
 
 .slash-item.selected {
-  background: var(--color-gray-bg);
+  background: var(--color-gray-50);
 }
 
 .slash-item-name {
@@ -348,12 +362,13 @@ textarea:focus {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 1px 5px;
-  border: var(--border-light);
-  color: var(--color-gray-dark);
+  background: var(--color-gray-100);
+  border-radius: var(--radius-sm);
+  color: var(--color-gray-500);
 }
 
 .slash-item-desc {
-  color: var(--color-gray-dark);
+  color: var(--color-gray-500);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

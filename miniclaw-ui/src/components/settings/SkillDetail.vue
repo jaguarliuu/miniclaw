@@ -150,6 +150,7 @@ defineProps<{
   padding: 16px;
   background: var(--color-gray-bg);
   border: var(--border-light);
+  border-radius: var(--radius-md);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;

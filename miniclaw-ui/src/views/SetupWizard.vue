@@ -257,6 +257,7 @@ async function handleSave() {
   gap: 6px;
   padding: 16px;
   border: var(--border);
+  border-radius: var(--radius-lg);
   background: var(--color-white);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -266,6 +267,7 @@ async function handleSave() {
 .provider-card:hover {
   border-color: var(--color-black);
   background: var(--color-gray-bg);
+  box-shadow: var(--shadow-xs);
 }
 
 .provider-name {
@@ -292,6 +294,7 @@ async function handleSave() {
 .back-btn {
   padding: 4px 8px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -330,6 +333,7 @@ async function handleSave() {
 .form-input {
   padding: 10px 12px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -340,6 +344,7 @@ async function handleSave() {
 .form-input:focus {
   outline: none;
   border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
 }
 
 .input-with-toggle {
@@ -355,6 +360,7 @@ async function handleSave() {
 .visibility-toggle {
   padding: 8px 12px;
   border: var(--border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   background: var(--color-gray-bg);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -374,6 +380,7 @@ async function handleSave() {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-family: var(--font-mono);
 }
@@ -409,6 +416,7 @@ async function handleSave() {
   padding: 10px 14px;
   background: #fef2f2;
   border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
   color: #dc2626;
   font-size: 13px;
 }
@@ -423,6 +431,7 @@ async function handleSave() {
 .test-btn {
   padding: 10px 20px;
   border: var(--border);
+  border-radius: var(--radius-md);
   background: var(--color-white);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -443,6 +452,7 @@ async function handleSave() {
   flex: 1;
   padding: 10px 20px;
   border: none;
+  border-radius: var(--radius-md);
   background: var(--color-black);
   color: var(--color-white);
   font-family: var(--font-mono);

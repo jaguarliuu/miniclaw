@@ -161,12 +161,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  transition: all 0.2s ease;
+  background: var(--color-gray-50);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .main-header {
   padding: 20px 48px;
   border-bottom: var(--border-light);
+  background: var(--color-white);
   display: flex;
   align-items: center;
 }
@@ -176,13 +178,13 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-600);
 }
 
 /* Panel slide transition */
 .panel-slide-enter-active,
 .panel-slide-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
 }
 
 .panel-slide-enter-from,

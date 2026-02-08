@@ -36,7 +36,8 @@ function renderTextBlock(content: string | undefined): string {
   <article class="message" :class="message.role">
     <div class="message-inner">
       <div class="message-meta">
-        <span class="role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
+        <span class="msg-avatar" :class="message.role">{{ message.role === 'user' ? 'U' : 'M' }}</span>
+        <span class="role">{{ message.role === 'user' ? 'You' : 'MiniClaw' }}</span>
       </div>
 
       <!-- 有 blocks 的 assistant 消息：交错显示 -->
@@ -82,7 +83,7 @@ function renderTextBlock(content: string | undefined): string {
 
 <style scoped>
 .message {
-  padding: 24px 0;
+  padding: 20px 0;
   border-bottom: var(--border-light);
 }
 
@@ -96,21 +97,46 @@ function renderTextBlock(content: string | undefined): string {
 }
 
 .message-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
 .role {
   font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-gray-600);
+}
+
+.msg-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-gray-dark);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.msg-avatar.user {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.msg-avatar.assistant {
+  background: var(--color-black);
+  color: white;
 }
 
 .message-content {
   font-size: 15px;
   line-height: 1.7;
+  padding-left: 30px;
 }
 
 /* User messages - right aligned, compact */
@@ -126,7 +152,7 @@ function renderTextBlock(content: string | undefined): string {
 
 .message.user .message-content {
   text-align: right;
-  color: var(--color-gray-dark);
+  color: var(--color-gray-700);
 }
 
 /* Assistant messages - full width, prominent */
