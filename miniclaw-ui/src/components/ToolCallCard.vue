@@ -59,7 +59,8 @@ const toolDisplayName = computed(() => {
     read_file: '读取文件',
     write_file: '写入文件',
     shell: '执行命令',
-    http_get: 'HTTP 请求'
+    http_get: 'HTTP 请求',
+    web_search: '网络搜索'
   }
   return names[props.toolCall.toolName] || props.toolCall.toolName
 })
@@ -138,6 +139,26 @@ function handleApprove() {
 function handleReject() {
   emit('confirm', props.toolCall.callId, 'reject')
 }
+
+// 是否显示文件下载按钮（write_file 成功时）
+const showDownloadBtn = computed(() => {
+  return props.toolCall.toolName === 'write_file'
+    && props.toolCall.status === 'success'
+    && props.toolCall.arguments.path
+})
+
+// 文件下载 URL
+const downloadUrl = computed(() => {
+  if (!showDownloadBtn.value) return ''
+  const path = String(props.toolCall.arguments.path || '')
+  return `/api/workspace/${encodeURIComponent(path)}?download`
+})
+
+const downloadFileName = computed(() => {
+  const path = String(props.toolCall.arguments.path || '')
+  const parts = path.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || 'download'
+})
 </script>
 
 <template>
@@ -168,6 +189,13 @@ function handleReject() {
       </div>
       <pre>{{ formattedResult }}</pre>
       <div v-if="isResultLong && !isResultExpanded" class="truncation-fade"></div>
+    </div>
+
+    <!-- File Download Button -->
+    <div v-if="showDownloadBtn" class="tool-download">
+      <a :href="downloadUrl" :download="downloadFileName" class="download-btn">
+        下载文件
+      </a>
     </div>
   </div>
 </template>
@@ -350,5 +378,28 @@ function handleReject() {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Download Button */
+.tool-download {
+  margin-top: 8px;
+}
+
+.download-btn {
+  display: inline-block;
+  padding: 6px 12px;
+  border: var(--border);
+  background: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-decoration: none;
+  color: var(--color-black);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.download-btn:hover {
+  background: var(--color-black);
+  color: var(--color-white);
 }
 </style>

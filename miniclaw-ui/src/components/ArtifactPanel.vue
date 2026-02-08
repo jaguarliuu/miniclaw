@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useArtifact } from '@/composables/useArtifact'
 import { useMarkdown } from '@/composables/useMarkdown'
+import { highlightCode } from '@/composables/useMarkdown'
 
 const { artifact, panelWidth, setViewMode, copyContent, downloadContent, closeArtifact, setPanelWidth } = useArtifact()
 const { render } = useMarkdown()
@@ -18,6 +19,11 @@ const fileName = computed(() => {
 const renderedMarkdown = computed(() => {
   if (!artifact.value || artifact.value.language !== 'markdown') return ''
   return render(artifact.value.content)
+})
+
+const highlightedCode = computed(() => {
+  if (!artifact.value) return ''
+  return highlightCode(artifact.value.content, artifact.value.language)
 })
 
 const mermaidSrcdoc = computed(() => {
@@ -116,7 +122,7 @@ function startResize(e: MouseEvent) {
 
     <div class="panel-body">
       <!-- Code view -->
-      <pre v-if="artifact.viewMode === 'code'" ref="codeViewRef" class="code-view"><code>{{ artifact.content }}</code></pre>
+      <pre v-if="artifact.viewMode === 'code'" ref="codeViewRef" class="code-view hljs"><code v-html="highlightedCode"></code></pre>
 
       <!-- HTML / SVG preview -->
       <iframe

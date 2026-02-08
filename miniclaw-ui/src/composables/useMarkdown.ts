@@ -1,8 +1,9 @@
 import { computed } from 'vue'
 import { marked } from 'marked'
+import hljs from 'highlight.js'
 
 /**
- * Markdown 渲染器（使用 marked 库）
+ * Markdown 渲染器（使用 marked 库 + highlight.js 代码高亮）
  * 支持 GFM（GitHub Flavored Markdown）
  */
 
@@ -15,11 +16,21 @@ marked.setOptions({
 // 自定义渲染器
 const renderer = new marked.Renderer()
 
-// 代码块添加自定义类名
+// 代码块：使用 highlight.js 进行语法高亮
 renderer.code = ({ text, lang }) => {
   const language = lang || ''
-  const escapedCode = escapeHtml(text)
-  return `<pre class="code-block${language ? ` language-${language}` : ''}"><code>${escapedCode}</code></pre>`
+  let highlighted: string
+
+  if (language && hljs.getLanguage(language)) {
+    highlighted = hljs.highlight(text, { language }).value
+  } else if (language) {
+    // 未知语言，尝试自动检测
+    highlighted = hljs.highlightAuto(text).value
+  } else {
+    highlighted = escapeHtml(text)
+  }
+
+  return `<pre class="code-block hljs${language ? ` language-${language}` : ''}"><code>${highlighted}</code></pre>`
 }
 
 // 行内代码
@@ -44,6 +55,16 @@ function escapeHtml(text: string): string {
     "'": '&#039;',
   }
   return text.replace(/[&<>"']/g, (char) => map[char] || char)
+}
+
+/**
+ * 对已有的纯文本代码进行高亮（用于 ArtifactPanel 等非 Markdown 场景）
+ */
+export function highlightCode(code: string, language: string): string {
+  if (language && hljs.getLanguage(language)) {
+    return hljs.highlight(code, { language }).value
+  }
+  return escapeHtml(code)
 }
 
 export function useMarkdown() {
