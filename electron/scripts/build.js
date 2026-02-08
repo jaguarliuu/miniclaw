@@ -79,7 +79,8 @@ try {
   // Step 5: Check JRE
   console.log('\n=== Step 5: Checking JRE ===');
   const jreDir = path.join(RESOURCES_DIR, 'jre');
-  const javaExe = path.join(jreDir, 'bin', 'java.exe');
+  const javaBin = process.platform === 'win32' ? 'java.exe' : 'java';
+  const javaExe = path.join(jreDir, 'bin', javaBin);
   if (!fs.existsSync(javaExe)) {
     throw new Error(
       `JRE not found at ${jreDir}\nRun "npm run download-jre" first.`

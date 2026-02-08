@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
@@ -37,17 +40,17 @@ jobs:
           npm run build
 
       - name: Copy JAR to Electron resources
-        shell: pwsh
+        shell: bash
         run: |
-          New-Item -Path electron/resources -ItemType Directory -Force
-          $jar = Get-ChildItem target/*.jar -Exclude *-plain.jar,*original* | Select-Object -First 1
-          Copy-Item $jar.FullName electron/resources/app.jar
+          mkdir -p electron/resources
+          jar=$(ls target/*.jar | grep -v plain | grep -v original | head -1)
+          cp "$jar" electron/resources/app.jar
 
       - name: Copy webapp to Electron resources
-        shell: pwsh
+        shell: bash
         run: |
-          if (Test-Path electron/resources/webapp) { Remove-Item -Recurse -Force electron/resources/webapp }
-          Copy-Item -Recurse miniclaw-ui/dist electron/resources/webapp
+          rm -rf electron/resources/webapp
+          cp -r miniclaw-ui/dist electron/resources/webapp
 
       - name: Download JRE
         working-directory: electron
@@ -62,3 +65,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --publish always
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release with notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ github.ref_name }} --draft=false --generate-notes

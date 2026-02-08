@@ -43,6 +43,11 @@
       "target": "nsis",
       "icon": "resources/icon.png"
     },
+    "mac": {
+      "target": "dmg",
+      "icon": "resources/icon.png",
+      "identity": null
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true

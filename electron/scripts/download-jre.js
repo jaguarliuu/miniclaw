@@ -1,5 +1,6 @@
 /**
- * Download Adoptium Temurin JRE 24 for Windows x64.
+ * Download Adoptium Temurin JRE 24.
+ * Detects platform (Windows/macOS) and architecture (x64/aarch64) automatically.
  * Extracts to electron/resources/jre/
  *
  * Usage: node scripts/download-jre.js
@@ -11,9 +12,13 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const JRE_VERSION = '24';
-const OS = 'windows';
-const ARCH = 'x64';
+const IS_WINDOWS = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+const OS = IS_WINDOWS ? 'windows' : IS_MAC ? 'mac' : 'linux';
+const ARCH = process.arch === 'arm64' ? 'aarch64' : 'x64';
 const IMAGE_TYPE = 'jre';
+const ARCHIVE_EXT = IS_WINDOWS ? '.zip' : '.tar.gz';
+const JAVA_BIN = IS_WINDOWS ? 'java.exe' : 'java';
 
 const RESOURCES_DIR = path.resolve(__dirname, '..', 'resources');
 const JRE_DIR = path.join(RESOURCES_DIR, 'jre');
@@ -85,7 +90,7 @@ function downloadFile(url, destPath) {
 }
 
 async function main() {
-  console.log(`Fetching Adoptium JRE ${JRE_VERSION} metadata...`);
+  console.log(`Fetching Adoptium JRE ${JRE_VERSION} for ${OS}/${ARCH}...`);
 
   // Get asset info from API
   const res = await httpsGet(API_URL);
@@ -99,10 +104,10 @@ async function main() {
     throw new Error('No JRE assets found from Adoptium API');
   }
 
-  // Find the zip package
-  const asset = assets.find((a) => a.binary?.package?.name?.endsWith('.zip'));
+  // Find the matching archive package
+  const asset = assets.find((a) => a.binary?.package?.name?.endsWith(ARCHIVE_EXT));
   if (!asset) {
-    throw new Error('No .zip JRE package found');
+    throw new Error(`No ${ARCHIVE_EXT} JRE package found`);
   }
 
   const downloadUrl = asset.binary.package.link;
@@ -111,13 +116,13 @@ async function main() {
 
   // Prepare directories
   fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-  const zipPath = path.join(RESOURCES_DIR, fileName);
+  const archivePath = path.join(RESOURCES_DIR, fileName);
 
   // Download
-  if (fs.existsSync(zipPath)) {
+  if (fs.existsSync(archivePath)) {
     console.log('Archive already downloaded, skipping download.');
   } else {
-    await downloadFile(downloadUrl, zipPath);
+    await downloadFile(downloadUrl, archivePath);
   }
 
   // Extract
@@ -127,11 +132,14 @@ async function main() {
   }
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-  // Use PowerShell to extract (Windows)
-  execSync(
-    `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${TEMP_DIR}' -Force"`,
-    { stdio: 'inherit' }
-  );
+  if (IS_WINDOWS) {
+    execSync(
+      `powershell -NoProfile -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${TEMP_DIR}' -Force"`,
+      { stdio: 'inherit' }
+    );
+  } else {
+    execSync(`tar xzf "${archivePath}" -C "${TEMP_DIR}"`, { stdio: 'inherit' });
+  }
 
   // The extracted folder usually has a name like jdk-24.0.1+9-jre
   const extracted = fs.readdirSync(TEMP_DIR);
@@ -143,24 +151,29 @@ async function main() {
     throw new Error('Could not find extracted JRE directory');
   }
 
+  // On macOS, the JRE has a Contents/Home structure
+  const extractedRoot = path.join(TEMP_DIR, jreFolder);
+  const contentsHome = path.join(extractedRoot, 'Contents', 'Home');
+  const jreHome = IS_MAC && fs.existsSync(contentsHome) ? contentsHome : extractedRoot;
+
   // Move to final location
   if (fs.existsSync(JRE_DIR)) {
     fs.rmSync(JRE_DIR, { recursive: true });
   }
-  fs.renameSync(path.join(TEMP_DIR, jreFolder), JRE_DIR);
+  fs.renameSync(jreHome, JRE_DIR);
 
   // Cleanup
-  fs.rmSync(TEMP_DIR, { recursive: true });
-  fs.unlinkSync(zipPath);
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+  fs.unlinkSync(archivePath);
 
   // Verify
-  const javaExe = path.join(JRE_DIR, 'bin', 'java.exe');
-  if (!fs.existsSync(javaExe)) {
-    throw new Error('java.exe not found after extraction');
+  const javaBin = path.join(JRE_DIR, 'bin', JAVA_BIN);
+  if (!fs.existsSync(javaBin)) {
+    throw new Error(`${JAVA_BIN} not found after extraction`);
   }
 
   console.log(`\nJRE installed to: ${JRE_DIR}`);
-  execSync(`"${javaExe}" -version`, { stdio: 'inherit' });
+  execSync(`"${javaBin}" -version`, { stdio: 'inherit' });
 }
 
 main().catch((err) => {

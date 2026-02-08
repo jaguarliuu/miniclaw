@@ -84,7 +84,8 @@ function createSplashWindow() {
 }
 
 function startJavaBackend(port) {
-  const javaExe = path.join(jrePath, 'bin', 'java.exe');
+  const javaBin = process.platform === 'win32' ? 'java.exe' : 'java';
+  const javaExe = path.join(jrePath, 'bin', javaBin);
 
   const args = [
     '-jar', jarPath,
