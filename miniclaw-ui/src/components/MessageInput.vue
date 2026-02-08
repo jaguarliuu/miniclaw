@@ -78,7 +78,8 @@ function handleKeydown(e: KeyboardEvent) {
     }
     if (e.key === 'Tab' || e.key === 'Enter') {
       e.preventDefault()
-      selectSlashCommand(slashItems.value[selectedIndex.value])
+      const item = slashItems.value[selectedIndex.value]
+      if (item) selectSlashCommand(item)
       return
     }
     if (e.key === 'Escape') {
@@ -108,7 +109,7 @@ function handleInput(e: Event) {
   // Slash command detection
   const val = target.value
   if (val.startsWith('/')) {
-    const query = val.substring(1).split(/\s/)[0]
+    const query = val.substring(1).split(/\s/)[0] ?? ''
     if (!val.includes(' ')) {
       slashItems.value = filterCommands(query)
       showSlashMenu.value = slashItems.value.length > 0
