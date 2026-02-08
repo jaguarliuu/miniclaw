@@ -18,6 +18,7 @@ import com.jaguarliu.ai.session.SessionService;
 import com.jaguarliu.ai.storage.entity.MessageEntity;
 import com.jaguarliu.ai.storage.entity.RunEntity;
 import com.jaguarliu.ai.storage.entity.SessionEntity;
+import com.jaguarliu.ai.tools.ToolConfigProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,7 @@ public class AgentRunHandler implements RpcHandler {
     private final ContextBuilder contextBuilder;
     private final AgentRuntime agentRuntime;
     private final LlmClient llmClient;
+    private final ToolConfigProperties toolConfigProperties;
 
     /**
      * 历史消息数量限制（避免上下文过长）
@@ -183,6 +185,9 @@ public class AgentRunHandler implements RpcHandler {
                 runService.updateStatus(runId, RunStatus.ERROR);
             } catch (Exception ignored) {}
             eventBus.publish(AgentEvent.lifecycleError(connectionId, runId, e.getMessage()));
+        } finally {
+            // 清除搜索结果临时白名单
+            toolConfigProperties.clearSearchDiscoveredDomains();
         }
     }
 

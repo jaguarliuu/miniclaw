@@ -1,6 +1,7 @@
 package com.jaguarliu.ai.tools.builtin;
 
 import com.jaguarliu.ai.tools.Tool;
+import com.jaguarliu.ai.tools.ToolConfigProperties;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolResult;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -20,13 +22,15 @@ import java.util.Map;
 public class HttpGetTool implements Tool {
 
     private final WebClient webClient;
+    private final ToolConfigProperties toolConfigProperties;
 
     /**
      * 最大响应体长度（截断保护）
      */
     private static final int MAX_RESPONSE_LENGTH = 32000;
 
-    public HttpGetTool() {
+    public HttpGetTool(ToolConfigProperties toolConfigProperties) {
+        this.toolConfigProperties = toolConfigProperties;
         this.webClient = WebClient.builder()
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(2 * 1024 * 1024)) // 2MB
                 .build();
@@ -60,6 +64,19 @@ public class HttpGetTool implements Tool {
 
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             return Mono.just(ToolResult.error("Invalid URL: must start with http:// or https://"));
+        }
+
+        // 域名可信检查
+        try {
+            URI uri = URI.create(url);
+            String host = uri.getHost();
+            if (host == null || !toolConfigProperties.isDomainTrusted(host)) {
+                return Mono.just(ToolResult.error(
+                        "Domain '" + host + "' is not in the trusted list. "
+                                + "Add it via Settings > Tools to allow access."));
+            }
+        } catch (Exception e) {
+            return Mono.just(ToolResult.error("Invalid URL: " + url));
         }
 
         log.info("HTTP GET: {}", url);

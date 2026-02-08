@@ -367,3 +367,18 @@ export interface LlmTestResult {
 export interface AppStatus {
   llmConfigured: boolean
 }
+
+// ==================== Tool Config Types ====================
+
+export interface ToolConfig {
+  trustedDomains: { defaults: string[]; user: string[] }
+  searchProviders: SearchProviderEntry[]
+}
+
+export interface SearchProviderEntry {
+  type: string
+  displayName: string
+  apiKey: string      // GET 响应中为脱敏值
+  enabled: boolean
+  keyRequired: boolean
+}

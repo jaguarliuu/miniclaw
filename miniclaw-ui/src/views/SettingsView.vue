@@ -5,6 +5,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import ModeSwitcher from '@/components/layout/ModeSwitcher.vue'
 import SettingsSidebar from '@/components/settings/SettingsSidebar.vue'
 import LlmSection from '@/components/settings/LlmSection.vue'
+import ToolsConfigSection from '@/components/settings/ToolsConfigSection.vue'
 import SkillsSection from '@/components/settings/SkillsSection.vue'
 import MemorySection from '@/components/settings/MemorySection.vue'
 import NodesSection from '@/components/settings/NodesSection.vue'
@@ -46,6 +47,7 @@ onUnmounted(() => {
 
       <main class="settings-content">
         <LlmSection v-if="currentSection === 'llm'" />
+        <ToolsConfigSection v-else-if="currentSection === 'tools'" />
         <SkillsSection v-else-if="currentSection === 'skills'" />
         <MemorySection v-else-if="currentSection === 'memory'" />
         <NodesSection v-else-if="currentSection === 'nodes'" />
