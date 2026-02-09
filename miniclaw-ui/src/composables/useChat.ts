@@ -262,6 +262,26 @@ async function confirmToolCall(callId: string, decision: 'approve' | 'reject') {
   }
 }
 
+/**
+ * 深拷贝 streamBlocks，避免引用问题
+ * 在 lifecycle.end 和 cancelRun 中复用
+ */
+function deepCopyBlocks(blocks: StreamBlock[]): StreamBlock[] {
+  return blocks.map(block => ({
+    ...block,
+    toolCall: block.toolCall ? { ...block.toolCall } : undefined,
+    skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined,
+    subagent: block.subagent ? {
+      ...block.subagent,
+      streamBlocks: block.subagent.streamBlocks?.map(sb => ({
+        ...sb,
+        toolCall: sb.toolCall ? { ...sb.toolCall } : undefined
+      })),
+      toolCallIndex: undefined  // 不需要保存索引
+    } : undefined
+  }))
+}
+
 // Cancel Run
 async function cancelRun() {
   if (!currentRun.value) {
@@ -270,28 +290,52 @@ async function cancelRun() {
   }
 
   const runIdToCancel = currentRun.value.id
+  const sessionId = currentRun.value.sessionId
 
   try {
     await request('agent.cancel', { runId: runIdToCancel })
     console.log('[Chat] Cancellation requested for run:', runIdToCancel)
 
-    // 立即重置前端状态（不等待 lifecycle.error 事件）
-    // 后端的实际取消可能需要一些时间（等待 LLM 响应完成）
+    // 先将 currentRun 设为 null，这样后续到达的 lifecycle.error 事件会被忽略
+    currentRun.value = null
+
+    if (streamBlocks.value.length > 0) {
+      // 保存已有 streamBlocks 为 assistant message（复用深拷贝逻辑）
+      const textContent = streamBlocks.value
+        .filter(b => b.type === 'text')
+        .map(b => b.content || '')
+        .join('')
+
+      const savedBlocks = deepCopyBlocks(streamBlocks.value)
+
+      const assistantMessage: Message = {
+        id: `msg-cancel-${Date.now()}`,
+        sessionId: sessionId,
+        runId: runIdToCancel,
+        role: 'assistant',
+        content: textContent + '\n\n---\n_Cancelled by user_',
+        createdAt: new Date().toISOString(),
+        blocks: savedBlocks
+      }
+      messages.value.push(assistantMessage)
+    } else {
+      // streamBlocks 为空，只添加取消标记
+      const cancelMessage: Message = {
+        id: `msg-cancel-${Date.now()}`,
+        sessionId: sessionId,
+        runId: runIdToCancel,
+        role: 'assistant',
+        content: '_Cancelled by user_',
+        createdAt: new Date().toISOString()
+      }
+      messages.value.push(cancelMessage)
+    }
+
+    // 重置流式状态
     isStreaming.value = false
     streamBlocks.value = []
     toolCallIndex.value = {}
-    currentRun.value = null
-
-    // 添加一条取消消息
-    const cancelMessage: Message = {
-      id: `msg-cancel-${Date.now()}`,
-      sessionId: currentSessionId.value!,
-      runId: runIdToCancel,
-      role: 'assistant',
-      content: '_Cancelled by user_',
-      createdAt: new Date().toISOString()
-    }
-    messages.value.push(cancelMessage)
+    subagentIndex.value = {}
   } catch (e) {
     console.error('Failed to cancel run:', e)
   }
@@ -652,19 +696,7 @@ function setupEventListeners() {
         .join('')
 
       // 复制 blocks 用于保存（深拷贝避免引用问题）
-      const savedBlocks = streamBlocks.value.map(block => ({
-        ...block,
-        toolCall: block.toolCall ? { ...block.toolCall } : undefined,
-        skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined,
-        subagent: block.subagent ? {
-          ...block.subagent,
-          streamBlocks: block.subagent.streamBlocks?.map(sb => ({
-            ...sb,
-            toolCall: sb.toolCall ? { ...sb.toolCall } : undefined
-          })),
-          toolCallIndex: undefined  // 不需要保存索引
-        } : undefined
-      }))
+      const savedBlocks = deepCopyBlocks(streamBlocks.value)
 
       // Add assistant message with blocks
       const assistantMessage: Message = {
