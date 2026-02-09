@@ -374,6 +374,10 @@ export interface AppStatus {
 export interface ToolConfig {
   trustedDomains: { defaults: string[]; user: string[] }
   searchProviders: SearchProviderEntry[]
+  hitl: {
+    alwaysConfirmTools: string[]
+    dangerousKeywords: string[]
+  }
 }
 
 export interface SearchProviderEntry {

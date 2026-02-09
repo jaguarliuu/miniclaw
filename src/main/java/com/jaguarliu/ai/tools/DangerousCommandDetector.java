@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.tools;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +19,10 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DangerousCommandDetector {
+
+    private final ToolConfigProperties toolConfigProperties;
 
     /**
      * 危险命令模式（正则表达式）
@@ -74,7 +78,39 @@ public class DangerousCommandDetector {
             // git reset --hard
             Pattern.compile("\\bgit\\s+reset\\s+--hard", Pattern.CASE_INSENSITIVE),
             // git clean -fd (删除未跟踪文件)
-            Pattern.compile("\\bgit\\s+clean\\s+-[a-zA-Z]*f", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("\\bgit\\s+clean\\s+-[a-zA-Z]*f", Pattern.CASE_INSENSITIVE),
+
+            // === PowerShell 危险操作 ===
+            // Remove-Item -Recurse
+            Pattern.compile("Remove-Item\\s+.*-Recurse", Pattern.CASE_INSENSITIVE),
+            // Format-Volume
+            Pattern.compile("\\bFormat-Volume\\b", Pattern.CASE_INSENSITIVE),
+
+            // === 磁盘写入 ===
+            // dd if=
+            Pattern.compile("\\bdd\\s+if=", Pattern.CASE_INSENSITIVE),
+            // 危险重定向到磁盘设备
+            Pattern.compile(">\\s*/dev/sd[a-z]"),
+
+            // === 进程杀死 ===
+            // kill -9
+            Pattern.compile("\\bkill\\s+-9\\b", Pattern.CASE_INSENSITIVE),
+            // killall
+            Pattern.compile("\\bkillall\\b", Pattern.CASE_INSENSITIVE),
+            // pkill -9
+            Pattern.compile("\\bpkill\\s+-9\\b", Pattern.CASE_INSENSITIVE),
+
+            // === 防火墙 / 网络 ===
+            // iptables -F (清空所有规则)
+            Pattern.compile("\\biptables\\s+-F\\b", Pattern.CASE_INSENSITIVE),
+            // ufw disable
+            Pattern.compile("\\bufw\\s+disable\\b", Pattern.CASE_INSENSITIVE),
+
+            // === Docker 批量清理 ===
+            Pattern.compile("\\bdocker\\s+(rm|rmi|system\\s+prune)", Pattern.CASE_INSENSITIVE),
+
+            // === 包发布（可能意外发布） ===
+            Pattern.compile("\\b(npm|yarn)\\s+publish\\b", Pattern.CASE_INSENSITIVE)
     );
 
     /**
@@ -95,6 +131,28 @@ public class DangerousCommandDetector {
             }
         }
 
+        // 用户自定义关键词匹配
+        if (matchesUserKeywords(command)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 检查命令是否匹配用户自定义的危险关键词（大小写不敏感子串匹配）
+     */
+    public boolean matchesUserKeywords(String command) {
+        if (command == null || command.isBlank()) {
+            return false;
+        }
+        String lowerCommand = command.toLowerCase();
+        for (String keyword : toolConfigProperties.getDangerousKeywords()) {
+            if (keyword != null && !keyword.isBlank() && lowerCommand.contains(keyword.toLowerCase())) {
+                log.debug("Dangerous command detected by user keyword: keyword={}, command={}", keyword, command);
+                return true;
+            }
+        }
         return false;
     }
 
@@ -115,6 +173,14 @@ public class DangerousCommandDetector {
             }
         }
 
+        // 用户自定义关键词
+        String lowerCommand = command.toLowerCase();
+        for (String keyword : toolConfigProperties.getDangerousKeywords()) {
+            if (keyword != null && !keyword.isBlank() && lowerCommand.contains(keyword.toLowerCase())) {
+                return "User-defined dangerous keyword: " + keyword;
+            }
+        }
+
         return null;
     }
 
@@ -123,13 +189,14 @@ public class DangerousCommandDetector {
      */
     private String describePattern(Pattern pattern) {
         String p = pattern.pattern();
-        if (p.contains("rm") || p.contains("del") || p.contains("rmdir") || p.contains("rd")) {
+        if (p.contains("rm") || p.contains("del") || p.contains("rmdir") || p.contains("rd")
+                || p.contains("Remove-Item")) {
             return "Recursive delete operation";
         }
         if (p.contains("password") || p.contains("secret") || p.contains("credential") || p.contains("token")) {
             return "Contains sensitive credentials";
         }
-        if (p.contains("format") || p.contains("mkfs")) {
+        if (p.contains("format") || p.contains("mkfs") || p.contains("Format-Volume")) {
             return "Disk format operation";
         }
         if (p.contains("chmod") || p.contains("chown")) {
@@ -146,6 +213,24 @@ public class DangerousCommandDetector {
         }
         if (p.contains("git")) {
             return "Dangerous git operation";
+        }
+        if (p.contains("dd") && p.contains("if=")) {
+            return "Direct disk write (dd)";
+        }
+        if (p.contains("/dev/sd")) {
+            return "Dangerous redirect to disk device";
+        }
+        if (p.contains("kill") || p.contains("pkill")) {
+            return "Process kill operation";
+        }
+        if (p.contains("iptables") || p.contains("ufw")) {
+            return "Firewall rule modification";
+        }
+        if (p.contains("docker")) {
+            return "Docker bulk cleanup operation";
+        }
+        if (p.contains("npm") || p.contains("yarn")) {
+            return "Package publish operation";
         }
         return "Potentially dangerous operation";
     }

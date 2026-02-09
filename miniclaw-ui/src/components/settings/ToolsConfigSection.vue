@@ -12,6 +12,12 @@ const editUserDomains = ref<string[]>([])
 const editProviders = ref<{ type: string; apiKey: string; enabled: boolean; displayName: string; keyRequired: boolean }[]>([])
 const apiKeyVisible = ref<Record<string, boolean>>({})
 
+// HITL form state
+const editAlwaysConfirmTools = ref<string[]>([])
+const editDangerousKeywords = ref<string[]>([])
+const newConfirmTool = ref('')
+const newDangerousKeyword = ref('')
+
 // Save state
 const saving = ref(false)
 const saveError = ref<string | null>(null)
@@ -36,6 +42,44 @@ function handleDomainKeydown(e: KeyboardEvent) {
   }
 }
 
+function addConfirmTool() {
+  const tool = newConfirmTool.value.trim()
+  if (!tool) return
+  if (editAlwaysConfirmTools.value.some(t => t.toLowerCase() === tool.toLowerCase())) return
+  editAlwaysConfirmTools.value.push(tool)
+  newConfirmTool.value = ''
+}
+
+function removeConfirmTool(tool: string) {
+  editAlwaysConfirmTools.value = editAlwaysConfirmTools.value.filter(t => t !== tool)
+}
+
+function handleConfirmToolKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    addConfirmTool()
+  }
+}
+
+function addDangerousKeyword() {
+  const keyword = newDangerousKeyword.value.trim()
+  if (!keyword) return
+  if (editDangerousKeywords.value.some(k => k.toLowerCase() === keyword.toLowerCase())) return
+  editDangerousKeywords.value.push(keyword)
+  newDangerousKeyword.value = ''
+}
+
+function removeDangerousKeyword(keyword: string) {
+  editDangerousKeywords.value = editDangerousKeywords.value.filter(k => k !== keyword)
+}
+
+function handleDangerousKeywordKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    addDangerousKeyword()
+  }
+}
+
 async function handleSave() {
   saving.value = true
   saveError.value = null
@@ -47,7 +91,11 @@ async function handleSave() {
         type: p.type,
         apiKey: p.apiKey,
         enabled: p.enabled
-      }))
+      })),
+      hitl: {
+        alwaysConfirmTools: editAlwaysConfirmTools.value,
+        dangerousKeywords: editDangerousKeywords.value
+      }
     })
     saveSuccess.value = true
     // Clear api key fields after save (will show masked values on refresh)
@@ -70,6 +118,8 @@ function syncFormFromConfig() {
     apiKey: '',
     enabled: p.enabled
   }))
+  editAlwaysConfirmTools.value = config.value.hitl?.alwaysConfirmTools ? [...config.value.hitl.alwaysConfirmTools] : []
+  editDangerousKeywords.value = config.value.hitl?.dangerousKeywords ? [...config.value.hitl.dangerousKeywords] : []
 }
 
 onMounted(async () => {
@@ -188,6 +238,58 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Section: Command Safety -->
+      <div class="config-block">
+        <h3 class="block-title">Command Safety</h3>
+        <p class="block-desc">Configure which tools and commands require human confirmation before execution.</p>
+
+        <!-- Always Confirm Tools -->
+        <div class="domain-group">
+          <label class="form-label">ALWAYS CONFIRM TOOLS</label>
+          <p class="field-desc">These tools will always require human confirmation before execution.</p>
+          <div class="pill-list" v-if="editAlwaysConfirmTools.length > 0">
+            <span v-for="t in editAlwaysConfirmTools" :key="t" class="pill pill-warn">
+              {{ t }}
+              <button class="pill-remove" @click="removeConfirmTool(t)">&times;</button>
+            </span>
+          </div>
+          <div v-else class="empty-hint">No tools configured — using default rules only</div>
+          <div class="domain-add-row">
+            <input
+              v-model="newConfirmTool"
+              class="form-input domain-input"
+              placeholder="shell"
+              spellcheck="false"
+              @keydown="handleConfirmToolKeydown"
+            />
+            <button class="add-btn" @click="addConfirmTool" :disabled="!newConfirmTool.trim()">+ Add</button>
+          </div>
+        </div>
+
+        <!-- Dangerous Keywords -->
+        <div class="domain-group">
+          <label class="form-label">DANGEROUS KEYWORDS</label>
+          <p class="field-desc">Commands containing any of these keywords will require confirmation (case-insensitive).</p>
+          <div class="pill-list" v-if="editDangerousKeywords.length > 0">
+            <span v-for="k in editDangerousKeywords" :key="k" class="pill pill-warn">
+              {{ k }}
+              <button class="pill-remove" @click="removeDangerousKeyword(k)">&times;</button>
+            </span>
+          </div>
+          <div v-else class="empty-hint">No custom keywords — using built-in patterns only</div>
+          <div class="domain-add-row">
+            <input
+              v-model="newDangerousKeyword"
+              class="form-input domain-input"
+              placeholder="docker rm"
+              spellcheck="false"
+              @keydown="handleDangerousKeywordKeydown"
+            />
+            <button class="add-btn" @click="addDangerousKeyword" :disabled="!newDangerousKeyword.trim()">+ Add</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Save Success -->
       <div v-if="saveSuccess" class="save-success">Configuration saved successfully</div>
 
@@ -250,6 +352,13 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
+.field-desc {
+  font-size: 12px;
+  color: var(--color-gray-dark);
+  margin-bottom: 8px;
+  margin-top: -4px;
+}
+
 /* Domain Groups */
 .domain-group {
   margin-bottom: 16px;
@@ -292,6 +401,12 @@ onMounted(async () => {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   color: #166534;
+}
+
+.pill-warn {
+  background: #fefce8;
+  border: 1px solid #fde68a;
+  color: #92400e;
 }
 
 .pill-remove {

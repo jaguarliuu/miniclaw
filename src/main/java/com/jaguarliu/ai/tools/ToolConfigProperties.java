@@ -40,6 +40,19 @@ public class ToolConfigProperties {
     private List<SearchProviderConfig> searchProviders = new ArrayList<>();
 
     /**
+     * 始终需要 HITL 确认的工具名称（用户配置）
+     * 例如: ["shell", "shell_start", "write_file"]
+     */
+    private List<String> alwaysConfirmTools = new ArrayList<>();
+
+    /**
+     * 用户自定义的危险命令关键词
+     * 命令中包含任一关键词即触发 HITL 确认（大小写不敏感的子串匹配）
+     * 例如: ["docker rm", "npm publish", "DROP TABLE"]
+     */
+    private List<String> dangerousKeywords = new ArrayList<>();
+
+    /**
      * 搜索结果发现的域名（临时白名单，session 结束时清除）
      * 使用 ConcurrentHashMap.newKeySet() 保证线程安全
      */
@@ -70,6 +83,14 @@ public class ToolConfigProperties {
      */
     public void clearSearchDiscoveredDomains() {
         searchDiscoveredDomains.clear();
+    }
+
+    /**
+     * 检查工具是否在用户配置的"始终确认"列表中
+     */
+    public boolean isAlwaysConfirmTool(String toolName) {
+        return alwaysConfirmTools.stream()
+                .anyMatch(t -> t.equalsIgnoreCase(toolName));
     }
 
     @Data

@@ -28,6 +28,10 @@ export function useToolConfig() {
   async function saveConfig(payload: {
     userDomains: string[]
     searchProviders: { type: string; apiKey: string; enabled: boolean }[]
+    hitl?: {
+      alwaysConfirmTools: string[]
+      dangerousKeywords: string[]
+    }
   }): Promise<void> {
     error.value = null
     try {

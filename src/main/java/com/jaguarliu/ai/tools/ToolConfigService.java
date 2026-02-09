@@ -58,6 +58,12 @@ public class ToolConfigService {
         providers.add(buildProviderEntry("arxiv", "arXiv", false));
         result.put("searchProviders", providers);
 
+        // HITL configuration
+        Map<String, Object> hitl = new LinkedHashMap<>();
+        hitl.put("alwaysConfirmTools", properties.getAlwaysConfirmTools());
+        hitl.put("dangerousKeywords", properties.getDangerousKeywords());
+        result.put("hitl", hitl);
+
         return result;
     }
 
@@ -86,6 +92,21 @@ public class ToolConfigService {
                 }
             }
             properties.setSearchProviders(configs);
+        }
+
+        // 更新 HITL 配置
+        if (params.containsKey("hitl")) {
+            Map<String, Object> hitl = (Map<String, Object>) params.get("hitl");
+            if (hitl != null) {
+                if (hitl.containsKey("alwaysConfirmTools")) {
+                    List<String> tools = (List<String>) hitl.get("alwaysConfirmTools");
+                    properties.setAlwaysConfirmTools(tools != null ? new ArrayList<>(tools) : new ArrayList<>());
+                }
+                if (hitl.containsKey("dangerousKeywords")) {
+                    List<String> keywords = (List<String>) hitl.get("dangerousKeywords");
+                    properties.setDangerousKeywords(keywords != null ? new ArrayList<>(keywords) : new ArrayList<>());
+                }
+            }
         }
 
         // 持久化到文件
@@ -136,6 +157,27 @@ public class ToolConfigService {
                 }
             }
 
+            if (config.containsKey("hitl")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> hitl = (Map<String, Object>) config.get("hitl");
+                if (hitl != null) {
+                    if (hitl.containsKey("alwaysConfirmTools")) {
+                        @SuppressWarnings("unchecked")
+                        List<String> tools = (List<String>) hitl.get("alwaysConfirmTools");
+                        if (tools != null) {
+                            properties.setAlwaysConfirmTools(new ArrayList<>(tools));
+                        }
+                    }
+                    if (hitl.containsKey("dangerousKeywords")) {
+                        @SuppressWarnings("unchecked")
+                        List<String> keywords = (List<String>) hitl.get("dangerousKeywords");
+                        if (keywords != null) {
+                            properties.setDangerousKeywords(new ArrayList<>(keywords));
+                        }
+                    }
+                }
+            }
+
             log.info("Loaded tool config from file: {} user domains, {} search providers",
                     properties.getUserDomains().size(), properties.getSearchProviders().size());
         } catch (Exception e) {
@@ -165,6 +207,12 @@ public class ToolConfigService {
                 providers.add(entry);
             }
             config.put("searchProviders", providers);
+
+            // HITL configuration
+            Map<String, Object> hitl = new LinkedHashMap<>();
+            hitl.put("alwaysConfirmTools", properties.getAlwaysConfirmTools());
+            hitl.put("dangerousKeywords", properties.getDangerousKeywords());
+            config.put("hitl", hitl);
 
             yamlMapper.writeValue(configFile, config);
             log.info("Tool config file written to {}", configFile.getAbsolutePath());

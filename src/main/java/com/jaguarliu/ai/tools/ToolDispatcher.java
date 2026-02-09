@@ -24,6 +24,7 @@ public class ToolDispatcher {
     private final ToolRegistry toolRegistry;
     private final DangerousCommandDetector dangerousCommandDetector;
     private final RemoteCommandClassifier remoteCommandClassifier;
+    private final ToolConfigProperties toolConfigProperties;
     private final Optional<NodeService> nodeService;
 
     /**
@@ -129,8 +130,9 @@ public class ToolDispatcher {
      *
      * 检查顺序：
      * 1. Skill 的 confirmBefore 配置（最高优先级）
-     * 2. 对于 shell/shell_start 工具，检查命令是否包含危险模式
-     * 3. 工具默认的 hitl 配置
+     * 2. 用户配置的 alwaysConfirmTools
+     * 3. 对于 shell/shell_start 工具，检查命令是否包含危险模式
+     * 4. 工具默认的 hitl 配置
      *
      * @param toolName      工具名称
      * @param confirmBefore skill 配置的需要确认的工具列表
@@ -144,7 +146,13 @@ public class ToolDispatcher {
             return true;
         }
 
-        // 2. 对于命令执行工具，检查命令内容是否危险
+        // 2. 用户配置的 alwaysConfirmTools
+        if (toolConfigProperties.isAlwaysConfirmTool(toolName)) {
+            log.debug("Tool {} requires HITL (user alwaysConfirmTools)", toolName);
+            return true;
+        }
+
+        // 3. 对于命令执行工具，检查命令内容是否危险
         if (COMMAND_TOOLS.contains(toolName) && arguments != null) {
             String command = (String) arguments.get("command");
             if (command != null && dangerousCommandDetector.isDangerous(command)) {
@@ -154,7 +162,7 @@ public class ToolDispatcher {
             }
         }
 
-        // 3. 对于远程命令工具，使用 RemoteCommandClassifier 判断
+        // 4. 对于远程命令工具，使用 RemoteCommandClassifier 判断
         if (REMOTE_COMMAND_TOOLS.contains(toolName) && arguments != null) {
             String command = (String) arguments.get("command");
             String alias = (String) arguments.get("alias");
@@ -170,7 +178,7 @@ public class ToolDispatcher {
             }
         }
 
-        // 4. 使用工具默认配置
+        // 5. 使用工具默认配置
         return toolRegistry.get(toolName)
                 .map(tool -> tool.getDefinition().isHitl())
                 .orElse(false);
