@@ -1,16 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useWebSocket } from '@/composables/useWebSocket'
 import { useLlmConfig } from '@/composables/useLlmConfig'
 
 const router = useRouter()
-const { connect } = useWebSocket()
 const { saveConfig, testConfig } = useLlmConfig()
-
-onMounted(() => {
-  connect()
-})
 
 // Wizard step
 const step = ref<'provider' | 'config'>('provider')

@@ -17,6 +17,7 @@ const pendingRequests = new Map<string, {
 const eventHandlers = new Map<string, Set<(event: RpcEvent) => void>>()
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let intentionalDisconnect = false
 let requestIdCounter = 0
 
 function generateId(): string {
@@ -28,6 +29,7 @@ function connect() {
     return
   }
 
+  intentionalDisconnect = false
   connectionState.value = 'connecting'
 
   const ws = new WebSocket(WS_URL)
@@ -42,8 +44,8 @@ function connect() {
     socket.value = null
     console.log('[WS] Disconnected')
 
-    // Auto reconnect after 3s
-    if (!reconnectTimer) {
+    // Auto reconnect after 3s, unless disconnect was intentional
+    if (!intentionalDisconnect && !reconnectTimer) {
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null
         connect()
@@ -93,6 +95,7 @@ function connect() {
 }
 
 function disconnect() {
+  intentionalDisconnect = true
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null

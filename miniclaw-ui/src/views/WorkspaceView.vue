@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
@@ -13,7 +13,7 @@ import SubagentPanel from '@/components/SubagentPanel.vue'
 import ArtifactPanel from '@/components/ArtifactPanel.vue'
 import { useArtifact } from '@/composables/useArtifact'
 
-const { state: connectionState, connect, disconnect } = useWebSocket()
+const { state: connectionState } = useWebSocket()
 const { checkStatus } = useLlmConfig()
 const router = useRouter()
 const { artifact } = useArtifact()
@@ -34,8 +34,7 @@ const {
   deleteSession,
   sendMessage,
   confirmToolCall,
-  cancelRun,
-  setupEventListeners
+  cancelRun
 } = useChat()
 
 async function handleCreateSession() {
@@ -87,10 +86,7 @@ function handleSelectSubagent(subRunId: string) {
 }
 
 onMounted(() => {
-  connect()
-  setupEventListeners()
-
-  // Load sessions once connected, and check LLM config
+  // Wait for connection (managed by App.vue), then check LLM config and load sessions
   const checkConnection = setInterval(async () => {
     if (connectionState.value === 'connected') {
       clearInterval(checkConnection)
@@ -105,10 +101,6 @@ onMounted(() => {
       loadSessions()
     }
   }, 200)
-})
-
-onUnmounted(() => {
-  disconnect()
 })
 </script>
 

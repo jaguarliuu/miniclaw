@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import ModeSwitcher from '@/components/layout/ModeSwitcher.vue'
@@ -16,18 +16,10 @@ import PlaceholderSection from '@/components/settings/PlaceholderSection.vue'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 
 const route = useRoute()
-const { state: connectionState, connect, disconnect } = useWebSocket()
+const { state: connectionState } = useWebSocket()
 
 const currentSection = computed(() => {
   return route.params.section as string || 'llm'
-})
-
-onMounted(() => {
-  connect()
-})
-
-onUnmounted(() => {
-  // Don't disconnect - keep connection alive for workspace
 })
 </script>
 

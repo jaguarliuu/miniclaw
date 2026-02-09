@@ -1,9 +1,25 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { useChat } from '@/composables/useChat'
+import { useNotification } from '@/composables/useNotification'
 
 const { state, handleConfirm, handleCancel } = useConfirm()
+const { connect, disconnect } = useWebSocket()
+const { setupEventListeners } = useChat()
+
+onMounted(() => {
+  connect()
+  setupEventListeners()
+  useNotification()
+})
+
+onUnmounted(() => {
+  disconnect()
+})
 </script>
 
 <template>
