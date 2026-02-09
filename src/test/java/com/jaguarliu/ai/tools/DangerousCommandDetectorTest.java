@@ -16,7 +16,7 @@ class DangerousCommandDetectorTest {
 
     @BeforeEach
     void setUp() {
-        detector = new DangerousCommandDetector();
+        detector = new DangerousCommandDetector(new ToolConfigProperties());
     }
 
     // === 安全命令测试 ===
