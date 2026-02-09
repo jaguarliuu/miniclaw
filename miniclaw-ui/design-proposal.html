@@ -1,0 +1,2631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniClaw UI — Design Proposal</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ========================================
+   DESIGN TOKENS — NEW SYSTEM
+   ======================================== */
+:root {
+  /* Colors — refined monochrome with depth */
+  --color-black: #111111;
+  --color-white: #ffffff;
+  --color-gray-900: #1a1a1a;
+  --color-gray-800: #2a2a2a;
+  --color-gray-700: #444444;
+  --color-gray-600: #555555;
+  --color-gray-500: #777777;
+  --color-gray-400: #999999;
+  --color-gray-300: #c0c0c0;
+  --color-gray-200: #e2e2e2;
+  --color-gray-100: #f0f0f0;
+  --color-gray-50: #f7f7f7;
+
+  /* Status — muted, professional */
+  --color-success: #2a9d5c;
+  --color-warning: #c98a0c;
+  --color-error: #d44040;
+  --color-info: #4a7fd4;
+
+  /* Typography */
+  --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Radius — subtle, consistent */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows — minimal depth cues */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-float: 0 12px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.04);
+
+  /* Borders — softer */
+  --border: 1px solid var(--color-gray-200);
+  --border-strong: 1px solid var(--color-gray-300);
+  --border-subtle: 1px solid var(--color-gray-100);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Transitions */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.15s;
+  --duration-normal: 0.2s;
+  --duration-slow: 0.3s;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --content-max-width: 720px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-black);
+  background: var(--color-gray-50);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-gray-300); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gray-400); }
+
+
+/* ========================================
+   PROPOSAL PAGE LAYOUT
+   ======================================== */
+.proposal-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 60px 48px 120px;
+}
+
+.proposal-header {
+  margin-bottom: 64px;
+  padding-bottom: 40px;
+  border-bottom: var(--border);
+}
+
+.proposal-header h1 {
+  font-family: var(--font-ui);
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.proposal-header .subtitle {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-gray-500);
+  letter-spacing: 0.02em;
+}
+
+.section {
+  margin-bottom: 72px;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-gray-400);
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.section-desc {
+  font-size: 14px;
+  color: var(--color-gray-500);
+  line-height: 1.6;
+  max-width: 600px;
+  margin-bottom: 32px;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 40px;
+}
+
+.comparison-col h3 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-gray-400);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: var(--border-subtle);
+}
+
+.demo-area {
+  background: var(--color-white);
+  border: var(--border);
+  padding: 32px;
+  min-height: 200px;
+}
+
+.demo-area.old {
+  border-radius: 0;
+  border-color: #000;
+}
+
+.demo-area.new {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Token display */
+.token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.token-card {
+  background: var(--color-white);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.token-card h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-gray-400);
+  margin-bottom: 12px;
+}
+
+
+/* ========================================
+   1. COLOR PALETTE
+   ======================================== */
+.color-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: var(--border);
+  flex-shrink: 0;
+}
+
+.color-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-500);
+}
+
+.color-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-400);
+}
+
+
+/* ========================================
+   2. RADIUS DEMO
+   ======================================== */
+.radius-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.radius-demo {
+  text-align: center;
+}
+
+.radius-box {
+  width: 64px;
+  height: 64px;
+  background: var(--color-gray-100);
+  border: var(--border-strong);
+  margin-bottom: 8px;
+}
+
+.radius-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+}
+
+
+/* ========================================
+   3. SHADOW DEMO
+   ======================================== */
+.shadow-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.shadow-demo {
+  text-align: center;
+}
+
+.shadow-box {
+  width: 80px;
+  height: 80px;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  margin-bottom: 8px;
+  border: var(--border-subtle);
+}
+
+.shadow-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+}
+
+
+/* ========================================
+   4. BUTTONS — COMPARISON
+   ======================================== */
+.btn-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* OLD buttons */
+.btn-old {
+  height: 36px;
+  padding: 0 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid #000;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-old.primary {
+  background: #000;
+  color: #fff;
+}
+
+.btn-old.primary:hover {
+  background: #fff;
+  color: #000;
+}
+
+.btn-old.secondary {
+  background: #fff;
+  color: #000;
+}
+
+.btn-old.secondary:hover {
+  background: #000;
+  color: #fff;
+}
+
+.btn-old.icon-btn {
+  width: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #fff;
+  font-size: 16px;
+}
+
+/* NEW buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  border-radius: var(--radius-md);
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.btn-md {
+  height: 36px;
+  padding: 0 16px;
+}
+
+.btn-lg {
+  height: 40px;
+  padding: 0 20px;
+}
+
+.btn-primary {
+  background: var(--color-black);
+  color: var(--color-white);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-primary:hover {
+  background: var(--color-gray-800);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-0.5px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-secondary {
+  background: var(--color-white);
+  color: var(--color-black);
+  border: var(--border-strong);
+}
+
+.btn-secondary:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-400);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-gray-600);
+}
+
+.btn-ghost:hover {
+  background: var(--color-gray-100);
+  color: var(--color-black);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-gray-500);
+}
+
+.btn-danger:hover {
+  background: #fef2f2;
+  color: var(--color-error);
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-md);
+}
+
+.btn-icon.sm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+
+/* ========================================
+   5. SIDEBAR COMPARISON
+   ======================================== */
+.sidebar-demo {
+  width: 260px;
+  height: 460px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* OLD sidebar */
+.sidebar-demo.old {
+  border: 1px solid #000;
+  background: #fff;
+}
+
+.sidebar-demo.old .sb-header {
+  padding: 20px;
+  border-bottom: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-demo.old .sb-logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sidebar-demo.old .sb-new-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #000;
+  background: #000;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-demo.old .sb-list {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.sidebar-demo.old .sb-item {
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border: 1px solid transparent;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-demo.old .sb-item:hover {
+  background: #f5f5f5;
+}
+
+.sidebar-demo.old .sb-item.active {
+  background: #000;
+  color: #fff;
+}
+
+.sidebar-demo.old .sb-item-title {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-demo.old .sb-item-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.sidebar-demo.old .sb-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #000;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* NEW sidebar */
+.sidebar-demo.new {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-demo.new .sb-header {
+  padding: 16px 16px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-demo.new .sb-logo {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-black);
+}
+
+.sidebar-demo.new .sb-new-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+.sidebar-demo.new .sb-new-btn:hover {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.sidebar-demo.new .sb-divider {
+  height: 1px;
+  background: var(--color-gray-100);
+  margin: 0 16px;
+}
+
+.sidebar-demo.new .sb-list {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.sidebar-demo.new .sb-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.sidebar-demo.new .sb-item:hover {
+  background: var(--color-gray-50);
+}
+
+.sidebar-demo.new .sb-item.active {
+  background: var(--color-black);
+  color: var(--color-white);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-demo.new .sb-item-title {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.sidebar-demo.new .sb-item-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+}
+
+.sidebar-demo.new .sb-item.active .sb-item-time {
+  color: var(--color-gray-400);
+}
+
+.sidebar-demo.new .sb-footer {
+  padding: 12px 16px;
+  border-top: var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-500);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Status dot */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.online { background: var(--color-success); }
+.status-dot.offline { background: var(--color-gray-300); }
+.status-dot.error { background: var(--color-error); }
+
+.status-dot.pulse {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+
+/* ========================================
+   6. MESSAGE AREA
+   ======================================== */
+.messages-demo {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* OLD messages */
+.msg-old {
+  padding: 24px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.msg-old .msg-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  color: #000;
+}
+
+.msg-old .msg-body {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* NEW messages */
+.msg-new {
+  padding: 20px 0;
+}
+
+.msg-new + .msg-new {
+  border-top: 1px solid var(--color-gray-100);
+}
+
+.msg-new .msg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.msg-new .msg-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.msg-new .msg-avatar.user {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.msg-new .msg-avatar.assistant {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.msg-new .msg-sender {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-black);
+}
+
+.msg-new .msg-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+}
+
+.msg-new .msg-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-gray-800);
+  padding-left: 30px;
+}
+
+.msg-new .msg-body code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--color-gray-50);
+  border: var(--border-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+.msg-new .msg-body pre {
+  background: var(--color-gray-50);
+  border: var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 30px;
+  margin-top: 4px;
+}
+
+.streaming-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-black);
+  animation: stream-bounce 1.4s ease-in-out infinite;
+}
+
+.streaming-dot:nth-child(2) { animation-delay: 0.16s; }
+.streaming-dot:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes stream-bounce {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+
+/* ========================================
+   7. INPUT AREA
+   ======================================== */
+.input-demo {
+  padding: 20px;
+}
+
+/* OLD input */
+.input-demo.old .input-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.input-demo.old textarea {
+  flex: 1;
+  padding: 14px 0;
+  border: none;
+  border-bottom: 2px solid #000;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+.input-demo.old .send-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #000;
+  background: #000;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.input-demo.old .hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+}
+
+/* NEW input */
+.input-demo.new .input-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--color-white);
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 8px 8px 8px 16px;
+  transition: border-color var(--duration-fast) var(--ease-in-out), box-shadow var(--duration-fast) var(--ease-in-out);
+  box-shadow: var(--shadow-xs);
+}
+
+.input-demo.new .input-wrap:focus-within {
+  border-color: var(--color-gray-400);
+  box-shadow: var(--shadow-sm), 0 0 0 3px rgba(0,0,0,0.03);
+}
+
+.input-demo.new textarea {
+  flex: 1;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  color: var(--color-black);
+}
+
+.input-demo.new textarea::placeholder {
+  color: var(--color-gray-400);
+}
+
+.input-demo.new .send-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--color-black);
+  color: var(--color-white);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+.input-demo.new .send-btn:hover {
+  background: var(--color-gray-800);
+  transform: translateY(-0.5px);
+}
+
+.input-demo.new .send-btn:disabled {
+  background: var(--color-gray-200);
+  color: var(--color-gray-400);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input-demo.new .hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-400);
+  margin-top: 8px;
+  padding-left: 4px;
+}
+
+
+/* ========================================
+   8. SLASH COMMAND DROPDOWN
+   ======================================== */
+.slash-demo {
+  position: relative;
+  padding: 20px;
+}
+
+/* OLD slash menu */
+.slash-menu-old {
+  border: 1px solid #000;
+  background: #fff;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.slash-menu-old .slash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.slash-menu-old .slash-item:last-child {
+  border-bottom: none;
+}
+
+.slash-menu-old .slash-item.selected {
+  background: #f5f5f5;
+}
+
+.slash-menu-old .slash-item-name {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.slash-menu-old .slash-item-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border: 1px solid #e0e0e0;
+  color: #666;
+}
+
+.slash-menu-old .slash-item-desc {
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* NEW slash menu */
+.slash-menu-new {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+
+.slash-menu-new .slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease-in-out);
+}
+
+.slash-menu-new .slash-item:hover,
+.slash-menu-new .slash-item.selected {
+  background: var(--color-gray-50);
+}
+
+.slash-menu-new .slash-item-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 110px;
+  color: var(--color-black);
+}
+
+.slash-menu-new .slash-item-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-100);
+  color: var(--color-gray-500);
+}
+
+.slash-menu-new .slash-item-desc {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-gray-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ========================================
+   9. TOOL CALL CARDS
+   ======================================== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+/* OLD tool card */
+.tool-card-old {
+  padding: 12px 16px;
+  border: 1px solid #000;
+  background: #f5f5f5;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tool-card-old.success { border-left: 3px solid #2d2; }
+.tool-card-old.error { border-left: 3px solid #d22; }
+.tool-card-old.pending { border-left: 3px solid #fa0; }
+
+.tool-card-old .tc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tool-card-old .tc-name {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tool-card-old .tc-status {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.tool-card-old .tc-args {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  padding: 8px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* NEW tool card */
+.tool-card-new {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  overflow: hidden;
+  transition: box-shadow var(--duration-fast) var(--ease-in-out);
+}
+
+.tool-card-new:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.tool-card-new .tc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: var(--border-subtle);
+  background: var(--color-gray-50);
+}
+
+.tool-card-new .tc-status-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tool-card-new .tc-status-icon.success {
+  background: #ecfdf5;
+  color: var(--color-success);
+}
+
+.tool-card-new .tc-status-icon.error {
+  background: #fef2f2;
+  color: var(--color-error);
+}
+
+.tool-card-new .tc-status-icon.pending {
+  background: #fffbeb;
+  color: var(--color-warning);
+}
+
+.tool-card-new .tc-status-icon.running {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.tool-card-new .tc-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-black);
+  flex: 1;
+}
+
+.tool-card-new .tc-status-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tool-card-new .tc-body {
+  padding: 10px 14px;
+}
+
+.tool-card-new .tc-args {
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--color-gray-700);
+}
+
+.tool-card-new .tc-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: var(--border-subtle);
+}
+
+
+/* ========================================
+   10. SUBAGENT CARDS
+   ======================================== */
+
+/* OLD subagent card */
+.subagent-card-old {
+  padding: 12px 16px;
+  border: 1px solid #000;
+  border-left: 3px solid #111;
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.subagent-card-old .sa-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.subagent-card-old .sa-id {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.subagent-card-old .sa-status {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.subagent-card-old .sa-task {
+  color: #666;
+  font-size: 12px;
+}
+
+/* NEW subagent card */
+.subagent-card-new {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  overflow: hidden;
+}
+
+.subagent-card-new .sa-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-gray-50);
+  border-bottom: var(--border-subtle);
+}
+
+.subagent-card-new .sa-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--color-black);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.subagent-card-new .sa-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.subagent-card-new .sa-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-black);
+}
+
+.subagent-card-new .sa-task {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-card-new .sa-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
+
+.subagent-card-new .sa-badge.running {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.subagent-card-new .sa-badge.completed {
+  background: #ecfdf5;
+  color: var(--color-success);
+}
+
+.subagent-card-new .sa-badge.failed {
+  background: #fef2f2;
+  color: var(--color-error);
+}
+
+.subagent-card-new .sa-body {
+  padding: 10px 14px;
+}
+
+.subagent-card-new .sa-progress {
+  height: 2px;
+  background: var(--color-gray-100);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.subagent-card-new .sa-progress-bar {
+  height: 100%;
+  background: var(--color-black);
+  border-radius: 1px;
+  transition: width 0.3s var(--ease-out);
+}
+
+.subagent-card-new .sa-duration {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+  margin-top: 6px;
+}
+
+
+/* ========================================
+   11. BADGE COMPONENTS
+   ======================================== */
+.badge-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* OLD badges */
+.badge-old {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border: 1px solid #000;
+}
+
+.badge-old.outline {
+  border: 1px solid #e0e0e0;
+  color: #666;
+}
+
+/* NEW badges */
+.badge-new {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.badge-new.default {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.badge-new.dark {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.badge-new.success {
+  background: #ecfdf5;
+  color: var(--color-success);
+}
+
+.badge-new.warning {
+  background: #fffbeb;
+  color: var(--color-warning);
+}
+
+.badge-new.error {
+  background: #fef2f2;
+  color: var(--color-error);
+}
+
+
+/* ========================================
+   12. FULL LAYOUT PREVIEW
+   ======================================== */
+.layout-preview {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  height: 560px;
+  display: flex;
+  background: var(--color-white);
+}
+
+.lp-sidebar {
+  width: 260px;
+  border-right: var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-white);
+  flex-shrink: 0;
+}
+
+.lp-sidebar .sb-header {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lp-sidebar .sb-logo {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lp-sidebar .sb-search {
+  margin: 0 12px 8px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  outline: none;
+  color: var(--color-gray-500);
+  background: var(--color-gray-50);
+  width: calc(100% - 24px);
+  transition: border-color var(--duration-fast) var(--ease-in-out);
+}
+
+.lp-sidebar .sb-search:focus {
+  border-color: var(--color-gray-400);
+  background: var(--color-white);
+}
+
+.lp-sidebar .sb-list {
+  flex: 1;
+  padding: 4px 8px;
+  overflow-y: auto;
+}
+
+.lp-sidebar .sb-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  margin-bottom: 2px;
+}
+
+.lp-sidebar .sb-item:hover {
+  background: var(--color-gray-50);
+}
+
+.lp-sidebar .sb-item.active {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.lp-sidebar .sb-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-sidebar .sb-item-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+}
+
+.lp-sidebar .sb-item.active .sb-item-time {
+  color: var(--color-gray-500);
+}
+
+.lp-sidebar .sb-footer {
+  padding: 12px 16px;
+  border-top: var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-500);
+}
+
+.lp-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-gray-50);
+}
+
+.lp-main-header {
+  padding: 14px 32px;
+  border-bottom: var(--border-subtle);
+  background: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lp-main-header .session-name {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.lp-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+
+.lp-messages .msg-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.lp-input-area {
+  padding: 16px 32px 20px;
+  background: var(--color-white);
+  border-top: var(--border-subtle);
+}
+
+.lp-input-area .input-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.lp-input-area .input-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--color-white);
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 8px 8px 8px 16px;
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration-fast) var(--ease-in-out);
+}
+
+.lp-input-area textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 6px 0;
+}
+
+.lp-input-area textarea::placeholder {
+  color: var(--color-gray-400);
+}
+
+.lp-input-area .send-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--color-black);
+  color: var(--color-white);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+.lp-input-area .send-btn:hover {
+  background: var(--color-gray-800);
+}
+
+.lp-input-area .hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gray-400);
+  margin-top: 6px;
+  text-align: center;
+}
+
+
+/* ========================================
+   SETTINGS PREVIEW
+   ======================================== */
+.settings-demo {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: flex;
+  min-height: 360px;
+}
+
+.settings-nav {
+  width: 180px;
+  border-right: var(--border-subtle);
+  padding: 16px 8px;
+  background: var(--color-gray-50);
+}
+
+.settings-nav-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-gray-600);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  margin-bottom: 2px;
+}
+
+.settings-nav-item:hover {
+  background: var(--color-white);
+  color: var(--color-black);
+}
+
+.settings-nav-item.active {
+  background: var(--color-white);
+  color: var(--color-black);
+  font-weight: 500;
+  box-shadow: var(--shadow-xs);
+}
+
+.settings-content {
+  flex: 1;
+  padding: 24px 32px;
+}
+
+.settings-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.settings-content .settings-desc {
+  font-size: 13px;
+  color: var(--color-gray-500);
+  margin-bottom: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-gray-700);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 12px;
+  border: var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-in-out), box-shadow var(--duration-fast) var(--ease-in-out);
+  background: var(--color-white);
+}
+
+.form-input:focus {
+  border-color: var(--color-gray-400);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
+}
+
+.form-input.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--color-gray-400);
+  margin-top: 4px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: var(--border-subtle);
+}
+
+.toggle-row:last-child {
+  border-bottom: none;
+}
+
+.toggle-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.toggle-desc {
+  font-size: 12px;
+  color: var(--color-gray-500);
+  margin-top: 2px;
+}
+
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-gray-200);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-in-out);
+  flex-shrink: 0;
+}
+
+.toggle-switch.on {
+  background: var(--color-black);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-white);
+  top: 2px;
+  left: 2px;
+  transition: transform var(--duration-fast) var(--ease-in-out);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.toggle-switch.on::after {
+  transform: translateX(16px);
+}
+
+
+/* ========================================
+   DESIGN CHANGE TABLE
+   ======================================== */
+.change-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.change-table th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--color-gray-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-gray-500);
+  border-bottom: var(--border);
+}
+
+.change-table td {
+  padding: 10px 16px;
+  border-bottom: var(--border-subtle);
+  vertical-align: top;
+}
+
+.change-table .prop {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-black);
+  white-space: nowrap;
+}
+
+.change-table .old-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-gray-400);
+  text-decoration: line-through;
+}
+
+.change-table .new-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-black);
+  font-weight: 500;
+}
+
+</style>
+</head>
+<body>
+
+<div class="proposal-page">
+
+  <!-- ==================== HEADER ==================== -->
+  <header class="proposal-header">
+    <h1>MiniClaw UI Refinement</h1>
+    <div class="subtitle">Design Proposal — Swiss Precision</div>
+  </header>
+
+
+  <!-- ==================== DESIGN DIRECTION ==================== -->
+  <section class="section">
+    <div class="section-label">Philosophy</div>
+    <div class="section-title">From Brutalist to Swiss Precision</div>
+    <div class="section-desc">
+      Keep the monochrome DNA and minimal character. Replace harsh black borders with softer grays. Add subtle border-radius (6-8px) for approachability without losing sharpness. Introduce whisper shadows for depth hierarchy. Every refinement should feel intentional, not decorative.
+    </div>
+
+    <table class="change-table" style="border: var(--border); border-radius: var(--radius-lg); overflow: hidden;">
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Before</th>
+          <th>After</th>
+          <th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="prop">--color-black</td>
+          <td class="old-val">#000000</td>
+          <td class="new-val">#111111</td>
+          <td>Slightly softer than pure black, reduces eye strain</td>
+        </tr>
+        <tr>
+          <td class="prop">--border</td>
+          <td class="old-val">1px solid #000</td>
+          <td class="new-val">1px solid #e2e2e2</td>
+          <td>Borders define structure, not dominate; strong variant for emphasis</td>
+        </tr>
+        <tr>
+          <td class="prop">border-radius</td>
+          <td class="old-val">0px everywhere</td>
+          <td class="new-val">4/6/8/12px scale</td>
+          <td>Subtle rounding; 6px default feels precise, not bubbly</td>
+        </tr>
+        <tr>
+          <td class="prop">shadows</td>
+          <td class="old-val">none</td>
+          <td class="new-val">xs/sm/md/lg scale</td>
+          <td>Whisper shadows for depth — dropdowns float, cards lift</td>
+        </tr>
+        <tr>
+          <td class="prop">gray scale</td>
+          <td class="old-val">3 grays</td>
+          <td class="new-val">10-step scale</td>
+          <td>Finer contrast control for hierarchy and states</td>
+        </tr>
+        <tr>
+          <td class="prop">status colors</td>
+          <td class="old-val">#22c55e / #eab308 / #ef4444</td>
+          <td class="new-val">#2a9d5c / #c98a0c / #d44040</td>
+          <td>Slightly muted for enterprise feel, less saturated</td>
+        </tr>
+        <tr>
+          <td class="prop">transitions</td>
+          <td class="old-val">0.15s ease</td>
+          <td class="new-val">cubic-bezier(0.4, 0, 0.2, 1)</td>
+          <td>Material-style easing for natural motion</td>
+        </tr>
+        <tr>
+          <td class="prop">input style</td>
+          <td class="old-val">bottom-border only</td>
+          <td class="new-val">bordered container</td>
+          <td>Enclosed input feels more stable and refined</td>
+        </tr>
+        <tr>
+          <td class="prop">sidebar active</td>
+          <td class="old-val">full black bg, square</td>
+          <td class="new-val">black bg + 6px radius</td>
+          <td>Keeps the bold active state, softens edges</td>
+        </tr>
+        <tr>
+          <td class="prop">message area bg</td>
+          <td class="old-val">#ffffff</td>
+          <td class="new-val">#f7f7f7</td>
+          <td>Subtle tint separates content from chrome</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <!-- ==================== 1. TOKENS ==================== -->
+  <section class="section">
+    <div class="section-label">01</div>
+    <div class="section-title">Design Tokens</div>
+    <div class="section-desc">The refined palette, radius scale, and shadow system.</div>
+
+    <div class="token-grid">
+      <!-- Colors -->
+      <div class="token-card">
+        <h4>Grays</h4>
+        <div class="color-row"><div class="color-swatch" style="background:#111111;"></div><span class="color-label">black</span><span class="color-value" style="margin-left:auto">#111111</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#1a1a1a;"></div><span class="color-label">900</span><span class="color-value" style="margin-left:auto">#1a1a1a</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#2a2a2a;"></div><span class="color-label">800</span><span class="color-value" style="margin-left:auto">#2a2a2a</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#444444;"></div><span class="color-label">700</span><span class="color-value" style="margin-left:auto">#444444</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#777777;"></div><span class="color-label">500</span><span class="color-value" style="margin-left:auto">#777777</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#c0c0c0;"></div><span class="color-label">300</span><span class="color-value" style="margin-left:auto">#c0c0c0</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#e2e2e2;"></div><span class="color-label">200</span><span class="color-value" style="margin-left:auto">#e2e2e2</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#f0f0f0;"></div><span class="color-label">100</span><span class="color-value" style="margin-left:auto">#f0f0f0</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#f7f7f7;"></div><span class="color-label">50</span><span class="color-value" style="margin-left:auto">#f7f7f7</span></div>
+      </div>
+
+      <div class="token-card">
+        <h4>Status</h4>
+        <div class="color-row"><div class="color-swatch" style="background:#2a9d5c;"></div><span class="color-label">success</span><span class="color-value" style="margin-left:auto">#2a9d5c</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#c98a0c;"></div><span class="color-label">warning</span><span class="color-value" style="margin-left:auto">#c98a0c</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#d44040;"></div><span class="color-label">error</span><span class="color-value" style="margin-left:auto">#d44040</span></div>
+        <div class="color-row"><div class="color-swatch" style="background:#4a7fd4;"></div><span class="color-label">info</span><span class="color-value" style="margin-left:auto">#4a7fd4</span></div>
+      </div>
+
+      <!-- Radius -->
+      <div class="token-card">
+        <h4>Border Radius</h4>
+        <div class="radius-row">
+          <div class="radius-demo">
+            <div class="radius-box" style="border-radius:4px;"></div>
+            <div class="radius-label">sm · 4px</div>
+          </div>
+          <div class="radius-demo">
+            <div class="radius-box" style="border-radius:6px;"></div>
+            <div class="radius-label">md · 6px</div>
+          </div>
+          <div class="radius-demo">
+            <div class="radius-box" style="border-radius:8px;"></div>
+            <div class="radius-label">lg · 8px</div>
+          </div>
+          <div class="radius-demo">
+            <div class="radius-box" style="border-radius:12px;"></div>
+            <div class="radius-label">xl · 12px</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shadows -->
+      <div class="token-card">
+        <h4>Shadows</h4>
+        <div class="shadow-row">
+          <div class="shadow-demo">
+            <div class="shadow-box" style="box-shadow: 0 1px 2px rgba(0,0,0,0.04);"></div>
+            <div class="shadow-label">xs</div>
+          </div>
+          <div class="shadow-demo">
+            <div class="shadow-box" style="box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);"></div>
+            <div class="shadow-label">sm</div>
+          </div>
+          <div class="shadow-demo">
+            <div class="shadow-box" style="box-shadow: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);"></div>
+            <div class="shadow-label">md</div>
+          </div>
+          <div class="shadow-demo">
+            <div class="shadow-box" style="box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);"></div>
+            <div class="shadow-label">lg</div>
+          </div>
+          <div class="shadow-demo">
+            <div class="shadow-box" style="box-shadow: 0 12px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.04);"></div>
+            <div class="shadow-label">float</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 2. BUTTONS ==================== -->
+  <section class="section">
+    <div class="section-label">02</div>
+    <div class="section-title">Buttons</div>
+    <div class="section-desc">From harsh square blocks to refined, approachable controls with clear hierarchy.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old" style="display:flex;flex-direction:column;gap:16px;">
+          <div class="btn-row">
+            <button class="btn-old primary">Send</button>
+            <button class="btn-old secondary">Cancel</button>
+            <button class="btn-old icon-btn">+</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn-old primary" style="font-size:10px;">APPROVE</button>
+            <button class="btn-old secondary" style="font-size:10px;">REJECT</button>
+          </div>
+        </div>
+      </div>
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new" style="display:flex;flex-direction:column;gap:16px;">
+          <div class="btn-row">
+            <button class="btn btn-primary btn-md">Send</button>
+            <button class="btn btn-secondary btn-md">Cancel</button>
+            <button class="btn btn-primary btn-icon"><span>+</span></button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm">Approve</button>
+            <button class="btn btn-secondary btn-sm">Reject</button>
+            <button class="btn btn-ghost btn-sm">Skip</button>
+            <button class="btn btn-danger btn-sm">Delete</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-icon sm">&#x2715;</button>
+            <button class="btn btn-ghost btn-icon sm">&#x2630;</button>
+            <button class="btn btn-ghost btn-icon sm">&#x21BB;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 3. SIDEBAR ==================== -->
+  <section class="section">
+    <div class="section-label">03</div>
+    <div class="section-title">Session Sidebar</div>
+    <div class="section-desc">Softer borders and rounded active states make the sidebar feel more navigable.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="sidebar-demo old">
+          <div class="sb-header">
+            <span class="sb-logo">MiniClaw</span>
+            <button class="sb-new-btn">+</button>
+          </div>
+          <div class="sb-list">
+            <div class="sb-item active">
+              <div>
+                <div class="sb-item-title">Debug API auth flow</div>
+                <div class="sb-item-time">2 min ago</div>
+              </div>
+            </div>
+            <div class="sb-item">
+              <div>
+                <div class="sb-item-title">Refactor database queries</div>
+                <div class="sb-item-time">1 hour ago</div>
+              </div>
+            </div>
+            <div class="sb-item">
+              <div>
+                <div class="sb-item-title">Write unit tests for user service</div>
+                <div class="sb-item-time">3 hours ago</div>
+              </div>
+            </div>
+            <div class="sb-item">
+              <div>
+                <div class="sb-item-title">Deploy staging environment</div>
+                <div class="sb-item-time">Yesterday</div>
+              </div>
+            </div>
+            <div class="sb-item">
+              <div>
+                <div class="sb-item-title">Review pull request #142</div>
+                <div class="sb-item-time">Yesterday</div>
+              </div>
+            </div>
+          </div>
+          <div class="sb-footer">
+            <div class="status-dot online pulse"></div>
+            <span>Online</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="sidebar-demo new">
+          <div class="sb-header">
+            <span class="sb-logo">MiniClaw</span>
+            <button class="sb-new-btn">+</button>
+          </div>
+          <div class="sb-divider"></div>
+          <div class="sb-list">
+            <div class="sb-item active">
+              <div class="sb-item-title">Debug API auth flow</div>
+              <div class="sb-item-time">2 min ago</div>
+            </div>
+            <div class="sb-item">
+              <div class="sb-item-title">Refactor database queries</div>
+              <div class="sb-item-time">1 hour ago</div>
+            </div>
+            <div class="sb-item">
+              <div class="sb-item-title">Write unit tests for user service</div>
+              <div class="sb-item-time">3 hours ago</div>
+            </div>
+            <div class="sb-item">
+              <div class="sb-item-title">Deploy staging environment</div>
+              <div class="sb-item-time">Yesterday</div>
+            </div>
+            <div class="sb-item">
+              <div class="sb-item-title">Review pull request #142</div>
+              <div class="sb-item-time">Yesterday</div>
+            </div>
+          </div>
+          <div class="sb-footer">
+            <div class="status-dot online pulse"></div>
+            <span>Online</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 4. MESSAGES ==================== -->
+  <section class="section">
+    <div class="section-label">04</div>
+    <div class="section-title">Message Area</div>
+    <div class="section-desc">Avatars differentiate user/assistant. Softer separators. Three-dot streaming indicator replaces blinking block.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="msg-old">
+            <div class="msg-header">USER</div>
+            <div class="msg-body">How do I set up authentication with JWT tokens in our Spring Boot backend?</div>
+          </div>
+          <div class="msg-old">
+            <div class="msg-header">ASSISTANT</div>
+            <div class="msg-body">I'll help you set up JWT authentication. First, let me check your current security configuration...</div>
+          </div>
+          <div class="msg-old" style="border-bottom:none;">
+            <div class="msg-header">USER</div>
+            <div class="msg-body">Can you also add refresh token support?</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new" style="background: var(--color-gray-50);">
+          <div class="msg-new">
+            <div class="msg-header">
+              <div class="msg-avatar user">U</div>
+              <span class="msg-sender">You</span>
+              <span class="msg-time">2:34 PM</span>
+            </div>
+            <div class="msg-body">How do I set up authentication with JWT tokens in our Spring Boot backend?</div>
+          </div>
+          <div class="msg-new">
+            <div class="msg-header">
+              <div class="msg-avatar assistant">M</div>
+              <span class="msg-sender">MiniClaw</span>
+              <span class="msg-time">2:34 PM</span>
+            </div>
+            <div class="msg-body">I'll help you set up JWT authentication. First, let me check your current security configuration by reading <code>SecurityConfig.java</code>...</div>
+          </div>
+          <div class="msg-new">
+            <div class="msg-header">
+              <div class="msg-avatar user">U</div>
+              <span class="msg-sender">You</span>
+              <span class="msg-time">2:35 PM</span>
+            </div>
+            <div class="msg-body">Can you also add refresh token support?</div>
+          </div>
+          <div class="msg-new" style="border-bottom:none;">
+            <div class="msg-header">
+              <div class="msg-avatar assistant">M</div>
+              <span class="msg-sender">MiniClaw</span>
+            </div>
+            <div class="streaming-indicator">
+              <div class="streaming-dot"></div>
+              <div class="streaming-dot"></div>
+              <div class="streaming-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 5. INPUT ==================== -->
+  <section class="section">
+    <div class="section-label">05</div>
+    <div class="section-title">Message Input</div>
+    <div class="section-desc">From bare underline to enclosed container. Focus ring adds visual feedback. Button proportions refined.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="input-demo old">
+            <div class="input-wrap">
+              <textarea rows="1" placeholder="Type your message..." readonly></textarea>
+              <button class="send-btn">→</button>
+            </div>
+            <div class="hint">Enter to send · Shift+Enter for new line</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new" style="background:var(--color-gray-50);">
+          <div class="input-demo new">
+            <div class="input-wrap">
+              <textarea rows="1" placeholder="Type your message..." readonly></textarea>
+              <button class="send-btn">↑</button>
+            </div>
+            <div class="hint">Enter to send · Shift+Enter for new line</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 6. SLASH MENU ==================== -->
+  <section class="section">
+    <div class="section-label">06</div>
+    <div class="section-title">Slash Command Menu</div>
+    <div class="section-desc">Rounded dropdown with shadow elevation. Items have inner radius for hover states. Type badges use fills instead of outlines.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="slash-menu-old">
+            <div class="slash-item selected">
+              <span class="slash-item-name">/read_file</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Read a file from the filesystem</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/write_file</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Write content to a file</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/web_search</span>
+              <span class="slash-item-type">skill</span>
+              <span class="slash-item-desc">Search the web for information</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/run_command</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Execute a shell command</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new">
+          <div class="slash-menu-new">
+            <div class="slash-item selected">
+              <span class="slash-item-name">/read_file</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Read a file from the filesystem</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/write_file</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Write content to a file</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/web_search</span>
+              <span class="slash-item-type">skill</span>
+              <span class="slash-item-desc">Search the web for information</span>
+            </div>
+            <div class="slash-item">
+              <span class="slash-item-name">/run_command</span>
+              <span class="slash-item-type">tool</span>
+              <span class="slash-item-desc">Execute a shell command</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 7. TOOL CARDS ==================== -->
+  <section class="section">
+    <div class="section-label">07</div>
+    <div class="section-title">Tool Call Cards</div>
+    <div class="section-desc">Structured header/body layout. Status icon replaces colored left border. Rounded corners and subtle hover shadow.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="cards-grid">
+            <div class="tool-card-old success">
+              <div class="tc-header">
+                <span class="tc-name">read_file</span>
+                <span class="tc-status" style="color:#2d2;">SUCCESS</span>
+              </div>
+              <div class="tc-args">{"path": "/src/config/SecurityConfig.java"}</div>
+            </div>
+            <div class="tool-card-old pending">
+              <div class="tc-header">
+                <span class="tc-name">write_file</span>
+                <span class="tc-status" style="color:#fa0;">PENDING APPROVAL</span>
+              </div>
+              <div class="tc-args">{"path": "/src/config/JwtFilter.java", "content": "..."}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new">
+          <div class="cards-grid">
+            <div class="tool-card-new">
+              <div class="tc-header">
+                <div class="tc-status-icon success">&#10003;</div>
+                <span class="tc-name">read_file</span>
+                <span class="tc-status-text">Completed</span>
+              </div>
+              <div class="tc-body">
+                <div class="tc-args">{"path": "/src/config/SecurityConfig.java"}</div>
+              </div>
+            </div>
+            <div class="tool-card-new">
+              <div class="tc-header">
+                <div class="tc-status-icon pending">&#x25CF;</div>
+                <span class="tc-name">write_file</span>
+                <span class="tc-status-text">Awaiting approval</span>
+              </div>
+              <div class="tc-body">
+                <div class="tc-args">{"path": "/src/config/JwtFilter.java", "content": "..."}</div>
+              </div>
+              <div class="tc-actions">
+                <button class="btn btn-primary btn-sm">Approve</button>
+                <button class="btn btn-secondary btn-sm">Reject</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 8. SUBAGENT CARDS ==================== -->
+  <section class="section">
+    <div class="section-label">08</div>
+    <div class="section-title">Subagent Cards</div>
+    <div class="section-desc">Structured layout with icon, progress bar, and pill-shaped status badge. Compact but informative.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="cards-grid">
+            <div class="subagent-card-old" style="border-left-color:#2d2;">
+              <div class="sa-header">
+                <span class="sa-id">SUBAGENT-A1</span>
+                <span class="sa-status" style="color:#2d2;">COMPLETED</span>
+              </div>
+              <div class="sa-task">Analyze authentication dependencies</div>
+            </div>
+            <div class="subagent-card-old" style="border-left-color:#111;">
+              <div class="sa-header">
+                <span class="sa-id">SUBAGENT-B2</span>
+                <span class="sa-status">RUNNING</span>
+              </div>
+              <div class="sa-task">Generate JWT utility class</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new">
+          <div class="cards-grid">
+            <div class="subagent-card-new">
+              <div class="sa-header">
+                <div class="sa-icon">A</div>
+                <div class="sa-info">
+                  <div class="sa-label">Agent A1</div>
+                  <div class="sa-task">Analyze authentication dependencies</div>
+                </div>
+                <div class="sa-badge completed">Completed</div>
+              </div>
+              <div class="sa-body">
+                <div class="sa-duration">Finished in 3.2s</div>
+              </div>
+            </div>
+            <div class="subagent-card-new">
+              <div class="sa-header">
+                <div class="sa-icon">B</div>
+                <div class="sa-info">
+                  <div class="sa-label">Agent B2</div>
+                  <div class="sa-task">Generate JWT utility class</div>
+                </div>
+                <div class="sa-badge running">Running</div>
+              </div>
+              <div class="sa-body">
+                <div class="sa-progress">
+                  <div class="sa-progress-bar" style="width:60%;"></div>
+                </div>
+                <div class="sa-duration">12.4s elapsed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 9. BADGES ==================== -->
+  <section class="section">
+    <div class="section-label">09</div>
+    <div class="section-title">Badges &amp; Labels</div>
+    <div class="section-desc">From outlined to filled. Subtle background tints for status colors. Rounded corners for softer appearance.</div>
+
+    <div class="comparison">
+      <div class="comparison-col">
+        <h3>Before</h3>
+        <div class="demo-area old">
+          <div class="badge-row">
+            <span class="badge-old">TOOL</span>
+            <span class="badge-old">SKILL</span>
+            <span class="badge-old outline">AUTO</span>
+            <span class="badge-old outline">MANUAL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-col">
+        <h3>After</h3>
+        <div class="demo-area new">
+          <div class="badge-row" style="margin-bottom:12px;">
+            <span class="badge-new default">Tool</span>
+            <span class="badge-new default">Skill</span>
+            <span class="badge-new dark">Auto</span>
+            <span class="badge-new default">Manual</span>
+          </div>
+          <div class="badge-row">
+            <span class="badge-new success">Success</span>
+            <span class="badge-new warning">Warning</span>
+            <span class="badge-new error">Error</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 10. SETTINGS ==================== -->
+  <section class="section">
+    <div class="section-label">10</div>
+    <div class="section-title">Settings View</div>
+    <div class="section-desc">Refined form inputs, toggle switches, and navigation with subtle active states.</div>
+
+    <div class="settings-demo">
+      <div class="settings-nav">
+        <div class="settings-nav-item active">LLM Config</div>
+        <div class="settings-nav-item">Tools</div>
+        <div class="settings-nav-item">Skills</div>
+        <div class="settings-nav-item">Nodes</div>
+        <div class="settings-nav-item">Channels</div>
+        <div class="settings-nav-item">Schedules</div>
+        <div class="settings-nav-item">Audit Log</div>
+      </div>
+      <div class="settings-content">
+        <h3>LLM Configuration</h3>
+        <div class="settings-desc">Configure the language model endpoint and credentials.</div>
+
+        <div class="form-group">
+          <label class="form-label">API Endpoint</label>
+          <input class="form-input mono" type="text" value="https://api.openai.com/v1" readonly>
+          <div class="form-hint">The base URL for the LLM API</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">API Key</label>
+          <input class="form-input mono" type="text" value="sk-••••••••••••••••" readonly>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Model</label>
+          <input class="form-input" type="text" value="gpt-4o" readonly>
+        </div>
+
+        <div style="margin-top:24px;">
+          <button class="btn btn-primary btn-md">Save Changes</button>
+          <button class="btn btn-secondary btn-md" style="margin-left:8px;">Test Connection</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 11. FULL LAYOUT ==================== -->
+  <section class="section">
+    <div class="section-label">11</div>
+    <div class="section-title">Full Layout Preview</div>
+    <div class="section-desc">Everything together — sidebar, messages, input, cards — in the refined design system.</div>
+
+    <div class="layout-preview">
+      <!-- Sidebar -->
+      <div class="lp-sidebar">
+        <div class="sb-header">
+          <span class="sb-logo">MiniClaw</span>
+          <button class="btn btn-ghost btn-icon sm" style="background:var(--color-gray-100);">+</button>
+        </div>
+        <div class="sb-divider" style="height:1px;background:var(--color-gray-100);margin:0 16px;"></div>
+        <div class="sb-list">
+          <div class="sb-item active">
+            <div class="sb-item-title">Debug API auth flow</div>
+            <div class="sb-item-time">2 min ago</div>
+          </div>
+          <div class="sb-item">
+            <div class="sb-item-title">Refactor database queries</div>
+            <div class="sb-item-time">1 hour ago</div>
+          </div>
+          <div class="sb-item">
+            <div class="sb-item-title">Write unit tests for user service</div>
+            <div class="sb-item-time">3 hours ago</div>
+          </div>
+          <div class="sb-item">
+            <div class="sb-item-title">Deploy staging environment</div>
+            <div class="sb-item-time">Yesterday</div>
+          </div>
+          <div class="sb-item">
+            <div class="sb-item-title">Review pull request #142</div>
+            <div class="sb-item-time">Yesterday</div>
+          </div>
+          <div class="sb-item">
+            <div class="sb-item-title">Set up CI/CD pipeline</div>
+            <div class="sb-item-time">2 days ago</div>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="status-dot online pulse"></div>
+          <span>Online</span>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div class="lp-main">
+        <div class="lp-main-header">
+          <span class="session-name">Debug API auth flow</span>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-ghost btn-icon sm">&#x2630;</button>
+          </div>
+        </div>
+        <div class="lp-messages">
+          <div class="msg-container">
+            <div class="msg-new">
+              <div class="msg-header">
+                <div class="msg-avatar user">U</div>
+                <span class="msg-sender">You</span>
+                <span class="msg-time">2:34 PM</span>
+              </div>
+              <div class="msg-body">How do I set up JWT authentication in our Spring Boot backend?</div>
+            </div>
+            <div class="msg-new">
+              <div class="msg-header">
+                <div class="msg-avatar assistant">M</div>
+                <span class="msg-sender">MiniClaw</span>
+                <span class="msg-time">2:34 PM</span>
+              </div>
+              <div class="msg-body">
+                Let me check your current security configuration first.
+                <div style="margin-top:12px;">
+                  <div class="tool-card-new" style="margin-bottom:8px;">
+                    <div class="tc-header">
+                      <div class="tc-status-icon success">&#10003;</div>
+                      <span class="tc-name">read_file</span>
+                      <span class="tc-status-text">Completed</span>
+                    </div>
+                  </div>
+                </div>
+                I've reviewed <code>SecurityConfig.java</code>. Here's how to add JWT support...
+              </div>
+            </div>
+            <div class="msg-new" style="border-bottom:none;">
+              <div class="msg-header">
+                <div class="msg-avatar assistant">M</div>
+                <span class="msg-sender">MiniClaw</span>
+              </div>
+              <div class="streaming-indicator">
+                <div class="streaming-dot"></div>
+                <div class="streaming-dot"></div>
+                <div class="streaming-dot"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="lp-input-area">
+          <div class="input-container">
+            <div class="input-wrap">
+              <textarea rows="1" placeholder="Type your message..." readonly></textarea>
+              <button class="send-btn">↑</button>
+            </div>
+            <div class="hint" style="font-family:var(--font-mono);font-size:10px;color:var(--color-gray-400);margin-top:6px;text-align:center;">Enter to send · Shift+Enter for new line</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>
