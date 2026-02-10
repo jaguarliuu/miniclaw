@@ -107,16 +107,22 @@ class CommandPatternValidationTest {
     void testComplexPatterns() {
         // 测试复杂的正则表达式模式
 
-        // rm -rf with various flags
-        assertTrue(classifier.classify("rm -rf /tmp", "standard").safetyLevel()
-            == RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE);
-        assertTrue(classifier.classify("rm -fr /tmp", "standard").safetyLevel()
-            == RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE);
+        // rm -rf with various flags - 都应该是 DESTRUCTIVE
+        assertEquals(RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE,
+            classifier.classify("rm -rf /tmp", "standard").safetyLevel(),
+            "rm -rf /tmp should be destructive");
+
+        assertEquals(RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE,
+            classifier.classify("rm -fr /tmp", "standard").safetyLevel(),
+            "rm -fr /tmp should be destructive");
 
         // kubectl delete variants
-        assertTrue(classifier.classify("kubectl delete pod nginx", "standard").safetyLevel()
-            == RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE);
-        assertTrue(classifier.classify("kubectl delete -f deployment.yaml", "standard").safetyLevel()
-            == RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE);
+        assertEquals(RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE,
+            classifier.classify("kubectl delete pod nginx", "standard").safetyLevel(),
+            "kubectl delete pod should be destructive");
+
+        assertEquals(RemoteCommandClassifier.SafetyLevel.DESTRUCTIVE,
+            classifier.classify("kubectl delete -f deployment.yaml", "standard").safetyLevel(),
+            "kubectl delete -f should be destructive");
     }
 }

@@ -75,10 +75,9 @@ public class RemoteCommandClassifier {
     // ==================== Level 2: DESTRUCTIVE (永远禁止) ====================
 
     private static final List<Pattern> DESTRUCTIVE_PATTERNS = List.of(
-            // 文件系统破坏
-            Pattern.compile("\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|--recursive).*(/|\\*)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\brm\\s+-rf\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\b(shutdown|reboot|halt|poweroff)\\b", Pattern.CASE_INSENSITIVE),
+            // 文件系统破坏 - rm -rf 任何路径都危险
+            Pattern.compile("\\brm\\s+.*-[a-zA-Z]*r[a-zA-Z]*f", Pattern.CASE_INSENSITIVE),  // 任何包含 -rf 或 -fr 的 rm
+            Pattern.compile("^\\s*(shutdown|reboot|halt|poweroff)\\b", Pattern.CASE_INSENSITIVE),  // 必须是命令开头
             Pattern.compile("\\bmkfs\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\bdd\\s+.*of\\s*=\\s*/dev/", Pattern.CASE_INSENSITIVE),
 

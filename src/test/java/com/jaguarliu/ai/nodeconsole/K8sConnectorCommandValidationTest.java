@@ -31,17 +31,20 @@ class K8sConnectorCommandValidationTest {
         K8sConnector connector = new K8sConnector();
         NodeEntity node = createTestNode();
 
+        String fakeKubeconfig = getFakeKubeconfig();
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(10)
                 .maxOutputBytes(32000)
                 .build();
 
-        ExecResult result = connector.execute("", node, "apply -f deployment.yaml", options);
+        ExecResult result = connector.execute(fakeKubeconfig, node, "apply -f deployment.yaml", options);
 
-        // 应该拒绝 apply 命令
-        assertTrue(result.getStderr().contains("not allowed") ||
-                   result.getStderr().contains("Kubectl verb 'apply'"),
-                   "Should reject 'apply' verb");
+        // 应该因为 verb 验证失败而返回 VALIDATION_ERROR
+        assertEquals(ExecResult.ErrorType.VALIDATION_ERROR, result.getErrorType(),
+                "Should reject 'apply' verb with VALIDATION_ERROR");
+        assertTrue(result.getStderr().toLowerCase().contains("not allowed") ||
+                   result.getStderr().toLowerCase().contains("kubectl verb"),
+                   "Error message should mention verb not allowed: " + result.getStderr());
         assertEquals(-1, result.getExitCode());
     }
 
@@ -50,16 +53,16 @@ class K8sConnectorCommandValidationTest {
         K8sConnector connector = new K8sConnector();
         NodeEntity node = createTestNode();
 
+        String fakeKubeconfig = getFakeKubeconfig();
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(10)
                 .maxOutputBytes(32000)
                 .build();
 
-        ExecResult result = connector.execute("", node, "delete pod my-pod", options);
+        ExecResult result = connector.execute(fakeKubeconfig, node, "delete pod my-pod", options);
 
-        assertTrue(result.getStderr().contains("not allowed") ||
-                   result.getStderr().contains("Kubectl verb 'delete'"),
-                   "Should reject 'delete' verb");
+        assertEquals(ExecResult.ErrorType.VALIDATION_ERROR, result.getErrorType());
+        assertTrue(result.getStderr().toLowerCase().contains("not allowed"));
         assertEquals(-1, result.getExitCode());
     }
 
@@ -68,16 +71,16 @@ class K8sConnectorCommandValidationTest {
         K8sConnector connector = new K8sConnector();
         NodeEntity node = createTestNode();
 
+        String fakeKubeconfig = getFakeKubeconfig();
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(10)
                 .maxOutputBytes(32000)
                 .build();
 
-        ExecResult result = connector.execute("", node, "create deployment nginx --image=nginx", options);
+        ExecResult result = connector.execute(fakeKubeconfig, node, "create deployment nginx --image=nginx", options);
 
-        assertTrue(result.getStderr().contains("not allowed") ||
-                   result.getStderr().contains("Kubectl verb 'create'"),
-                   "Should reject 'create' verb");
+        assertEquals(ExecResult.ErrorType.VALIDATION_ERROR, result.getErrorType());
+        assertTrue(result.getStderr().toLowerCase().contains("not allowed"));
         assertEquals(-1, result.getExitCode());
     }
 
@@ -86,16 +89,16 @@ class K8sConnectorCommandValidationTest {
         K8sConnector connector = new K8sConnector();
         NodeEntity node = createTestNode();
 
+        String fakeKubeconfig = getFakeKubeconfig();
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(10)
                 .maxOutputBytes(32000)
                 .build();
 
-        ExecResult result = connector.execute("", node, "edit deployment nginx", options);
+        ExecResult result = connector.execute(fakeKubeconfig, node, "edit deployment nginx", options);
 
-        assertTrue(result.getStderr().contains("not allowed") ||
-                   result.getStderr().contains("Kubectl verb 'edit'"),
-                   "Should reject 'edit' verb");
+        assertEquals(ExecResult.ErrorType.VALIDATION_ERROR, result.getErrorType());
+        assertTrue(result.getStderr().toLowerCase().contains("not allowed"));
         assertEquals(-1, result.getExitCode());
     }
 
@@ -104,17 +107,39 @@ class K8sConnectorCommandValidationTest {
         K8sConnector connector = new K8sConnector();
         NodeEntity node = createTestNode();
 
+        String fakeKubeconfig = getFakeKubeconfig();
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(10)
                 .maxOutputBytes(32000)
                 .build();
 
-        ExecResult result = connector.execute("", node, "patch deployment nginx -p '{}'", options);
+        ExecResult result = connector.execute(fakeKubeconfig, node, "patch deployment nginx -p '{}'", options);
 
-        assertTrue(result.getStderr().contains("not allowed") ||
-                   result.getStderr().contains("Kubectl verb 'patch'"),
-                   "Should reject 'patch' verb");
+        assertEquals(ExecResult.ErrorType.VALIDATION_ERROR, result.getErrorType());
+        assertTrue(result.getStderr().toLowerCase().contains("not allowed"));
         assertEquals(-1, result.getExitCode());
+    }
+
+    // Helper method to create fake kubeconfig
+    private String getFakeKubeconfig() {
+        return """
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - cluster:
+                server: https://127.0.0.1:6443
+              name: test
+            contexts:
+            - context:
+                cluster: test
+                user: test
+              name: test
+            current-context: test
+            users:
+            - name: test
+              user:
+                token: fake
+            """;
     }
 
     @Test
