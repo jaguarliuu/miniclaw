@@ -1,22 +1,71 @@
 ---
 name: agent-browser
 description: Automates browser interactions for web testing, form filling, screenshots, and data extraction. Use when the user needs to navigate websites, interact with web pages, fill forms, take screenshots, test web applications, or extract information from web pages.
+metadata:
+  miniclaw:
+    requires:
+      anyBins: ["agent-browser", "agent-browser.cmd"]
 ---
 
 # Browser Automation with agent-browser
 
-**Important Note for Windows Users:**
-In this environment, please use `.\agent-browser.cmd` instead of `agent-browser`.
+## Installation Required
+
+This skill requires `agent-browser` to be installed. If you see an error that this skill is unavailable, follow the installation guide below.
+
+### Quick Install
+
+Choose your preferred method:
+
+**Option 1: npm (Recommended)**
+```bash
+npm install -g @agent-tools/browser
+```
+
+**Option 2: Use the installation script**
+```bash
+# macOS/Linux
+bash scripts/install-agent-browser.sh
+
+# Windows
+powershell scripts/install-agent-browser.ps1
+```
+
+**Option 3: Manual installation**
+- Download from: https://github.com/hdresearch/nolita/releases
+- Add to your system PATH
+
+**Verify installation:**
+```bash
+agent-browser --version
+```
+
+---
+
+## Platform-Specific Notes
+
+**Windows Users:**
+- Use `agent-browser.cmd` instead of `agent-browser` in commands
+- Or add `.cmd` extension: `agent-browser.cmd open <url>`
+- The installation script handles this automatically
+
+**All Platforms:**
+- After installation, you may need to restart your terminal
+- Verify with: `agent-browser --version`
+
+---
 
 ## Quick start
 
 ```bash
-.\agent-browser.cmd open <url>        # Navigate to page
-.\agent-browser.cmd snapshot -i       # Get interactive elements with refs
-.\agent-browser.cmd click @e1         # Click element by ref
-.\agent-browser.cmd fill @e2 "text"   # Fill input by ref
-.\agent-browser.cmd close             # Close browser
+agent-browser open <url>        # Navigate to page
+agent-browser snapshot -i       # Get interactive elements with refs
+agent-browser click @e1         # Click element by ref
+agent-browser fill @e2 "text"   # Fill input by ref
+agent-browser close             # Close browser
 ```
+
+**Windows:** Replace `agent-browser` with `agent-browser.cmd` in all commands above.
 
 ## Core workflow
 
