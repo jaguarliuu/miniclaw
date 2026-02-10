@@ -28,19 +28,28 @@ public class SshConnector implements Connector {
     }
 
     @Override
-    public String execute(String credential, NodeEntity node, String command, int timeoutSeconds) {
+    public ExecResult execute(String credential, NodeEntity node, String command,
+                              int timeoutSeconds, int maxOutputBytes) {
         // 使用 Future 实现硬超时
-        Future<String> future = executor.submit(() -> executeInternal(credential, node, command));
+        Future<ExecResult> future = executor.submit(() ->
+            executeInternal(credential, node, command, maxOutputBytes));
 
         try {
             // 硬超时：如果超过 timeoutSeconds，抛出 TimeoutException
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             future.cancel(true); // 尝试中断任务
-            throw new RuntimeException("Command execution timed out after " + timeoutSeconds + " seconds");
+            return new ExecResult.Builder()
+                .stderr("Command execution timed out after " + timeoutSeconds + " seconds")
+                .exitCode(-1)
+                .timedOut(true)
+                .build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Command execution interrupted", e);
+            return new ExecResult.Builder()
+                .stderr("Command execution interrupted")
+                .exitCode(-1)
+                .build();
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof RuntimeException) {
@@ -50,8 +59,8 @@ public class SshConnector implements Connector {
         }
     }
 
-    private String executeInternal(String credential, NodeEntity node, String command) {
-    private String executeInternal(String credential, NodeEntity node, String command) {
+    private ExecResult executeInternal(String credential, NodeEntity node, String command, int maxOutputBytes) {
+    private ExecResult executeInternal(String credential, NodeEntity node, String command, int maxOutputBytes) {
         Session session = null;
         ChannelExec channel = null;
         try {
@@ -62,24 +71,34 @@ public class SshConnector implements Connector {
             channel.setCommand(command);
             channel.setInputStream(null);
 
-            ByteArrayOutputStream errStream = new ByteArrayOutputStream();
-            channel.setErrStream(errStream);
+            // 使用限制输出的流
+            LimitedByteArrayOutputStream stdout = new LimitedByteArrayOutputStream(maxOutputBytes);
+            LimitedByteArrayOutputStream stderr = new LimitedByteArrayOutputStream(maxOutputBytes / 4); // stderr 更小
+
+            channel.setOutputStream(stdout);
+            channel.setErrStream(stderr);
 
             InputStream in = channel.getInputStream();
+            InputStream err = channel.getExtInputStream();
+
             channel.connect(SSH_CONNECT_TIMEOUT_MS);
 
-            // 读取标准输出（保持原有逻辑，但现在受外层 Future.get() 的硬超时控制）
-            ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+            // 读取输出（LimitedByteArrayOutputStream 会自动截断）
             byte[] buf = new byte[BUFFER_SIZE];
             int len;
             while (true) {
                 while (in.available() > 0) {
                     len = in.read(buf);
                     if (len < 0) break;
-                    outStream.write(buf, 0, len);
+                    stdout.write(buf, 0, len);
+                }
+                while (err.available() > 0) {
+                    len = err.read(buf);
+                    if (len < 0) break;
+                    stderr.write(buf, 0, len);
                 }
                 if (channel.isClosed()) {
-                    if (in.available() > 0) continue;
+                    if (in.available() > 0 || err.available() > 0) continue;
                     break;
                 }
 
@@ -91,21 +110,26 @@ public class SshConnector implements Connector {
                 Thread.sleep(100);
             }
 
-            String stdout = outStream.toString(StandardCharsets.UTF_8);
-            String stderr = errStream.toString(StandardCharsets.UTF_8);
             int exitCode = channel.getExitStatus();
+            boolean truncated = stdout.isTruncated() || stderr.isTruncated();
+            long originalLength = stdout.getOriginalLength() + stderr.getOriginalLength();
 
-            StringBuilder result = new StringBuilder();
-            if (!stdout.isEmpty()) {
-                result.append(stdout);
-            }
-            if (!stderr.isEmpty()) {
-                if (!result.isEmpty()) result.append("\n");
-                result.append("[stderr]\n").append(stderr);
-            }
-            result.append("\n[exit code: ").append(exitCode).append("]");
+            return new ExecResult.Builder()
+                .stdout(stdout.toString(StandardCharsets.UTF_8))
+                .stderr(stderr.toString(StandardCharsets.UTF_8))
+                .exitCode(exitCode)
+                .truncated(truncated)
+                .originalLength(originalLength)
+                .timedOut(false)
+                .build();
 
-            return result.toString();
+        } catch (InterruptedException e) {
+            // 超时中断
+            return new ExecResult.Builder()
+                .stderr("Execution interrupted by timeout")
+                .exitCode(-1)
+                .timedOut(true)
+                .build();
         } catch (Exception e) {
             log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
             throw new RuntimeException("SSH command execution failed: " + e.getClass().getSimpleName(), e);

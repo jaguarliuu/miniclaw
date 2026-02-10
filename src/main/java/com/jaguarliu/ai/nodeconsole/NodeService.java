@@ -140,15 +140,20 @@ public class NodeService {
         String credential = credentialCipher.decrypt(node.getEncryptedCredential(), node.getCredentialIv());
         Connector connector = connectorFactory.get(node.getConnectorType());
 
-        log.info("Executing command on node {}: {}", alias, command);
-        String output = connector.execute(credential, node, command, properties.getExecTimeoutSeconds());
-
-        // 截断输出
-        if (output != null && output.length() > properties.getMaxOutputLength()) {
-            output = output.substring(0, properties.getMaxOutputLength()) + "\n... [output truncated]";
+        if (connector == null) {
+            throw new IllegalStateException("Unsupported connector type: " + node.getConnectorType());
         }
 
-        return output;
+        log.info("Executing command on node {}: {}", alias, command);
+
+        // 使用配置的超时和输出限制
+        int timeout = properties.getExecTimeoutSeconds();
+        int maxOutput = properties.getMaxOutputLength();
+
+        ExecResult result = connector.execute(credential, node, command, timeout, maxOutput);
+
+        // 格式化输出（包含截断/超时提示）
+        return result.formatOutput();
     }
 
     /**

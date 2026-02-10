@@ -12,15 +12,17 @@ public interface Connector {
     String getType();
 
     /**
-     * 执行远程命令
+     * 执行远程命令并返回结构化结果
      *
      * @param credential     解密后的凭据（密码、私钥、kubeconfig 等）
      * @param node           节点实体
      * @param command        要执行的命令
      * @param timeoutSeconds 超时秒数
-     * @return 命令输出
+     * @param maxOutputBytes 最大输出字节数（防止 OOM）
+     * @return 结构化执行结果
      */
-    String execute(String credential, NodeEntity node, String command, int timeoutSeconds);
+    ExecResult execute(String credential, NodeEntity node, String command,
+                       int timeoutSeconds, int maxOutputBytes);
 
     /**
      * 测试连接

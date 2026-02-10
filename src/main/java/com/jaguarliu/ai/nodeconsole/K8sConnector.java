@@ -28,13 +28,33 @@ public class K8sConnector implements Connector {
     }
 
     @Override
-    public String execute(String credential, NodeEntity node, String command, int timeoutSeconds) {
+    public ExecResult execute(String credential, NodeEntity node, String command,
+                              int timeoutSeconds, int maxOutputBytes) {
         try {
             ApiClient client = buildClient(credential, timeoutSeconds);
-            return dispatchCommand(client, command);
+            String output = dispatchCommand(client, command);
+
+            // 检查是否超过输出限制
+            boolean truncated = false;
+            long originalLength = output.length();
+            if (output.length() > maxOutputBytes) {
+                output = output.substring(0, maxOutputBytes);
+                truncated = true;
+            }
+
+            return new ExecResult.Builder()
+                .stdout(output)
+                .exitCode(0)
+                .truncated(truncated)
+                .originalLength(originalLength)
+                .build();
+
         } catch (Exception e) {
-            log.error("K8s execute failed on node {}: {}", node.getAlias(), e.getMessage());
-            throw new RuntimeException("K8s command execution failed: " + e.getMessage(), e);
+            log.error("K8s execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            return new ExecResult.Builder()
+                .stderr("K8s execution failed: " + e.getClass().getSimpleName())
+                .exitCode(-1)
+                .build();
         }
     }
 
