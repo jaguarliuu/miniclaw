@@ -25,6 +25,16 @@ public class RemoteCommandClassifier {
 
     private final DangerousCommandDetector dangerousCommandDetector;
 
+    // ==================== 远程特有的 DESTRUCTIVE 模式 ====================
+    // DangerousCommandDetector 主要用于本机命令，这里补充远程命令特有的破坏性模式
+
+    private static final List<Pattern> REMOTE_DESTRUCTIVE_PATTERNS = List.of(
+            // Kubernetes 破坏性操作（DangerousCommandDetector 不包含这些）
+            Pattern.compile("\\bkubectl\\s+delete\\b", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\bkubectl\\s+drain\\b", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\bkubectl\\s+cordon\\b", Pattern.CASE_INSENSITIVE)
+    );
+
     /**
      * 安全等级
      */
@@ -112,12 +122,26 @@ public class RemoteCommandClassifier {
             return new Classification(SafetyLevel.SIDE_EFFECT, "Empty command", policy);
         }
 
-        // Step 1: 使用系统的 DangerousCommandDetector 检测危险命令
+        // Step 1a: 检查远程特有的破坏性模式（kubectl 命令）
+        for (Pattern pattern : REMOTE_DESTRUCTIVE_PATTERNS) {
+            if (pattern.matcher(command).find()) {
+                return new Classification(SafetyLevel.DESTRUCTIVE,
+                        "Remote destructive command detected: kubectl operation", policy);
+            }
+        }
+
+        // Step 1b: 使用系统的 DangerousCommandDetector 检测危险命令
         // 这些是 Level 2 (DESTRUCTIVE) - 永远禁止
+        // 但需要过滤误报：某些命令（如 echo、printf）的参数可能包含危险关键词
         if (dangerousCommandDetector.isDangerous(command)) {
-            String reason = dangerousCommandDetector.getDangerReason(command);
-            return new Classification(SafetyLevel.DESTRUCTIVE,
-                    "Dangerous command detected: " + reason, policy);
+            // 检查是否为安全命令的参数（误报过滤）
+            if (isSafeCommandWithDangerousArg(command)) {
+                // 继续后续检查，不直接判定为 DESTRUCTIVE
+            } else {
+                String reason = dangerousCommandDetector.getDangerReason(command);
+                return new Classification(SafetyLevel.DESTRUCTIVE,
+                        "Dangerous command detected: " + reason, policy);
+            }
         }
 
         // Step 2: 检查 Level 0 (READ_ONLY) 白名单
@@ -147,5 +171,24 @@ public class RemoteCommandClassifier {
         }
 
         return new Classification(SafetyLevel.SIDE_EFFECT, "Command with potential side effects", policy);
+    }
+
+    /**
+     * 检查是否为安全命令但参数中包含危险关键词（误报过滤）
+     * 例如：echo shutdown, printf 'password', cat file_with_dangerous_name
+     *
+     * @param command 命令字符串
+     * @return true 如果是安全命令的参数包含危险关键词（非真正危险）
+     */
+    private boolean isSafeCommandWithDangerousArg(String command) {
+        String trimmed = command.trim();
+        // 常见的安全只读/输出命令
+        String[] safeCommands = {"echo", "printf", "cat", "less", "more", "head", "tail", "grep"};
+        for (String safe : safeCommands) {
+            if (trimmed.startsWith(safe + " ")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
