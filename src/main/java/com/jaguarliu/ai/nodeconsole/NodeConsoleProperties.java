@@ -23,12 +23,12 @@ public class NodeConsoleProperties {
     private String defaultSafetyPolicy = "strict";
 
     /**
-     * SSH 连接超时（秒）
+     * SSH 连接超时（秒）- 仅用于建立 SSH 连接阶段
      */
-    private int sshTimeoutSeconds = 30;
+    private int sshConnectTimeoutSeconds = 10;
 
     /**
-     * 命令执行超时（秒）
+     * 命令执行超时（秒）- 包含命令运行和输出读取的总时间
      */
     private int execTimeoutSeconds = 60;
 

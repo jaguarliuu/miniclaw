@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.*;
 
 /**
  * SSH 连接器
@@ -16,6 +17,11 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class SshConnector implements Connector {
 
+    private static final int SSH_CONNECT_TIMEOUT_MS = 10000; // 10秒连接超时
+    private static final int BUFFER_SIZE = 4096;
+
+    private final ExecutorService executor = Executors.newCachedThreadPool();
+
     @Override
     public String getType() {
         return "ssh";
@@ -23,11 +29,34 @@ public class SshConnector implements Connector {
 
     @Override
     public String execute(String credential, NodeEntity node, String command, int timeoutSeconds) {
+        // 使用 Future 实现硬超时
+        Future<String> future = executor.submit(() -> executeInternal(credential, node, command));
+
+        try {
+            // 硬超时：如果超过 timeoutSeconds，抛出 TimeoutException
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true); // 尝试中断任务
+            throw new RuntimeException("Command execution timed out after " + timeoutSeconds + " seconds");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Command execution interrupted", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException("Command execution failed", cause);
+        }
+    }
+
+    private String executeInternal(String credential, NodeEntity node, String command) {
+    private String executeInternal(String credential, NodeEntity node, String command) {
         Session session = null;
         ChannelExec channel = null;
         try {
-            session = createSession(credential, node, timeoutSeconds);
-            session.connect(timeoutSeconds * 1000);
+            session = createSession(credential, node, SSH_CONNECT_TIMEOUT_MS);
+            session.connect(SSH_CONNECT_TIMEOUT_MS);
 
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
@@ -37,11 +66,11 @@ public class SshConnector implements Connector {
             channel.setErrStream(errStream);
 
             InputStream in = channel.getInputStream();
-            channel.connect(timeoutSeconds * 1000);
+            channel.connect(SSH_CONNECT_TIMEOUT_MS);
 
-            // 读取标准输出
+            // 读取标准输出（保持原有逻辑，但现在受外层 Future.get() 的硬超时控制）
             ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
+            byte[] buf = new byte[BUFFER_SIZE];
             int len;
             while (true) {
                 while (in.available() > 0) {
@@ -53,6 +82,12 @@ public class SshConnector implements Connector {
                     if (in.available() > 0) continue;
                     break;
                 }
+
+                // 检查线程中断状态（配合 Future.cancel）
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException("Execution interrupted by timeout");
+                }
+
                 Thread.sleep(100);
             }
 
@@ -72,8 +107,8 @@ public class SshConnector implements Connector {
 
             return result.toString();
         } catch (Exception e) {
-            log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getMessage());
-            throw new RuntimeException("SSH command execution failed: " + e.getMessage(), e);
+            log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            throw new RuntimeException("SSH command execution failed: " + e.getClass().getSimpleName(), e);
         } finally {
             if (channel != null) channel.disconnect();
             if (session != null) session.disconnect();
@@ -84,8 +119,8 @@ public class SshConnector implements Connector {
     public boolean testConnection(String credential, NodeEntity node) {
         Session session = null;
         try {
-            session = createSession(credential, node, 10);
-            session.connect(10_000);
+            session = createSession(credential, node, SSH_CONNECT_TIMEOUT_MS);
+            session.connect(SSH_CONNECT_TIMEOUT_MS);
             return session.isConnected();
         } catch (Exception e) {
             log.debug("SSH test connection failed for node {}: {}", node.getAlias(), e.getMessage());
@@ -95,7 +130,7 @@ public class SshConnector implements Connector {
         }
     }
 
-    private Session createSession(String credential, NodeEntity node, int timeoutSeconds) throws JSchException {
+    private Session createSession(String credential, NodeEntity node, int timeoutMs) throws JSchException {
         JSch jsch = new JSch();
 
         String authType = node.getAuthType() != null ? node.getAuthType() : "password";
@@ -117,7 +152,7 @@ public class SshConnector implements Connector {
 
         // 禁用严格主机密钥检查（运维场景）
         session.setConfig("StrictHostKeyChecking", "no");
-        session.setTimeout(timeoutSeconds * 1000);
+        session.setTimeout(timeoutMs);
 
         return session;
     }

@@ -122,3 +122,6 @@ memory:
 node-console:
   encryption-key: ${NODE_CONSOLE_ENCRYPTION_KEY:}
   default-safety-policy: strict
+  ssh-connect-timeout-seconds: 10  # SSH 连接超时
+  exec-timeout-seconds: 60         # 命令执行超时
+  max-output-length: 32000
