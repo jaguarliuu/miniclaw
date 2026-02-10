@@ -33,17 +33,34 @@ public class CredentialCipher {
     @PostConstruct
     public void init() {
         String key = properties.getEncryptionKey();
+
         if (key == null || key.isBlank()) {
-            log.warn("Node console encryption key is not configured. Node registration will fail.");
-            return;
+            throw new IllegalStateException(
+                    "NODE_CONSOLE_ENCRYPTION_KEY environment variable is required. " +
+                    "Generate a key with: openssl rand -hex 32"
+            );
         }
+
         if (key.length() != 64) {
             throw new IllegalStateException(
-                    "node-console.encryption-key must be 64 hex characters (32 bytes for AES-256), got " + key.length());
+                    "Encryption key must be 64 hex characters (32 bytes for AES-256). " +
+                    "Current length: " + key.length() + ". " +
+                    "Generate a valid key with: openssl rand -hex 32"
+            );
         }
-        byte[] keyBytes = HexFormat.of().parseHex(key);
-        this.keySpec = new SecretKeySpec(keyBytes, "AES");
-        log.info("CredentialCipher initialized with AES-256-GCM");
+
+        try {
+            byte[] keyBytes = HexFormat.of().parseHex(key);
+            this.keySpec = new SecretKeySpec(keyBytes, "AES");
+            log.info("CredentialCipher initialized with AES-256-GCM");
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to initialize encryption key: " + e.getMessage() + ". " +
+                    "Ensure the key is valid hex format (64 characters). " +
+                    "Generate a valid key with: openssl rand -hex 32",
+                    e
+            );
+        }
     }
 
     /**
