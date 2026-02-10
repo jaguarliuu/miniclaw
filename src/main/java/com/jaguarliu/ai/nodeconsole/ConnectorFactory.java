@@ -24,8 +24,21 @@ public class ConnectorFactory {
     @PostConstruct
     public void init() {
         for (Connector connector : connectors) {
-            registry.put(connector.getType(), connector);
-            log.info("Registered connector: {}", connector.getType());
+            String type = connector.getType();
+            Connector existing = registry.putIfAbsent(type, connector);
+
+            if (existing != null) {
+                // 检测到重复类型，启动失败
+                throw new IllegalStateException(
+                    String.format("Duplicate connector type '%s': %s and %s. " +
+                                  "Each connector must have a unique type identifier.",
+                        type,
+                        existing.getClass().getName(),
+                        connector.getClass().getName())
+                );
+            }
+
+            log.info("Registered connector: {} ({})", type, connector.getClass().getSimpleName());
         }
     }
 
