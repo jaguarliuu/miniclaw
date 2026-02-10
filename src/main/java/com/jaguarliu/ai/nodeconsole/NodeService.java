@@ -144,7 +144,8 @@ public class NodeService {
             throw new IllegalStateException("Unsupported connector type: " + node.getConnectorType());
         }
 
-        log.info("Executing command on node {}: {}", alias, command);
+        // 日志脱敏：不记录完整命令，仅记录摘要
+        log.info("Executing command on node {}: {}", alias, LogSanitizer.commandSummary(command));
 
         // 使用配置的超时和输出限制
         int timeout = properties.getExecTimeoutSeconds();

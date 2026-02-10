@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import com.jaguarliu.ai.nodeconsole.LogSanitizer;
 import com.jaguarliu.ai.nodeconsole.NodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +60,15 @@ public class NodeRegisterHandler implements RpcHandler {
                     username, authType, credential, tags, safetyPolicy);
             return RpcResponse.success(request.getId(), NodeService.toNodeDto(node));
         }).onErrorResume(e -> {
-            log.error("Failed to register node: {}", e.getMessage());
-            return Mono.just(RpcResponse.error(request.getId(), "REGISTER_FAILED", e.getMessage()));
+            // 日志脱敏：仅记录异常类名
+            log.error("Failed to register node: {}", LogSanitizer.sanitizeException(e));
+
+            // 对客户端返回通用错误，不暴露内部细节
+            String errorMessage = e instanceof IllegalArgumentException
+                ? e.getMessage()  // 参数错误可以返回（如 "alias already exists"）
+                : "Node registration failed";  // 其他错误返回通用消息
+
+            return Mono.just(RpcResponse.error(request.getId(), "REGISTER_FAILED", errorMessage));
         });
     }
 }

@@ -60,7 +60,6 @@ public class SshConnector implements Connector {
     }
 
     private ExecResult executeInternal(String credential, NodeEntity node, String command, int maxOutputBytes) {
-    private ExecResult executeInternal(String credential, NodeEntity node, String command, int maxOutputBytes) {
         Session session = null;
         ChannelExec channel = null;
         try {
@@ -147,7 +146,7 @@ public class SshConnector implements Connector {
             session.connect(SSH_CONNECT_TIMEOUT_MS);
             return session.isConnected();
         } catch (Exception e) {
-            log.debug("SSH test connection failed for node {}: {}", node.getAlias(), e.getMessage());
+            log.debug("SSH test connection failed for node {}: {}", node.getAlias(), e.getClass().getSimpleName());
             return false;
         } finally {
             if (session != null) session.disconnect();

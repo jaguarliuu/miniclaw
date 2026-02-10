@@ -5,6 +5,7 @@ import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.nodeconsole.NodeService;
+import com.jaguarliu.ai.nodeconsole.LogSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -43,7 +44,7 @@ public class NodeTestHandler implements RpcHandler {
             return RpcResponse.success(request.getId(), Map.of("success", success));
         }).onErrorResume(e -> {
             log.error("Failed to test node: {}", e.getMessage());
-            return Mono.just(RpcResponse.error(request.getId(), "TEST_FAILED", e.getMessage()));
+            return Mono.just(RpcResponse.error(request.getId(), "TEST_FAILED", "Connection test failed"));
         });
     }
 }

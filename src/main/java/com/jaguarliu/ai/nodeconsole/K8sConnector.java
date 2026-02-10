@@ -66,7 +66,7 @@ public class K8sConnector implements Connector {
             api.listNamespace().execute();
             return true;
         } catch (Exception e) {
-            log.debug("K8s test connection failed for node {}: {}", node.getAlias(), e.getMessage());
+            log.debug("K8s test connection failed for node {}: {}", node.getAlias(), e.getClass().getSimpleName());
             return false;
         }
     }

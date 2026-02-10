@@ -5,6 +5,7 @@ import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.nodeconsole.NodeService;
+import com.jaguarliu.ai.nodeconsole.LogSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -42,8 +43,8 @@ public class NodeRemoveHandler implements RpcHandler {
             nodeService.remove(id);
             return RpcResponse.success(request.getId(), Map.of("success", true));
         }).onErrorResume(e -> {
-            log.error("Failed to remove node: {}", e.getMessage());
-            return Mono.just(RpcResponse.error(request.getId(), "REMOVE_FAILED", e.getMessage()));
+            log.error("Failed to remove node: {}", LogSanitizer.sanitizeException(e));
+            return Mono.just(RpcResponse.error(request.getId(), "REMOVE_FAILED", e instanceof IllegalArgumentException ? e.getMessage() : "Node remove failed"));
         });
     }
 }

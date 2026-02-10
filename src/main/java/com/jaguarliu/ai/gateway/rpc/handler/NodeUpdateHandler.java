@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import com.jaguarliu.ai.nodeconsole.LogSanitizer;
 import com.jaguarliu.ai.nodeconsole.NodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,8 +55,11 @@ public class NodeUpdateHandler implements RpcHandler {
                     username, authType, credential, tags, safetyPolicy);
             return RpcResponse.success(request.getId(), NodeService.toNodeDto(node));
         }).onErrorResume(e -> {
-            log.error("Failed to update node: {}", e.getMessage());
-            return Mono.just(RpcResponse.error(request.getId(), "UPDATE_FAILED", e.getMessage()));
+            log.error("Failed to update node: {}", LogSanitizer.sanitizeException(e));
+            String errorMessage = e instanceof IllegalArgumentException
+                ? e.getMessage()
+                : "Node update failed";
+            return Mono.just(RpcResponse.error(request.getId(), "UPDATE_FAILED", errorMessage));
         });
     }
 }
