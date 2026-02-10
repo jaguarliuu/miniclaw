@@ -163,9 +163,20 @@ public class SshConnector implements Connector {
             jsch.addIdentity("node-" + node.getAlias(), credential.getBytes(StandardCharsets.UTF_8), null, null);
         }
 
-        String host = node.getHost() != null ? node.getHost() : "localhost";
-        int port = node.getPort() != null ? node.getPort() : 22;
-        String username = node.getUsername() != null ? node.getUsername() : "root";
+        // 移除默认值：如果配置缺失，让它失败（而不是使用危险的默认值）
+        if (node.getHost() == null || node.getHost().isBlank()) {
+            throw new IllegalArgumentException("SSH host is required (cannot be null or empty)");
+        }
+        if (node.getPort() == null) {
+            throw new IllegalArgumentException("SSH port is required (cannot be null)");
+        }
+        if (node.getUsername() == null || node.getUsername().isBlank()) {
+            throw new IllegalArgumentException("SSH username is required (cannot be null or empty)");
+        }
+
+        String host = node.getHost();
+        int port = node.getPort();
+        String username = node.getUsername();
 
         Session session = jsch.getSession(username, host, port);
 

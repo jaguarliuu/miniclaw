@@ -20,6 +20,7 @@ public class NodeService {
     private final CredentialCipher credentialCipher;
     private final ConnectorFactory connectorFactory;
     private final NodeConsoleProperties properties;
+    private final NodeValidator nodeValidator;
 
     /**
      * 注册新节点
@@ -30,6 +31,9 @@ public class NodeService {
         if (nodeRepository.existsByAlias(alias)) {
             throw new IllegalArgumentException("Node alias already exists: " + alias);
         }
+
+        // 校验节点配置（防止危险配置）
+        nodeValidator.validate(connectorType, host, port, username);
 
         CredentialCipher.EncryptedPayload encrypted = credentialCipher.encrypt(rawCredential);
 
@@ -74,6 +78,11 @@ public class NodeService {
         if (authType != null) node.setAuthType(authType);
         if (tags != null) node.setTags(tags);
         if (safetyPolicy != null) node.setSafetyPolicy(safetyPolicy);
+
+        // 如果修改了连接器相关字段，重新校验配置
+        if (connectorType != null || host != null || port != null || username != null) {
+            nodeValidator.validate(node.getConnectorType(), node.getHost(), node.getPort(), node.getUsername());
+        }
 
         // 如果提供了新凭据，重新加密
         if (rawCredential != null && !rawCredential.isBlank()) {
