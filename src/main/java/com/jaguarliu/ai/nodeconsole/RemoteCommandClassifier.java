@@ -1,5 +1,7 @@
 package com.jaguarliu.ai.nodeconsole;
 
+import com.jaguarliu.ai.tools.DangerousCommandDetector;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -7,23 +9,21 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 远程命令安全分类器（三级分类）
+ * 远程命令安全分类器（基于 DangerousCommandDetector）
  *
  * Level 0 (READ_ONLY)：安全的只读命令，可自动执行
  * Level 1 (SIDE_EFFECT)：有副作用的命令，需要 HITL 确认
  * Level 2 (DESTRUCTIVE)：破坏性命令，永远禁止
  *
- * TODO: 未来优化 - 将模式列表从外部 YAML 配置文件加载（src/main/resources/command-patterns.yml）
- * 这将允许：
- * 1. 运行时重新加载模式而无需重启
- * 2. 更容易的模式定制和扩展
- * 3. 多环境的不同模式配置
- *
- * 当前实现使用硬编码模式以保证启动性能和确定性行为
+ * 复用系统现有的 DangerousCommandDetector 进行危险命令检测，
+ * 额外添加只读命令白名单识别
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class RemoteCommandClassifier {
+
+    private final DangerousCommandDetector dangerousCommandDetector;
 
     /**
      * 安全等级
@@ -72,34 +72,7 @@ public class RemoteCommandClassifier {
         }
     }
 
-    // ==================== Level 2: DESTRUCTIVE (永远禁止) ====================
-
-    private static final List<Pattern> DESTRUCTIVE_PATTERNS = List.of(
-            // 文件系统破坏 - rm -rf 任何路径都危险
-            Pattern.compile("\\brm\\s+.*-[a-zA-Z]*r[a-zA-Z]*f", Pattern.CASE_INSENSITIVE),  // 任何包含 -rf 或 -fr 的 rm
-            Pattern.compile("^\\s*(shutdown|reboot|halt|poweroff)\\b", Pattern.CASE_INSENSITIVE),  // 必须是命令开头
-            Pattern.compile("\\bmkfs\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bdd\\s+.*of\\s*=\\s*/dev/", Pattern.CASE_INSENSITIVE),
-
-            // Kubernetes 破坏
-            Pattern.compile("\\bkubectl\\s+delete\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bkubectl\\s+drain\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bkubectl\\s+cordon\\b", Pattern.CASE_INSENSITIVE),
-
-            // 数据库破坏
-            Pattern.compile("\\bDROP\\s+(TABLE|DATABASE)\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bTRUNCATE\\s+TABLE\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bDELETE\\s+FROM\\s+\\w+\\s*;", Pattern.CASE_INSENSITIVE),
-
-            // 远程代码执行
-            Pattern.compile("curl\\s+[^|]+\\|\\s*(sh|bash)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("wget\\s+[^|]+\\|\\s*(sh|bash)", Pattern.CASE_INSENSITIVE),
-
-            // 网络破坏
-            Pattern.compile("\\biptables\\s+-F\\b", Pattern.CASE_INSENSITIVE)
-    );
-
-    // ==================== Level 0: READ_ONLY (安全只读) ====================
+    // ==================== Level 0: READ_ONLY (安全只读命令白名单) ====================
 
     private static final List<Pattern> READ_ONLY_PATTERNS = List.of(
             // 系统信息
@@ -128,7 +101,7 @@ public class RemoteCommandClassifier {
     );
 
     /**
-     * 分类命令
+     * 分类命令（使用系统统一的 DangerousCommandDetector）
      *
      * @param command 命令内容
      * @param policy  节点安全策略 (strict / standard / relaxed)
@@ -139,15 +112,15 @@ public class RemoteCommandClassifier {
             return new Classification(SafetyLevel.SIDE_EFFECT, "Empty command", policy);
         }
 
-        // Step 1: 检查 Level 2 (DESTRUCTIVE) - 永远禁止，不受策略影响
-        for (Pattern pattern : DESTRUCTIVE_PATTERNS) {
-            if (pattern.matcher(command).find()) {
-                return new Classification(SafetyLevel.DESTRUCTIVE,
-                        "Destructive command detected: " + pattern.pattern(), policy);
-            }
+        // Step 1: 使用系统的 DangerousCommandDetector 检测危险命令
+        // 这些是 Level 2 (DESTRUCTIVE) - 永远禁止
+        if (dangerousCommandDetector.isDangerous(command)) {
+            String reason = dangerousCommandDetector.getDangerReason(command);
+            return new Classification(SafetyLevel.DESTRUCTIVE,
+                    "Dangerous command detected: " + reason, policy);
         }
 
-        // Step 2: 检查 Level 0 (READ_ONLY)
+        // Step 2: 检查 Level 0 (READ_ONLY) 白名单
         boolean isReadOnly = false;
         for (Pattern pattern : READ_ONLY_PATTERNS) {
             if (pattern.matcher(command).find()) {
@@ -166,7 +139,7 @@ public class RemoteCommandClassifier {
             return new Classification(SafetyLevel.READ_ONLY, "Read-only command", policy);
         }
 
-        // 默认 Level 1 (SIDE_EFFECT)
+        // 默认 Level 1 (SIDE_EFFECT) - 不在白名单中的命令
         if ("relaxed".equals(policy)) {
             // relaxed: Level 1 降为 Level 0（副作用命令自动执行）
             return new Classification(SafetyLevel.READ_ONLY,
