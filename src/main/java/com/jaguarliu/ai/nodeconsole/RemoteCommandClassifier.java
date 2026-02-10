@@ -12,6 +12,14 @@ import java.util.regex.Pattern;
  * Level 0 (READ_ONLY)：安全的只读命令，可自动执行
  * Level 1 (SIDE_EFFECT)：有副作用的命令，需要 HITL 确认
  * Level 2 (DESTRUCTIVE)：破坏性命令，永远禁止
+ *
+ * TODO: 未来优化 - 将模式列表从外部 YAML 配置文件加载（src/main/resources/command-patterns.yml）
+ * 这将允许：
+ * 1. 运行时重新加载模式而无需重启
+ * 2. 更容易的模式定制和扩展
+ * 3. 多环境的不同模式配置
+ *
+ * 当前实现使用硬编码模式以保证启动性能和确定性行为
  */
 @Slf4j
 @Component
