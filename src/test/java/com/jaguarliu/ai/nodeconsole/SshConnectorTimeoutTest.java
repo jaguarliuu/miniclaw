@@ -16,15 +16,10 @@ class SshConnectorTimeoutTest {
         NodeEntity node = createTestNode();
 
         long startTime = System.currentTimeMillis();
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            // 执行一个会卡住的命令，超时时间设置为 2 秒
-            connector.execute("password", node, "sleep 100", 2);
-        });
+        ExecResult result = connector.execute("password", node, "sleep 100", 2, 32000);
         long duration = System.currentTimeMillis() - startTime;
 
-        assertTrue(exception.getMessage().contains("timeout") ||
-                   exception.getMessage().contains("timed out"),
-                   "Exception should indicate timeout");
+        assertTrue(result.isTimedOut(), "Result should indicate timeout");
         assertTrue(duration < 5000, "Should timeout within ~2 seconds (with margin)");
     }
 
@@ -36,13 +31,8 @@ class SshConnectorTimeoutTest {
         node.setPort(22);
         node.setUsername("test");
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            connector.testConnection("password", node);
-        });
-
-        assertTrue(exception.getMessage().contains("timeout") ||
-                   exception.getMessage().contains("connect"),
-                   "Should fail with connection timeout");
+        boolean connected = connector.testConnection("password", node);
+        assertFalse(connected, "Should fail to connect to non-routable address");
     }
 
     private NodeEntity createTestNode() {
