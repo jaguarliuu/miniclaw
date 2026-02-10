@@ -28,19 +28,18 @@ public class SshConnector implements Connector {
     }
 
     @Override
-    public ExecResult execute(String credential, NodeEntity node, String command,
-                              int timeoutSeconds, int maxOutputBytes) {
+    public ExecResult execute(String credential, NodeEntity node, String command, ExecOptions options) {
         // 使用 Future 实现硬超时
         Future<ExecResult> future = executor.submit(() ->
-            executeInternal(credential, node, command, maxOutputBytes));
+            executeInternal(credential, node, command, options));
 
         try {
             // 硬超时：如果超过 timeoutSeconds，抛出 TimeoutException
-            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+            return future.get(options.getTimeoutSeconds(), TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             future.cancel(true); // 尝试中断任务
             return new ExecResult.Builder()
-                .stderr("Command execution timed out after " + timeoutSeconds + " seconds")
+                .stderr("Command execution timed out after " + options.getTimeoutSeconds() + " seconds")
                 .exitCode(-1)
                 .timedOut(true)
                 .build();
@@ -59,7 +58,7 @@ public class SshConnector implements Connector {
         }
     }
 
-    private ExecResult executeInternal(String credential, NodeEntity node, String command, int maxOutputBytes) {
+    private ExecResult executeInternal(String credential, NodeEntity node, String command, ExecOptions options) {
         Session session = null;
         ChannelExec channel = null;
         try {
@@ -71,8 +70,8 @@ public class SshConnector implements Connector {
             channel.setInputStream(null);
 
             // 使用限制输出的流
-            LimitedByteArrayOutputStream stdout = new LimitedByteArrayOutputStream(maxOutputBytes);
-            LimitedByteArrayOutputStream stderr = new LimitedByteArrayOutputStream(maxOutputBytes / 4); // stderr 更小
+            LimitedByteArrayOutputStream stdout = new LimitedByteArrayOutputStream(options.getMaxOutputBytes());
+            LimitedByteArrayOutputStream stderr = new LimitedByteArrayOutputStream(options.getMaxOutputBytes() / 4); // stderr 更小
 
             channel.setOutputStream(stdout);
             channel.setErrStream(stderr);

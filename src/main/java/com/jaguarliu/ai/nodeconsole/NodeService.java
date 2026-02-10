@@ -165,11 +165,13 @@ public class NodeService {
         // 日志脱敏：不记录完整命令，仅记录摘要
         log.info("Executing command on node {}: {}", alias, LogSanitizer.commandSummary(command));
 
-        // 使用配置的超时和输出限制
-        int timeout = properties.getExecTimeoutSeconds();
-        int maxOutput = properties.getMaxOutputLength();
+        // 构建执行选项
+        ExecOptions options = ExecOptions.builder()
+                .timeoutSeconds(properties.getExecTimeoutSeconds())
+                .maxOutputBytes(properties.getMaxOutputLength())
+                .build();
 
-        ExecResult result = connector.execute(credential, node, command, timeout, maxOutput);
+        ExecResult result = connector.execute(credential, node, command, options);
 
         // 格式化输出（包含截断/超时提示）
         return result.formatOutput();

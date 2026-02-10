@@ -69,8 +69,7 @@ class ConnectorFactoryTest {
         }
 
         @Override
-        public ExecResult execute(String credential, NodeEntity node, String command,
-                                  int timeoutSeconds, int maxOutputBytes) {
+        public ExecResult execute(String credential, NodeEntity node, String command, ExecOptions options) {
             return new ExecResult.Builder().build();
         }
 

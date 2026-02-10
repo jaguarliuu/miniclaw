@@ -18,8 +18,13 @@ class SshConnectorTimeoutTest {
         SshConnector connector = new SshConnector();
         NodeEntity node = createTestNode();
 
+        ExecOptions options = ExecOptions.builder()
+                .timeoutSeconds(2)
+                .maxOutputBytes(32000)
+                .build();
+
         long startTime = System.currentTimeMillis();
-        ExecResult result = connector.execute("password", node, "sleep 100", 2, 32000);
+        ExecResult result = connector.execute("password", node, "sleep 100", options);
         long duration = System.currentTimeMillis() - startTime;
 
         assertTrue(result.isTimedOut(), "Result should indicate timeout");

@@ -17,12 +17,10 @@ public interface Connector {
      * @param credential     解密后的凭据（密码、私钥、kubeconfig 等）
      * @param node           节点实体
      * @param command        要执行的命令
-     * @param timeoutSeconds 超时秒数
-     * @param maxOutputBytes 最大输出字节数（防止 OOM）
+     * @param options        执行选项（超时、输出限制、环境变量等）
      * @return 结构化执行结果
      */
-    ExecResult execute(String credential, NodeEntity node, String command,
-                       int timeoutSeconds, int maxOutputBytes);
+    ExecResult execute(String credential, NodeEntity node, String command, ExecOptions options);
 
     /**
      * 测试连接

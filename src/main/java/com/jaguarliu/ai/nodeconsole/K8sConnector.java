@@ -28,17 +28,16 @@ public class K8sConnector implements Connector {
     }
 
     @Override
-    public ExecResult execute(String credential, NodeEntity node, String command,
-                              int timeoutSeconds, int maxOutputBytes) {
+    public ExecResult execute(String credential, NodeEntity node, String command, ExecOptions options) {
         try {
-            ApiClient client = buildClient(credential, timeoutSeconds);
+            ApiClient client = buildClient(credential, options.getTimeoutSeconds());
             String output = dispatchCommand(client, command);
 
             // 检查是否超过输出限制
             boolean truncated = false;
             long originalLength = output.length();
-            if (output.length() > maxOutputBytes) {
-                output = output.substring(0, maxOutputBytes);
+            if (output.length() > options.getMaxOutputBytes()) {
+                output = output.substring(0, options.getMaxOutputBytes());
                 truncated = true;
             }
 
