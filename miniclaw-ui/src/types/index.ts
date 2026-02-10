@@ -83,13 +83,33 @@ export interface RpcResponse {
   }
 }
 
-// RPC Event (服务端主动推送)
-// 格式: {"type":"event","event":"xxx","runId":"xxx","payload":{...}}
-export interface RpcEvent {
+// 事件名 -> payload 类型映射（把你已经定义的 payload 都用上）
+export interface RpcEventPayloadMap {
+  'tool.call': ToolCallPayload
+  'tool.result': ToolResultPayload
+  'tool.confirm_request': ToolConfirmRequestPayload
+  'step.completed': StepCompletedPayload
+  'skill.activated': SkillActivatedPayload
+
+  'subagent.spawned': SubagentSpawnedPayload
+  'subagent.started': SubagentStartedPayload
+  'subagent.announced': SubagentAnnouncedPayload
+  'subagent.failed': SubagentFailedPayload
+
+  // 这些你暂时没定义 payload 结构，就先用 unknown 占位
+  'lifecycle.start': unknown
+  'lifecycle.end': unknown
+  'lifecycle.error': unknown
+  'assistant.delta': unknown
+  'session.renamed': unknown
+}
+
+// 用 AgentEventType 约束事件名，并用映射表推断 payload 类型
+export type RpcEvent<K extends AgentEventType = AgentEventType> = {
   type: 'event'
-  event: string
+  event: K
   runId: string
-  payload?: unknown
+  payload?: K extends keyof RpcEventPayloadMap ? RpcEventPayloadMap[K] : unknown
 }
 
 // Agent Event Types

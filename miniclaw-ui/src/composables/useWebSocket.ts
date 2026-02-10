@@ -1,5 +1,5 @@
 import { ref, readonly } from 'vue'
-import type { ConnectionState, RpcRequest, RpcResponse, RpcEvent } from '@/types'
+import type { ConnectionState, RpcRequest, RpcResponse, RpcEvent, AgentEventType } from '@/types'
 
 const WS_URL = import.meta.env.DEV
   ? 'ws://localhost:8080/ws'
@@ -14,7 +14,11 @@ const pendingRequests = new Map<string, {
 }>()
 
 // Event handlers
-const eventHandlers = new Map<string, Set<(event: RpcEvent) => void>>()
+// 用一个“最宽”的事件类型来存 handler（内部存储用）
+type AnyRpcEvent = RpcEvent<AgentEventType>
+
+// Event handlers
+const eventHandlers = new Map<string, Set<(event: AnyRpcEvent) => void>>()
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let intentionalDisconnect = false
@@ -73,18 +77,12 @@ function connect() {
       }
 
       if (data.type === 'event' && data.event) {
-        // It's an event
-        const rpcEvent = data as RpcEvent
+        const rpcEvent = data as AnyRpcEvent
         const handlers = eventHandlers.get(rpcEvent.event)
-        if (handlers) {
-          handlers.forEach((handler) => handler(rpcEvent))
-        }
+        if (handlers) handlers.forEach((h) => h(rpcEvent))
 
-        // Also emit to wildcard handlers
         const wildcardHandlers = eventHandlers.get('*')
-        if (wildcardHandlers) {
-          wildcardHandlers.forEach((handler) => handler(rpcEvent))
-        }
+        if (wildcardHandlers) wildcardHandlers.forEach((h) => h(rpcEvent))
       }
     } catch (e) {
       console.error('[WS] Parse error:', e)
@@ -167,13 +165,27 @@ async function request<T = unknown>(method: string, payload?: unknown): Promise<
   })
 }
 
-function onEvent(eventType: string, handler: (event: RpcEvent) => void) {
+// ✅ onEvent：事件名是 AgentEventType 时，payload 自动推断
+function onEvent<K extends AgentEventType>(
+    eventType: K,
+    handler: (event: RpcEvent<K>) => void
+): () => void
+
+// ✅ 兜底：允许监听任意字符串（比如你以后有 * 或后端新事件）
+function onEvent(
+    eventType: string,
+    handler: (event: AnyRpcEvent) => void
+): () => void
+
+function onEvent(
+    eventType: string,
+    handler: (event: AnyRpcEvent) => void
+) {
   if (!eventHandlers.has(eventType)) {
     eventHandlers.set(eventType, new Set())
   }
   eventHandlers.get(eventType)!.add(handler)
 
-  // Return cleanup function
   return () => {
     eventHandlers.get(eventType)?.delete(handler)
   }

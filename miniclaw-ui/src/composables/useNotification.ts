@@ -23,7 +23,7 @@ export function useNotification() {
     if (!isOnWorkspace || isHidden) {
       if ('Notification' in window && Notification.permission === 'granted') {
         const payload = event.payload as ToolConfirmRequestPayload | undefined
-        const toolName = payload?.toolName || 'Tool'
+        const toolName = event.payload?.toolName ?? 'Tool'
         const n = new Notification('MiniClaw - Action Required', {
           body: `${toolName} requires your approval`,
           tag: 'tool-confirm'
