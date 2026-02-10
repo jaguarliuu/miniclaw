@@ -171,7 +171,7 @@ public class ToolDispatcher {
                 String policy = nodeService.map(ns -> alias != null ? ns.getSafetyPolicy(alias) : "strict")
                         .orElse("strict");
                 var cls = remoteCommandClassifier.classify(fullCommand, policy);
-                if (cls.level() == RemoteCommandClassifier.SafetyLevel.SIDE_EFFECT) {
+                if (cls.safetyLevel() == RemoteCommandClassifier.SafetyLevel.SIDE_EFFECT) {
                     log.info("Tool {} requires HITL (remote command classified as SIDE_EFFECT: {})", toolName, cls.reason());
                     return true;
                 }

@@ -87,8 +87,7 @@ public class KubectlExecTool implements Tool {
                         "kubectl_exec", command, safetyLevel, policy,
                         false, null,
                         "blocked", classification.reason(), 0);
-                return ToolResult.error("SECURITY_VIOLATION",
-                    "Command blocked: " + classification.reason());
+                return ToolResult.error("Command blocked: " + classification.reason());
             }
 
             // 检查是否需要 HITL（此时应该已经通过 HITL 确认了）
