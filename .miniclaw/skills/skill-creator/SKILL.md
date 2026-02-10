@@ -265,8 +265,14 @@ When creating a new skill from scratch, always run the `init_skill.py` script. T
 Usage:
 
 ```bash
+# Default: Creates skill in ./.miniclaw/skills/ (recommended - highest priority)
+scripts/init_skill.py <skill-name>
+
+# Custom path: Specify a different location
 scripts/init_skill.py <skill-name> --path <output-directory>
 ```
+
+**Important:** If `--path` is not specified, the skill will be created in `./.miniclaw/skills/` relative to the current working directory. This is the **project skills directory** with the highest priority in the skill loading system, and is the recommended location for new skills.
 
 The script:
 

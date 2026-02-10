@@ -3,12 +3,15 @@
 Skill Initializer - Creates a new skill from template
 
 Usage:
-    init_skill.py <skill-name> --path <path>
+    init_skill.py <skill-name> [--path <path>]
+
+If --path is not specified, defaults to ./.miniclaw/skills (project skills directory).
+This is the recommended location as it has the highest priority in SkillRegistry.
 
 Examples:
-    init_skill.py my-new-skill --path skills/public
-    init_skill.py my-api-helper --path skills/private
-    init_skill.py custom-skill --path /custom/location
+    init_skill.py my-new-skill                          # Uses default: ./.miniclaw/skills
+    init_skill.py my-api-helper --path skills/private  # Custom path
+    init_skill.py custom-skill --path /custom/location # Absolute path
 """
 
 import sys
@@ -271,21 +274,31 @@ def init_skill(skill_name, path):
 
 
 def main():
-    if len(sys.argv) < 4 or sys.argv[2] != '--path':
-        print("Usage: init_skill.py <skill-name> --path <path>")
+    # Parse arguments
+    if len(sys.argv) < 2:
+        print("Usage: init_skill.py <skill-name> [--path <path>]")
         print("\nSkill name requirements:")
         print("  - Kebab-case identifier (e.g., 'my-data-analyzer')")
         print("  - Lowercase letters, digits, and hyphens only")
         print("  - Max 64 characters")
         print("  - Must match directory name exactly")
         print("\nExamples:")
-        print("  init_skill.py my-new-skill --path skills/public")
-        print("  init_skill.py my-api-helper --path skills/private")
-        print("  init_skill.py custom-skill --path /custom/location")
+        print("  init_skill.py my-new-skill                          # Uses default: ./.miniclaw/skills")
+        print("  init_skill.py my-api-helper --path skills/private  # Custom path")
+        print("  init_skill.py custom-skill --path /custom/location # Absolute path")
         sys.exit(1)
 
     skill_name = sys.argv[1]
-    path = sys.argv[3]
+
+    # Determine output path
+    if len(sys.argv) >= 4 and sys.argv[2] == '--path':
+        # Explicit path provided
+        path = sys.argv[3]
+    else:
+        # Use default: project skills directory (.miniclaw/skills in current working directory)
+        # This has the highest priority in SkillRegistry and is the recommended location
+        path = Path.cwd() / '.miniclaw' / 'skills'
+        print(f"ℹ️  No --path specified, using default project skills directory: {path}")
 
     print(f"🚀 Initializing skill: {skill_name}")
     print(f"   Location: {path}")
