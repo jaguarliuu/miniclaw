@@ -46,4 +46,4 @@ data/
 # Electron
 electron/resources/
 electron/release/
-electron/node_modules/
+electron/node_modules/.worktrees/
