@@ -26,7 +26,43 @@ public class RemoteCommandClassifier {
         DESTRUCTIVE    // Level 2
     }
 
-    public record Classification(SafetyLevel level, String reason) {}
+    public record Classification(SafetyLevel safetyLevel, String reason, String policy) {
+        /**
+         * 获取数字级别 (0/1/2)
+         */
+        public int level() {
+            return switch (safetyLevel) {
+                case READ_ONLY -> 0;
+                case SIDE_EFFECT -> 1;
+                case DESTRUCTIVE -> 2;
+            };
+        }
+
+        /**
+         * 根据策略判断是否需要 HITL
+         */
+        public boolean requiresHitl() {
+            // Level 2 永远拒绝（不是 HITL，是直接 BLOCK）
+            if (safetyLevel == SafetyLevel.DESTRUCTIVE) {
+                return false;
+            }
+
+            // Level 1 (SIDE_EFFECT): relaxed 自动执行，否则需要 HITL
+            if (safetyLevel == SafetyLevel.SIDE_EFFECT) {
+                return !"relaxed".equals(policy);
+            }
+
+            // Level 0 (READ_ONLY): strict 需要 HITL，否则自动执行
+            return "strict".equals(policy);
+        }
+
+        /**
+         * 是否被策略阻止
+         */
+        public boolean isBlocked() {
+            return safetyLevel == SafetyLevel.DESTRUCTIVE; // DESTRUCTIVE 永远阻止
+        }
+    }
 
     // ==================== Level 2: DESTRUCTIVE (永远禁止) ====================
 
@@ -93,14 +129,14 @@ public class RemoteCommandClassifier {
      */
     public Classification classify(String command, String policy) {
         if (command == null || command.isBlank()) {
-            return new Classification(SafetyLevel.SIDE_EFFECT, "Empty command");
+            return new Classification(SafetyLevel.SIDE_EFFECT, "Empty command", policy);
         }
 
         // Step 1: 检查 Level 2 (DESTRUCTIVE) - 永远禁止，不受策略影响
         for (Pattern pattern : DESTRUCTIVE_PATTERNS) {
             if (pattern.matcher(command).find()) {
                 return new Classification(SafetyLevel.DESTRUCTIVE,
-                        "Destructive command detected: " + pattern.pattern());
+                        "Destructive command detected: " + pattern.pattern(), policy);
             }
         }
 
@@ -118,18 +154,18 @@ public class RemoteCommandClassifier {
             if ("strict".equals(policy)) {
                 // strict: Level 0 提升为 Level 1（所有命令都需确认）
                 return new Classification(SafetyLevel.SIDE_EFFECT,
-                        "Read-only command, but strict policy requires confirmation");
+                        "Read-only command, but strict policy requires confirmation", policy);
             }
-            return new Classification(SafetyLevel.READ_ONLY, "Read-only command");
+            return new Classification(SafetyLevel.READ_ONLY, "Read-only command", policy);
         }
 
         // 默认 Level 1 (SIDE_EFFECT)
         if ("relaxed".equals(policy)) {
             // relaxed: Level 1 降为 Level 0（副作用命令自动执行）
             return new Classification(SafetyLevel.READ_ONLY,
-                    "Side-effect command, but relaxed policy allows auto-execution");
+                    "Side-effect command, but relaxed policy allows auto-execution", policy);
         }
 
-        return new Classification(SafetyLevel.SIDE_EFFECT, "Command with potential side effects");
+        return new Classification(SafetyLevel.SIDE_EFFECT, "Command with potential side effects", policy);
     }
 }

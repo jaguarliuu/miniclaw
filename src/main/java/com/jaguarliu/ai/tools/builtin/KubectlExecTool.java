@@ -73,24 +73,26 @@ public class KubectlExecTool implements Tool {
                 connectorType = node.getConnectorType();
             }
 
-            // 安全检查：Level 2 直接拒绝
+            // 安全检查：分类命令
             String policy = nodeService.getSafetyPolicy(alias);
             // 添加 kubectl 前缀用于分类
             String fullCommand = "kubectl " + command;
             var classification = classifier.classify(fullCommand, policy);
-            String safetyLevel = classification.level().name().toLowerCase();
+            String safetyLevel = classification.safetyLevel().name().toLowerCase();
 
-            if (classification.level() == SafetyLevel.DESTRUCTIVE) {
+            // 检查是否被阻止（破坏性命令）
+            if (classification.isBlocked()) {
                 auditLogService.logCommandExecution(
                         "command.reject", alias, nodeId, connectorType,
                         "kubectl_exec", command, safetyLevel, policy,
                         false, null,
                         "blocked", classification.reason(), 0);
-                return ToolResult.error("Command rejected (destructive): " + classification.reason());
+                return ToolResult.error("SECURITY_VIOLATION",
+                    "Command blocked: " + classification.reason());
             }
 
-            // 如果被调用，说明 HITL 已通过（或不需要）
-            boolean hitlRequired = classification.level() == SafetyLevel.SIDE_EFFECT;
+            // 检查是否需要 HITL（此时应该已经通过 HITL 确认了）
+            boolean hitlRequired = classification.requiresHitl();
 
             long startTime = System.currentTimeMillis();
             try {
