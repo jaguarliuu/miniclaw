@@ -29,9 +29,9 @@ function formatSize(bytes: number): string {
 
 <template>
   <div class="file-chip" :class="{ uploading: file.uploading }">
-    <span class="file-icon">{{ getFileIcon(file.filename) }}</span>
-    <span class="file-name">{{ file.filename }}</span>
-    <span class="file-size">{{ formatSize(file.size) }}</span>
+    <span class="file-icon">{{ getFileIcon(file.filename || file.displayName) }}</span>
+    <span class="file-name">{{ file.filename || file.displayName }}</span>
+    <span class="file-size">{{ formatSize(file.size || 0) }}</span>
     <span v-if="file.uploading" class="upload-spinner"></span>
     <button v-if="!readonly" class="remove-btn" @click.stop="emit('remove', file.id)" title="Remove">
       <span>&times;</span>

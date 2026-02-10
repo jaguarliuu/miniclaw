@@ -20,7 +20,8 @@ export interface Message {
   content: string                 // 纯文本内容（用于用户消息或简单显示）
   createdAt: string
   blocks?: StreamBlock[]          // 交错的内容块（用于 assistant 消息的详细显示）
-  attachedFiles?: AttachedFile[]  // 用户消息附带的文件（仅前端展示用）
+  attachedFiles?: AttachedFile[]  // 用户消息附带的文件（仅前端展示用）- 向后兼容
+  attachedContexts?: AttachedContext[]  // 用户消息附带的上下文（新字段）
 }
 
 // Run
@@ -416,13 +417,34 @@ export interface SlashCommandItem {
   displayName: string    // formatted: "/read_file" or "/skillname"
 }
 
-// ==================== File Attachment Types ====================
+// ==================== Context Attachment Types ====================
 
-/** 附加的本地文件（已上传到 workspace，等待 Agent 通过 read_file 读取） */
-export interface AttachedFile {
-  id: string          // 前端唯一标识
-  filePath: string    // workspace 相对路径（后端返回）
-  filename: string    // 原始文件名
-  size: number        // 文件大小（字节）
-  uploading?: boolean // 上传中
+/** 上下文类型 */
+export type ContextType = 'file' | 'folder' | 'web' | 'doc' | 'code' | 'rule' | 'workspace' | 'problems'
+
+/** 附加的上下文（统一接口，支持多种类型） */
+export interface AttachedContext {
+  id: string              // 前端唯一标识
+  type: ContextType       // 上下文类型
+  displayName: string     // 显示名称
+  uploading?: boolean     // 上传中
+
+  // File 类型字段
+  filePath?: string       // workspace 相对路径（后端返回）
+  filename?: string       // 原始文件名
+  size?: number           // 文件大小（字节）
+
+  // Folder 类型字段
+  folderPath?: string     // 文件夹路径
+
+  // Web 类型字段
+  url?: string            // 网页 URL
+
+  // 预留字段（未来实现）
+  docId?: string          // Doc 类型的文档 ID
+  codeSnippet?: string    // Code 类型的代码片段
+  ruleContent?: string    // Rule 类型的规则内容
 }
+
+/** 向后兼容：AttachedFile 类型别名 */
+export type AttachedFile = AttachedContext

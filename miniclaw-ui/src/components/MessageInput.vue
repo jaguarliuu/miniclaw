@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import type { SlashCommandItem, AttachedFile } from '@/types'
+import type { SlashCommandItem, AttachedContext, ContextType } from '@/types'
 import { useSlashCommands } from '@/composables/useSlashCommands'
-import FileChip from '@/components/FileChip.vue'
+import ContextChip from '@/components/ContextChip.vue'
+import ContextTypeMenu from '@/components/ContextTypeMenu.vue'
 
 const props = defineProps<{
   disabled: boolean
   isRunning?: boolean
-  attachedFiles?: AttachedFile[]
+  attachedContexts?: AttachedContext[]
 }>()
 
 const emit = defineEmits<{
-  send: [message: string, filePaths: string[]]
+  send: [message: string, contexts: AttachedContext[]]
   cancel: []
+  'add-context': [type: ContextType]
   'attach-file': [file: File]
-  'remove-file': [fileId: string]
+  'remove-context': [contextId: string]
 }>()
 
 const input = ref('')
@@ -29,10 +31,14 @@ const slashItems = ref<SlashCommandItem[]>([])
 const selectedIndex = ref(0)
 const menuRef = ref<HTMLElement | null>(null)
 
-// 是否有文件正在上传
-const hasUploading = computed(() => props.attachedFiles?.some(f => f.uploading) ?? false)
+// Context type menu
+const showContextMenu = ref(false)
+const contextMenuRef = ref<InstanceType<typeof ContextTypeMenu> | null>(null)
 
-// 发送按钮是否禁用：常规禁用 OR 有文件正在上传
+// 是否有上下文正在上传
+const hasUploading = computed(() => props.attachedContexts?.some(c => c.uploading) ?? false)
+
+// 发送按钮是否禁用：常规禁用 OR 有上下文正在上传
 const sendDisabled = computed(() => props.disabled || hasUploading.value || !input.value.trim())
 
 onMounted(() => {
@@ -59,12 +65,10 @@ function selectSlashCommand(item: SlashCommandItem) {
 function handleSubmit() {
   if (sendDisabled.value) return
 
-  // 收集已上传完成的文件路径
-  const filePaths = (props.attachedFiles || [])
-    .filter(f => !f.uploading && f.filePath)
-    .map(f => f.filePath)
+  // 收集所有上下文
+  const contexts = props.attachedContexts || []
 
-  emit('send', input.value.trim(), filePaths)
+  emit('send', input.value.trim(), contexts)
   input.value = ''
 
   // Reset textarea height
@@ -74,7 +78,19 @@ function handleSubmit() {
 }
 
 function handleAttachClick() {
-  fileInputRef.value?.click()
+  showContextMenu.value = !showContextMenu.value
+}
+
+function handleContextTypeSelect(type: ContextType) {
+  showContextMenu.value = false
+
+  if (type === 'file') {
+    // 文件类型触发文件选择器
+    fileInputRef.value?.click()
+  } else {
+    // 其他类型通知父组件
+    emit('add-context', type)
+  }
 }
 
 function handleFileChange(e: Event) {
@@ -92,6 +108,18 @@ function handleCancel() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // Context type menu keyboard navigation
+  if (showContextMenu.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      showContextMenu.value = false
+      return
+    }
+    // 将键盘事件转发给 ContextTypeMenu
+    contextMenuRef.value?.handleKeydown(e)
+    return
+  }
+
   // Slash menu keyboard navigation
   if (showSlashMenu.value) {
     if (e.key === 'ArrowDown') {
@@ -149,6 +177,22 @@ function handleInput(e: Event) {
   }
   showSlashMenu.value = false
 }
+
+// 点击外部关闭上下文菜单
+function handleClickOutside(e: MouseEvent) {
+  if (showContextMenu.value) {
+    const target = e.target as HTMLElement
+    const menuEl = contextMenuRef.value?.$el
+    const btnEl = document.querySelector('.attach-btn')
+    if (menuEl && !menuEl.contains(target) && btnEl && !btnEl.contains(target)) {
+      showContextMenu.value = false
+    }
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside)
+})
 </script>
 
 <template>
@@ -170,13 +214,20 @@ function handleInput(e: Event) {
         </div>
       </div>
 
-      <!-- File attachment chips -->
-      <div v-if="attachedFiles && attachedFiles.length > 0" class="attached-files">
-        <FileChip
-          v-for="file in attachedFiles"
-          :key="file.id"
-          :file="file"
-          @remove="emit('remove-file', $event)"
+      <!-- Context type menu -->
+      <ContextTypeMenu
+        v-if="showContextMenu"
+        ref="contextMenuRef"
+        @select="handleContextTypeSelect"
+      />
+
+      <!-- Context attachment chips -->
+      <div v-if="attachedContexts && attachedContexts.length > 0" class="attached-contexts">
+        <ContextChip
+          v-for="context in attachedContexts"
+          :key="context.id"
+          :context="context"
+          @remove="emit('remove-context', $event)"
         />
       </div>
 
@@ -190,12 +241,13 @@ function handleInput(e: Event) {
           @change="handleFileChange"
         />
 
-        <!-- Attach button -->
+        <!-- Attach button (triggers context type menu) -->
         <button
           class="attach-btn"
+          :class="{ active: showContextMenu }"
           :disabled="disabled"
           @click="handleAttachClick"
-          title="Attach file"
+          title="Add context"
         >
           <span class="paperclip">+</span>
         </button>
@@ -234,7 +286,7 @@ function handleInput(e: Event) {
     </div>
     <div class="input-hint">
       <template v-if="hasUploading">
-        <span class="uploading-hint">Uploading file...</span>
+        <span class="uploading-hint">Uploading...</span>
       </template>
       <template v-else-if="isRunning">
         <span class="running">Running...</span>
@@ -356,7 +408,7 @@ textarea:disabled {
   font-weight: 500;
 }
 
-.attached-files {
+.attached-contexts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -379,6 +431,11 @@ textarea:disabled {
 }
 
 .attach-btn:hover:not(:disabled) {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.attach-btn.active {
   background: var(--color-gray-100);
   color: var(--color-gray-600);
 }

@@ -18,7 +18,8 @@ import type {
   SubagentStartedPayload,
   SubagentAnnouncedPayload,
   SubagentFailedPayload,
-  AttachedFile
+  AttachedFile,
+  AttachedContext
 } from '@/types'
 
 const sessions = ref<Session[]>([])
@@ -184,8 +185,43 @@ async function loadMessages(sessionId: string) {
   }
 }
 
+/**
+ * 构建上下文 Prompt
+ * 将附加的上下文（File、Folder、Web 等）格式化为 prompt 前缀
+ */
+function buildContextPrompt(contexts: AttachedContext[]): string {
+  if (!contexts || contexts.length === 0) return ''
+
+  // 按类型分组
+  const fileContexts = contexts.filter(c => c.type === 'file' && c.filePath)
+  const folderContexts = contexts.filter(c => c.type === 'folder' && c.folderPath)
+  const webContexts = contexts.filter(c => c.type === 'web' && c.url)
+
+  const sections: string[] = []
+
+  // 文件上下文
+  if (fileContexts.length > 0) {
+    const fileList = fileContexts.map(c => `- ${c.filePath}`).join('\n')
+    sections.push(`[Attached Files]\n${fileList}`)
+  }
+
+  // 文件夹上下文
+  if (folderContexts.length > 0) {
+    const folderList = folderContexts.map(c => `- ${c.folderPath} (explore using glob/grep/read_file)`).join('\n')
+    sections.push(`[Attached Folders]\n${folderList}`)
+  }
+
+  // Web 上下文
+  if (webContexts.length > 0) {
+    const webList = webContexts.map(c => `- ${c.url} (fetch using http_get or web_search)`).join('\n')
+    sections.push(`[Attached Web Resources]\n${webList}`)
+  }
+
+  return sections.length > 0 ? sections.join('\n\n') + '\n\n' : ''
+}
+
 // Agent API
-async function sendMessage(prompt: string, filePaths?: string[], attachedFiles?: AttachedFile[]) {
+async function sendMessage(prompt: string, attachedContexts?: AttachedContext[], filePaths?: string[], attachedFiles?: AttachedFile[]) {
   if (!prompt.trim()) return
 
   let sessionId = currentSessionId.value
@@ -197,14 +233,18 @@ async function sendMessage(prompt: string, filePaths?: string[], attachedFiles?:
     currentSessionId.value = sessionId
   }
 
-  // 如果有附件文件路径，拼接到 prompt 前面让 Agent 看到
+  // 优先使用新的 attachedContexts，如果为空则向后兼容旧的 filePaths
   let fullPrompt = prompt
-  if (filePaths && filePaths.length > 0) {
+  if (attachedContexts && attachedContexts.length > 0) {
+    const contextPrefix = buildContextPrompt(attachedContexts)
+    fullPrompt = contextPrefix + prompt
+  } else if (filePaths && filePaths.length > 0) {
+    // 向后兼容旧的 filePaths 参数
     const fileList = filePaths.map(p => `- ${p}`).join('\n')
     fullPrompt = `[Attached Files]\n${fileList}\n\n${prompt}`
   }
 
-  // Add user message to UI immediately（保存 attachedFiles 用于展示）
+  // Add user message to UI immediately（保存 attachedContexts 用于展示）
   const userMessage: Message = {
     id: `temp-${Date.now()}`,
     sessionId,
@@ -212,7 +252,8 @@ async function sendMessage(prompt: string, filePaths?: string[], attachedFiles?:
     role: 'user',
     content: prompt,
     createdAt: new Date().toISOString(),
-    attachedFiles: attachedFiles && attachedFiles.length > 0 ? [...attachedFiles] : undefined
+    attachedContexts: attachedContexts && attachedContexts.length > 0 ? [...attachedContexts] : undefined,
+    attachedFiles: attachedFiles && attachedFiles.length > 0 ? [...attachedFiles] : undefined  // 向后兼容
   }
   messages.value.push(userMessage)
 

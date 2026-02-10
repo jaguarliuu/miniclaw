@@ -1,23 +1,30 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
 import { useLlmConfig } from '@/composables/useLlmConfig'
-import { useFileUpload } from '@/composables/useFileUpload'
+import { useContext } from '@/composables/useContext'
+import type { ContextType } from '@/types'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 import MessageList from '@/components/MessageList.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import SubagentPanel from '@/components/SubagentPanel.vue'
 import ArtifactPanel from '@/components/ArtifactPanel.vue'
+import ContextInputModal from '@/components/ContextInputModal.vue'
 import { useArtifact } from '@/composables/useArtifact'
 
 const { state: connectionState } = useWebSocket()
 const { checkStatus } = useLlmConfig()
 const router = useRouter()
 const { artifact } = useArtifact()
-const { files: attachedFiles, uploadFile, removeFile, clearFiles } = useFileUpload()
+const { contexts: attachedContexts, uploadFile, addContext, removeContext, clearContexts } = useContext()
+
+// Context input modal 状态
+const showContextModal = ref(false)
+const currentContextType = ref<ContextType>('folder')
+
 const {
   currentSession,
   currentSessionId,
@@ -50,14 +57,13 @@ function handleDeleteSession(id: string) {
   deleteSession(id)
 }
 
-function handleSend(prompt: string, filePaths: string[]) {
-  // 传递文件路径和附件信息给 sendMessage
+function handleSend(prompt: string, contexts: typeof attachedContexts.value) {
+  // 传递上下文信息给 sendMessage
   sendMessage(
     prompt,
-    filePaths.length > 0 ? filePaths : undefined,
-    attachedFiles.value.length > 0 ? attachedFiles.value : undefined
+    contexts.length > 0 ? contexts : undefined
   )
-  clearFiles()
+  clearContexts()
 }
 
 function handleConfirmToolCall(callId: string, decision: 'approve' | 'reject') {
@@ -72,8 +78,37 @@ async function handleAttachFile(file: File) {
   await uploadFile(file)
 }
 
-function handleRemoveFile(fileId: string) {
-  removeFile(fileId)
+function handleAddContext(type: ContextType) {
+  // 文件类型已经在 MessageInput 中处理，这里处理其他类型
+  currentContextType.value = type
+  showContextModal.value = true
+}
+
+function handleContextModalConfirm(value: string) {
+  const type = currentContextType.value
+
+  // 根据类型添加上下文
+  if (type === 'folder') {
+    addContext('folder', value, { folderPath: value })
+  } else if (type === 'web') {
+    addContext('web', value, { url: value })
+  } else if (type === 'doc') {
+    addContext('doc', value, { docId: value })
+  } else if (type === 'code') {
+    addContext('code', value, { codeSnippet: value })
+  } else if (type === 'rule') {
+    addContext('rule', value, { ruleContent: value })
+  }
+
+  showContextModal.value = false
+}
+
+function handleContextModalCancel() {
+  showContextModal.value = false
+}
+
+function handleRemoveContext(contextId: string) {
+  removeContext(contextId)
 }
 
 function handleSelectSubagent(subRunId: string) {
@@ -137,13 +172,22 @@ onMounted(() => {
       <MessageInput
         :disabled="isStreaming || connectionState !== 'connected'"
         :is-running="isStreaming"
-        :attached-files="attachedFiles"
+        :attached-contexts="attachedContexts"
         @send="handleSend"
         @cancel="handleCancel"
         @attach-file="handleAttachFile"
-        @remove-file="handleRemoveFile"
+        @add-context="handleAddContext"
+        @remove-context="handleRemoveContext"
       />
     </main>
+
+    <!-- Context input modal -->
+    <ContextInputModal
+      :type="currentContextType"
+      :show="showContextModal"
+      @confirm="handleContextModalConfirm"
+      @cancel="handleContextModalCancel"
+    />
 
     <Transition name="panel-slide">
       <SubagentPanel

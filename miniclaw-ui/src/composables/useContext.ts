@@ -1,20 +1,37 @@
 import { ref } from 'vue'
-import type { AttachedFile } from '@/types'
+import type { AttachedContext, ContextType } from '@/types'
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.xlsx', '.pptx', '.csv', '.json', '.yaml', '.yml', '.xml', '.html']
 const MAX_SIZE_MB = 20
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
 
-const files = ref<AttachedFile[]>([])
+const contexts = ref<AttachedContext[]>([])
 const error = ref<string | null>(null)
 
-export function useFileUpload() {
+export function useContext() {
 
   /**
-   * 上传文件到 workspace 并添加到附件列表。
+   * 添加非文件类型的上下文（Folder、Web 等）
+   */
+  function addContext(type: ContextType, displayName: string, data: Record<string, unknown>): AttachedContext {
+    const id = `context-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
+
+    const context: AttachedContext = {
+      id,
+      type,
+      displayName,
+      ...data
+    }
+
+    contexts.value.push(context)
+    return context
+  }
+
+  /**
+   * 上传文件到 workspace 并添加到上下文列表。
    * 返回后文件已落盘，Agent 可通过 read_file 读取。
    */
-  async function uploadFile(file: File): Promise<AttachedFile | null> {
+  async function uploadFile(file: File): Promise<AttachedContext | null> {
     error.value = null
 
     // 客户端校验
@@ -30,7 +47,7 @@ export function useFileUpload() {
 
     // 创建占位条目（uploading 状态）
     const tempId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
-    const placeholder: AttachedFile = {
+    const placeholder: AttachedContext = {
       id: tempId,
       type: 'file',
       displayName: file.name,
@@ -39,7 +56,7 @@ export function useFileUpload() {
       size: file.size,
       uploading: true
     }
-    files.value.push(placeholder)
+    contexts.value.push(placeholder)
 
     try {
       const formData = new FormData()
@@ -58,7 +75,7 @@ export function useFileUpload() {
       const result: { filePath: string; filename: string; size: number } = await response.json()
 
       // 更新占位条目
-      const entry = files.value.find(f => f.id === tempId)
+      const entry = contexts.value.find(f => f.id === tempId)
       if (entry) {
         entry.filePath = result.filePath
         entry.filename = result.filename
@@ -70,31 +87,44 @@ export function useFileUpload() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Upload failed'
       // 移除失败的占位条目
-      files.value = files.value.filter(f => f.id !== tempId)
+      contexts.value = contexts.value.filter(f => f.id !== tempId)
       return null
     }
   }
 
-  /** 是否有文件正在上传 */
+  /** 是否有上下文正在上传 */
   function isUploading(): boolean {
-    return files.value.some(f => f.uploading)
+    return contexts.value.some(f => f.uploading)
   }
 
-  function removeFile(fileId: string) {
-    files.value = files.value.filter(f => f.id !== fileId)
+  function removeContext(contextId: string) {
+    contexts.value = contexts.value.filter(f => f.id !== contextId)
   }
 
-  function clearFiles() {
-    files.value = []
+  function clearContexts() {
+    contexts.value = []
     error.value = null
   }
 
+  // 向后兼容的别名
+  const files = contexts
+  const removeFile = removeContext
+  const clearFiles = clearContexts
+
   return {
-    files,
-    error,
+    // 新接口
+    contexts,
+    addContext,
     uploadFile,
     isUploading,
+    removeContext,
+    clearContexts,
+
+    // 向后兼容的别名
+    files,
     removeFile,
-    clearFiles
+    clearFiles,
+
+    error
   }
 }

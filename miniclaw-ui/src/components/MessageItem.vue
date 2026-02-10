@@ -5,7 +5,7 @@ import { useMarkdown } from '@/composables/useMarkdown'
 import ToolCallCard from './ToolCallCard.vue'
 import SkillActivationCard from './SkillActivationCard.vue'
 import SubagentCard from './SubagentCard.vue'
-import FileChip from './FileChip.vue'
+import ContextChip from './ContextChip.vue'
 
 const props = defineProps<{
   message: Message
@@ -31,6 +31,18 @@ const renderedContent = computed(() => render(props.message.content))
 function renderTextBlock(content: string | undefined): string {
   return render(content || '')
 }
+
+// 优先使用 attachedContexts，如果为空则向后兼容 attachedFiles
+const displayContexts = computed(() => {
+  if (props.message.attachedContexts && props.message.attachedContexts.length > 0) {
+    return props.message.attachedContexts
+  }
+  // 向后兼容：如果 attachedFiles 存在，转换为 AttachedContext 格式
+  if (props.message.attachedFiles && props.message.attachedFiles.length > 0) {
+    return props.message.attachedFiles
+  }
+  return []
+})
 </script>
 
 <template>
@@ -76,12 +88,12 @@ function renderTextBlock(content: string | undefined): string {
 
       <!-- 简单消息：直接显示内容 -->
       <template v-else>
-        <!-- 用户消息附带的文件 -->
-        <div v-if="message.role === 'user' && message.attachedFiles && message.attachedFiles.length > 0" class="user-files">
-          <FileChip
-            v-for="file in message.attachedFiles"
-            :key="file.id"
-            :file="file"
+        <!-- 用户消息附带的上下文 -->
+        <div v-if="message.role === 'user' && displayContexts.length > 0" class="user-contexts">
+          <ContextChip
+            v-for="context in displayContexts"
+            :key="context.id"
+            :context="context"
             :readonly="true"
           />
         </div>
@@ -165,7 +177,7 @@ function renderTextBlock(content: string | undefined): string {
   color: var(--color-gray-700);
 }
 
-.user-files {
+.user-contexts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -174,7 +186,7 @@ function renderTextBlock(content: string | undefined): string {
   justify-content: flex-end;
 }
 
-.message.user .user-files {
+.message.user .user-contexts {
   padding-left: 0;
 }
 
