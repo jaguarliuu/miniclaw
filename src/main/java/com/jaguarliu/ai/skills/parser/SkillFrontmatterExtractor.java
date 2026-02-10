@@ -1,6 +1,7 @@
 package com.jaguarliu.ai.skills.parser;
 
 import lombok.Data;
+import java.util.regex.Pattern;
 
 /**
  * Frontmatter 提取器
@@ -8,18 +9,29 @@ import lombok.Data;
  * 核心设计原则（来自 gray-matter）：
  * - 不使用正则表达式进行核心解析
  * - 使用状态机逐行处理，更准确地处理边界情况
- * - 支持各种 edge cases（嵌套的 ---、代码块中的 ---）
+ * - 支持各种 edge cases（嵌套的 ---、代码块中的 ---、YAML block scalar）
  *
  * 支持的 frontmatter 格式：
  * ---
  * key: value
  * ---
  * content here
+ *
+ * YAML block scalar 支持：
+ * ---
+ * description: |
+ *   This is a multi-line
+ *   text with --- inside
+ *   which should not close frontmatter
+ * ---
  */
 public class SkillFrontmatterExtractor {
 
     private static final String DELIMITER = "---";
     private static final int MAX_FRONTMATTER_LINES = 1000;  // 防止无限循环
+
+    // YAML block scalar 模式：key: | 或 key: >
+    private static final Pattern BLOCK_SCALAR_PATTERN = Pattern.compile("^\\s*\\w[\\w-]*:\\s*[|>][-+]?\\s*$");
 
     /**
      * 提取 frontmatter 和 body
@@ -43,6 +55,10 @@ public class SkillFrontmatterExtractor {
         int closeDelimiterLine = -1;
         StringBuilder frontmatterBuilder = new StringBuilder();
 
+        // Block scalar 追踪
+        boolean inBlockScalar = false;
+        int blockScalarBaseIndent = -1;
+
         for (int i = 0; i < lines.length && i < MAX_FRONTMATTER_LINES; i++) {
             String line = lines[i];
             String trimmed = line.trim();
@@ -63,7 +79,22 @@ public class SkillFrontmatterExtractor {
                     break;
 
                 case IN_FRONTMATTER:
-                    if (isDelimiter(trimmed)) {
+                    // 检查是否进入 block scalar
+                    if (!inBlockScalar && BLOCK_SCALAR_PATTERN.matcher(line).matches()) {
+                        inBlockScalar = true;
+                        blockScalarBaseIndent = getIndentLevel(line);
+                    }
+                    // 检查是否退出 block scalar
+                    else if (inBlockScalar) {
+                        // block scalar 结束条件：空行或缩进回退
+                        int currentIndent = getIndentLevel(line);
+                        if (trimmed.isEmpty() || currentIndent <= blockScalarBaseIndent) {
+                            inBlockScalar = false;
+                        }
+                    }
+
+                    // 只有不在 block scalar 中时，--- 才可能是结束符
+                    if (!inBlockScalar && isDelimiter(trimmed)) {
                         // 找到关闭分隔符
                         closeDelimiterLine = i + 1;
                         state = State.AFTER_CLOSE;
@@ -113,6 +144,24 @@ public class SkillFrontmatterExtractor {
         // 严格模式：只匹配 ---
         // 不匹配 ---- 或 --- something
         return DELIMITER.equals(trimmed);
+    }
+
+    /**
+     * 获取行的缩进级别
+     */
+    private int getIndentLevel(String line) {
+        int indent = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == ' ') {
+                indent++;
+            } else if (c == '\t') {
+                indent += 4;  // Tab 视为 4 个空格
+            } else {
+                break;
+            }
+        }
+        return indent;
     }
 
     /**

@@ -26,6 +26,15 @@ class ToolDispatcherTest {
     @Mock
     private ToolRegistry toolRegistry;
 
+    @Mock
+    private ToolConfigProperties toolConfigProperties;
+
+    @Mock
+    private DangerousCommandDetector dangerousCommandDetector;
+
+    @Mock
+    private RemoteCommandClassifier remoteCommandClassifier;
+
     @InjectMocks
     private ToolDispatcher dispatcher;
 
@@ -41,6 +50,8 @@ class ToolDispatcherTest {
                 .build();
         lenient().when(mockTool.getDefinition()).thenReturn(definition);
         lenient().when(mockTool.getName()).thenReturn("read_file");
+        // Mock toolConfigProperties 的默认行为
+        lenient().when(toolConfigProperties.isAlwaysConfirmTool(anyString())).thenReturn(false);
     }
 
     @Nested

@@ -49,11 +49,11 @@ public class SkillRegistry {
     @Value("${skills.builtin-dir:}")
     private String configBuiltinDir;
 
-    // skill name -> SkillEntry 映射
-    private final Map<String, SkillEntry> registry = new ConcurrentHashMap<>();
+    // skill name -> SkillEntry 映射（使用 volatile 引用实现原子切换）
+    private volatile Map<String, SkillEntry> registry = new ConcurrentHashMap<>();
 
-    // skill name -> 完整正文缓存（激活后缓存，避免重复读取）
-    private final Map<String, String> bodyCache = new ConcurrentHashMap<>();
+    // skill name -> 完整正文缓存（loadSkill 时预加载，避免重复文件读取）
+    private volatile Map<String, String> bodyCache = new ConcurrentHashMap<>();
 
     // 快照版本号（每次刷新递增，用于前端缓存控制）
     private volatile long snapshotVersion = 0;
@@ -102,35 +102,41 @@ public class SkillRegistry {
 
     /**
      * 刷新注册表（重新扫描所有目录）
+     * 使用 Copy-on-write 模式保证原子性，避免并发读取到半成品状态
      */
     public void refresh() {
-        registry.clear();
-        bodyCache.clear();
+        // 构建新的 Map（Copy-on-write）
+        Map<String, SkillEntry> newRegistry = new ConcurrentHashMap<>();
+        Map<String, String> newBodyCache = new ConcurrentHashMap<>();
 
         // 按优先级从低到高扫描，高优先级覆盖低优先级
-        scanDirectory(builtinSkillsDir, 2);  // 内置
-        scanDirectory(userSkillsDir, 1);     // 用户级
-        scanDirectory(projectSkillsDir, 0);  // 项目级
+        scanDirectory(builtinSkillsDir, 2, newRegistry, newBodyCache);  // 内置
+        scanDirectory(userSkillsDir, 1, newRegistry, newBodyCache);     // 用户级
+        scanDirectory(projectSkillsDir, 0, newRegistry, newBodyCache);  // 项目级
 
-        snapshotVersion++;
+        // 原子切换引用（对并发读者可见）
+        this.registry = newRegistry;
+        this.bodyCache = newBodyCache;
+        this.snapshotVersion++;
 
         log.info("Skill registry refreshed (v{}): {} skills loaded ({} available)",
                 snapshotVersion,
-                registry.size(),
-                registry.values().stream().filter(SkillEntry::isAvailable).count());
+                newRegistry.size(),
+                newRegistry.values().stream().filter(SkillEntry::isAvailable).count());
     }
 
     /**
      * 扫描单个目录
      */
-    private void scanDirectory(Path dir, int priority) {
+    private void scanDirectory(Path dir, int priority, Map<String, SkillEntry> targetRegistry,
+                                Map<String, String> targetBodyCache) {
         if (dir == null || !Files.exists(dir) || !Files.isDirectory(dir)) {
             return;
         }
 
         try (Stream<Path> paths = Files.walk(dir, 2)) { // 最多深入 2 层
             paths.filter(this::isSkillFile)
-                    .forEach(path -> loadSkill(path, priority));
+                    .forEach(path -> loadSkill(path, priority, targetRegistry, targetBodyCache));
         } catch (IOException e) {
             log.warn("Failed to scan skill directory: {}", dir, e);
         }
@@ -153,7 +159,8 @@ public class SkillRegistry {
     /**
      * 加载单个 skill
      */
-    private void loadSkill(Path path, int priority) {
+    private void loadSkill(Path path, int priority, Map<String, SkillEntry> targetRegistry,
+                           Map<String, String> targetBodyCache) {
         try {
             String content = Files.readString(path);
             long lastModified = Files.getLastModifiedTime(path).toMillis();
@@ -169,7 +176,7 @@ public class SkillRegistry {
             String name = metadata.getName();
 
             // 检查优先级：只有更高优先级（数字更小）才覆盖
-            SkillEntry existing = registry.get(name);
+            SkillEntry existing = targetRegistry.get(name);
             if (existing != null && existing.getMetadata().getPriority() <= priority) {
                 log.debug("Skill '{}' already registered with higher priority, skipping", name);
                 return;
@@ -187,10 +194,10 @@ public class SkillRegistry {
                     .tokenCost(SkillEntry.calculateTokenCost(metadata))
                     .build();
 
-            registry.put(name, entry);
+            targetRegistry.put(name, entry);
 
-            // 缓存正文
-            bodyCache.put(name, result.getBody());
+            // 预加载正文到缓存（避免重复文件读取）
+            targetBodyCache.put(name, result.getBody());
 
             log.debug("Loaded skill '{}' from {} (available={})",
                     name, path, gatingResult.isAvailable());
@@ -309,23 +316,77 @@ public class SkillRegistry {
     }
 
     /**
-     * 检查是否有 skill 文件被修改
+     * 检查是否有 skill 文件变化（修改/新增/删除）
+     * 使用轻量级目录扫描，不进行完整解析
      */
     public boolean hasChanges() {
+        // 构建当前文件系统的快照 (path -> lastModified)
+        Map<Path, Long> currentSnapshot = new HashMap<>();
+        collectSkillFiles(builtinSkillsDir, currentSnapshot);
+        collectSkillFiles(userSkillsDir, currentSnapshot);
+        collectSkillFiles(projectSkillsDir, currentSnapshot);
+
+        // 构建已注册 skill 的快照
+        Map<Path, Long> registeredSnapshot = new HashMap<>();
         for (SkillEntry entry : registry.values()) {
             Path path = entry.getMetadata().getSourcePath();
-            if (path != null && Files.exists(path)) {
-                try {
-                    long currentModified = Files.getLastModifiedTime(path).toMillis();
-                    if (currentModified > entry.getLastModified()) {
-                        return true;
-                    }
-                } catch (IOException e) {
-                    // 忽略
-                }
+            if (path != null) {
+                registeredSnapshot.put(path, entry.getLastModified());
             }
         }
+
+        // 检查新增文件（在 currentSnapshot 但不在 registeredSnapshot）
+        for (Path path : currentSnapshot.keySet()) {
+            if (!registeredSnapshot.containsKey(path)) {
+                log.debug("Detected new skill file: {}", path);
+                return true;
+            }
+        }
+
+        // 检查删除文件（在 registeredSnapshot 但不在 currentSnapshot）
+        for (Path path : registeredSnapshot.keySet()) {
+            if (!currentSnapshot.containsKey(path)) {
+                log.debug("Detected deleted skill file: {}", path);
+                return true;
+            }
+        }
+
+        // 检查修改文件（lastModified 不同）
+        for (Map.Entry<Path, Long> entry : currentSnapshot.entrySet()) {
+            Path path = entry.getKey();
+            Long currentModified = entry.getValue();
+            Long registeredModified = registeredSnapshot.get(path);
+
+            if (registeredModified != null && currentModified > registeredModified) {
+                log.debug("Detected modified skill file: {}", path);
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    /**
+     * 收集指定目录下的所有 skill 文件及其修改时间
+     */
+    private void collectSkillFiles(Path dir, Map<Path, Long> snapshot) {
+        if (dir == null || !Files.exists(dir) || !Files.isDirectory(dir)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(dir, 2)) {
+            paths.filter(this::isSkillFile)
+                    .forEach(path -> {
+                        try {
+                            long lastModified = Files.getLastModifiedTime(path).toMillis();
+                            snapshot.put(path, lastModified);
+                        } catch (IOException e) {
+                            // 忽略无法读取的文件
+                        }
+                    });
+        } catch (IOException e) {
+            log.warn("Failed to collect skill files from: {}", dir, e);
+        }
     }
 
     /**

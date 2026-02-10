@@ -111,7 +111,7 @@ public class SkillFileWatcher {
      * 注册单个目录及其子目录
      */
     private void registerDirectory(Path dir, int priority) {
-        if (!Files.exists(dir) || !Files.isDirectory(dir)) {
+        if (dir == null || !Files.exists(dir) || !Files.isDirectory(dir)) {
             log.debug("Skill directory does not exist: {}", dir);
             return;
         }
