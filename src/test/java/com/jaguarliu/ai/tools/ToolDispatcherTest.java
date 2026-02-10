@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.tools;
 
+import com.jaguarliu.ai.nodeconsole.RemoteCommandClassifier;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
