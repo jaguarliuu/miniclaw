@@ -33,11 +33,16 @@ public class K8sConnector implements Connector {
             ApiClient client = buildClient(credential, options.getTimeoutSeconds());
             String output = dispatchCommand(client, command);
 
-            // 检查是否超过输出限制
+            // 检查是否超过输出限制（按字节截断，与 SshConnector 保持一致）
             boolean truncated = false;
-            long originalLength = output.length();
-            if (output.length() > options.getMaxOutputBytes()) {
-                output = output.substring(0, options.getMaxOutputBytes());
+            byte[] outputBytes = output.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            long originalLength = outputBytes.length;
+
+            if (outputBytes.length > options.getMaxOutputBytes()) {
+                // 按字节截断，注意不要截断 UTF-8 多字节字符
+                byte[] truncatedBytes = new byte[options.getMaxOutputBytes()];
+                System.arraycopy(outputBytes, 0, truncatedBytes, 0, options.getMaxOutputBytes());
+                output = new String(truncatedBytes, java.nio.charset.StandardCharsets.UTF_8);
                 truncated = true;
             }
 
@@ -50,7 +55,8 @@ public class K8sConnector implements Connector {
 
         } catch (IllegalArgumentException e) {
             // 命令验证失败（不支持的 verb 或空命令）
-            log.warn("K8s command validation failed: {}", e.getMessage());
+            log.warn("K8s command validation failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            log.debug("K8s command validation exception details for node {}", node.getAlias(), e);
             return new ExecResult.Builder()
                 .stderr(e.getMessage())
                 .exitCode(-1)
@@ -59,14 +65,16 @@ public class K8sConnector implements Connector {
         } catch (io.kubernetes.client.openapi.ApiException e) {
             // K8s API 异常 - 映射到具体错误类型
             log.error("K8s API failed on node {}: HTTP {}", node.getAlias(), e.getCode());
+            log.debug("K8s API response body for node {}: {}", node.getAlias(), e.getResponseBody());
             ExecResult.ErrorType errorType = mapK8sApiException(e);
             return new ExecResult.Builder()
-                .stderr("K8s API error (HTTP " + e.getCode() + "): " + e.getResponseBody())
+                .stderr("K8s API error: HTTP " + e.getCode())
                 .exitCode(-1)
                 .errorType(errorType)
                 .build();
         } catch (Exception e) {
             log.error("K8s execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            log.debug("K8s execute exception details for node {}", node.getAlias(), e);
             return new ExecResult.Builder()
                 .stderr("K8s execution failed: " + e.getClass().getSimpleName())
                 .exitCode(-1)

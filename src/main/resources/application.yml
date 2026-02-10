@@ -124,4 +124,4 @@ node-console:
   default-safety-policy: strict
   ssh-connect-timeout-seconds: 10  # SSH 连接超时
   exec-timeout-seconds: 60         # 命令执行超时
-  max-output-length: 32000
+  max-output-bytes: 32000          # 最大输出字节数（防止 OOM）

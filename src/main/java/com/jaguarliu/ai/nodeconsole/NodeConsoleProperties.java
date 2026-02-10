@@ -33,7 +33,7 @@ public class NodeConsoleProperties {
     private int execTimeoutSeconds = 60;
 
     /**
-     * 最大输出长度（字符）
+     * 最大输出长度（字节）- 防止 OOM
      */
-    private int maxOutputLength = 32000;
+    private int maxOutputBytes = 32000;
 }

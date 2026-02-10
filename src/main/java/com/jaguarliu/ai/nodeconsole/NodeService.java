@@ -22,17 +22,15 @@ public class NodeService {
     private final ConnectorFactory connectorFactory;
     private final NodeConsoleProperties properties;
     private final NodeValidator nodeValidator;
+    private final RemoteCommandClassifier remoteCommandClassifier;
 
     /**
      * 注册新节点
+     * 直接依赖数据库唯一约束保证 alias 唯一性，避免 TOCTOU 竞态条件
      */
     public NodeEntity register(String alias, String displayName, String connectorType,
                                 String host, Integer port, String username, String authType,
                                 String rawCredential, String tags, String safetyPolicy) {
-        if (nodeRepository.existsByAlias(alias)) {
-            throw new IllegalArgumentException("Node alias already exists: " + alias);
-        }
-
         // 校验节点配置（防止危险配置）
         nodeValidator.validate(connectorType, host, port, username);
 
@@ -57,26 +55,22 @@ public class NodeService {
             log.info("Registered node: alias={}, type={}", alias, connectorType);
             return saved;
         } catch (DataIntegrityViolationException e) {
-            // 捕获唯一约束冲突（可能是并发注册相同 alias）
-            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("alias")) {
-                throw new IllegalArgumentException("Node alias already exists: " + alias);
-            }
-            throw e;
+            // 捕获唯一约束冲突（数据库保证原子性，避免并发竞态）
+            // nodes 表只有 alias 字段有唯一约束，所以可以直接认为是 alias 冲突
+            // 不依赖异常消息文本，避免多数据库兼容性问题
+            throw new IllegalArgumentException("Node alias already exists: " + alias, e);
         }
     }
 
     /**
      * 更新节点信息
+     * 直接依赖数据库唯一约束保证 alias 唯一性，避免 TOCTOU 竞态条件
      */
     public NodeEntity update(String id, String alias, String displayName, String connectorType,
                               String host, Integer port, String username, String authType,
                               String rawCredential, String tags, String safetyPolicy) {
         NodeEntity node = nodeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Node not found: " + id));
-
-        if (alias != null && !alias.equals(node.getAlias()) && nodeRepository.existsByAlias(alias)) {
-            throw new IllegalArgumentException("Node alias already exists: " + alias);
-        }
 
         if (alias != null) node.setAlias(alias);
         if (displayName != null) node.setDisplayName(displayName);
@@ -100,9 +94,16 @@ public class NodeService {
             node.setCredentialIv(encrypted.iv());
         }
 
-        NodeEntity saved = nodeRepository.save(node);
-        log.info("Updated node: alias={}", saved.getAlias());
-        return saved;
+        try {
+            NodeEntity saved = nodeRepository.save(node);
+            log.info("Updated node: alias={}", saved.getAlias());
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            // 捕获唯一约束冲突（数据库保证原子性，避免并发竞态）
+            // nodes 表只有 alias 字段有唯一约束，所以可以直接认为是 alias 冲突
+            // 不依赖异常消息文本，避免多数据库兼容性问题
+            throw new IllegalArgumentException("Node alias already exists: " + alias, e);
+        }
     }
 
     /**
@@ -136,7 +137,9 @@ public class NodeService {
         try {
             success = connector.testConnection(credential, node);
         } catch (Exception e) {
-            log.warn("Connection test failed for node {}: {}", node.getAlias(), e.getMessage());
+            // 仅记录异常类型，避免泄露连接细节（host/port/username）
+            log.warn("Connection test failed for node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            log.debug("Connection test exception details for node {}", node.getAlias(), e);
             success = false;
         }
 
@@ -149,11 +152,37 @@ public class NodeService {
     }
 
     /**
-     * 执行远程命令
+     * 执行远程命令（包含安全策略检查）
      */
     public String executeCommand(String alias, String command) {
         NodeEntity node = nodeRepository.findByAlias(alias)
                 .orElseThrow(() -> new IllegalArgumentException("Node not found: " + alias));
+
+        // 检查命令安全性（根据 safetyPolicy）
+        String safetyPolicy = node.getSafetyPolicy();
+        RemoteCommandClassifier.Classification classification =
+            remoteCommandClassifier.classify(command, safetyPolicy);
+
+        // 如果命令被阻止（DESTRUCTIVE），直接拒绝执行
+        if (classification.isBlocked()) {
+            String errorMsg = String.format(
+                "Command blocked by safety policy: %s (level=%d, policy=%s)",
+                classification.reason(), classification.level(), safetyPolicy
+            );
+            log.warn("Command blocked on node {}: {}", alias, classification.reason());
+            throw new IllegalArgumentException(errorMsg);
+        }
+
+        // 如果命令需要 HITL 确认，也拒绝执行
+        // 注意：真正的 HITL 应该通过 UI/工具层面处理，这里只是后端最后一道防护
+        if (classification.requiresHitl()) {
+            String errorMsg = String.format(
+                "Command requires human approval: %s (level=%d, policy=%s)",
+                classification.reason(), classification.level(), safetyPolicy
+            );
+            log.warn("Command requires HITL on node {}: {}", alias, classification.reason());
+            throw new IllegalArgumentException(errorMsg);
+        }
 
         String credential = credentialCipher.decrypt(node.getEncryptedCredential(), node.getCredentialIv());
         Connector connector = connectorFactory.get(node.getConnectorType());
@@ -168,7 +197,7 @@ public class NodeService {
         // 构建执行选项
         ExecOptions options = ExecOptions.builder()
                 .timeoutSeconds(properties.getExecTimeoutSeconds())
-                .maxOutputBytes(properties.getMaxOutputLength())
+                .maxOutputBytes(properties.getMaxOutputBytes())
                 .build();
 
         ExecResult result = connector.execute(credential, node, command, options);

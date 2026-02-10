@@ -132,6 +132,7 @@ public class SshConnector implements Connector {
         } catch (com.jcraft.jsch.JSchException e) {
             // JSch 特定异常 - 映射到具体错误类型
             log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            log.debug("SSH execute exception details for node {}", node.getAlias(), e);
             ExecResult.ErrorType errorType = mapJSchException(e);
             return new ExecResult.Builder()
                 .stderr("SSH execution failed: " + e.getClass().getSimpleName())
@@ -140,6 +141,7 @@ public class SshConnector implements Connector {
                 .build();
         } catch (Exception e) {
             log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            log.debug("SSH execute exception details for node {}", node.getAlias(), e);
             return new ExecResult.Builder()
                 .stderr("SSH command execution failed: " + e.getClass().getSimpleName())
                 .exitCode(-1)
