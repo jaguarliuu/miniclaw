@@ -1,14 +1,30 @@
 package com.jaguarliu.ai.nodeconsole;
 
+import com.jaguarliu.ai.tools.DangerousCommandDetector;
+import com.jaguarliu.ai.tools.ToolConfigProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.Collections;
 
 /**
  * 命令模式验证测试 - 确保所有模式都是有效的正则表达式
  */
 class CommandPatternValidationTest {
 
-    private final RemoteCommandClassifier classifier = new RemoteCommandClassifier();
+    private RemoteCommandClassifier classifier;
+    private DangerousCommandDetector dangerousCommandDetector;
+
+    @BeforeEach
+    void setUp() {
+        // 创建 ToolConfigProperties 用于 DangerousCommandDetector
+        ToolConfigProperties toolConfigProperties = new ToolConfigProperties();
+        toolConfigProperties.setDangerousKeywords(Collections.emptyList());
+
+        dangerousCommandDetector = new DangerousCommandDetector(toolConfigProperties);
+        classifier = new RemoteCommandClassifier(dangerousCommandDetector);
+    }
 
     @Test
     void testAllDestructivePatternsAreValid() {

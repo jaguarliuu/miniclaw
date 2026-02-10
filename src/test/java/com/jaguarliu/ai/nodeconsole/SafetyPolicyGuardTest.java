@@ -1,14 +1,28 @@
 package com.jaguarliu.ai.nodeconsole;
 
+import com.jaguarliu.ai.tools.DangerousCommandDetector;
+import com.jaguarliu.ai.tools.ToolConfigProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Collections;
+
 class SafetyPolicyGuardTest {
+
+    private RemoteCommandClassifier classifier;
+
+    @BeforeEach
+    void setUp() {
+        ToolConfigProperties toolConfigProperties = new ToolConfigProperties();
+        toolConfigProperties.setDangerousKeywords(Collections.emptyList());
+        DangerousCommandDetector detector = new DangerousCommandDetector(toolConfigProperties);
+        classifier = new RemoteCommandClassifier(detector);
+    }
 
     @Test
     void testStrictPolicyBlocksSideEffectCommands() {
         SafetyPolicyGuard guard = new SafetyPolicyGuard();
-        RemoteCommandClassifier classifier = new RemoteCommandClassifier();
 
         // 只读命令在 strict 策略下应该需要 HITL
         var classification = classifier.classify("ls -la", "strict");
@@ -21,8 +35,6 @@ class SafetyPolicyGuardTest {
 
     @Test
     void testStandardPolicyAllowsReadOnly() {
-        RemoteCommandClassifier classifier = new RemoteCommandClassifier();
-
         // 只读命令在 standard 策略下应该自动执行
         var classification = classifier.classify("df -h", "standard");
         assertFalse(classification.requiresHitl(), "Read-only commands auto-execute in standard mode");
@@ -34,8 +46,6 @@ class SafetyPolicyGuardTest {
 
     @Test
     void testRelaxedPolicyAllowsMostCommands() {
-        RemoteCommandClassifier classifier = new RemoteCommandClassifier();
-
         // 只读命令自动执行
         var classification = classifier.classify("ps aux", "relaxed");
         assertFalse(classification.requiresHitl(), "Read-only commands auto-execute in relaxed mode");
@@ -51,7 +61,6 @@ class SafetyPolicyGuardTest {
 
     @Test
     void testDestructiveCommandsAlwaysBlocked() {
-        RemoteCommandClassifier classifier = new RemoteCommandClassifier();
 
         String[] policies = {"strict", "standard", "relaxed"};
         String[] destructiveCommands = {
