@@ -56,10 +56,18 @@ public class NodeUpdateHandler implements RpcHandler {
             return RpcResponse.success(request.getId(), NodeService.toNodeDto(node));
         }).onErrorResume(e -> {
             log.error("Failed to update node: {}", LogSanitizer.sanitizeException(e));
-            String errorMessage = e instanceof IllegalArgumentException
-                ? e.getMessage()
-                : "Node update failed";
-            return Mono.just(RpcResponse.error(request.getId(), "UPDATE_FAILED", errorMessage));
+
+            if (e instanceof IllegalArgumentException) {
+                String message = e.getMessage();
+                // 检查是否是 alias 冲突
+                if (message != null && message.toLowerCase().contains("alias already exists")) {
+                    return Mono.just(RpcResponse.error(request.getId(), "ALIAS_CONFLICT", message));
+                }
+                // 其他参数错误
+                return Mono.just(RpcResponse.error(request.getId(), "INVALID_ARGUMENT", message));
+            }
+
+            return Mono.just(RpcResponse.error(request.getId(), "UPDATE_FAILED", "Node update failed"));
         });
     }
 }

@@ -63,12 +63,19 @@ public class NodeRegisterHandler implements RpcHandler {
             // 日志脱敏：仅记录异常类名
             log.error("Failed to register node: {}", LogSanitizer.sanitizeException(e));
 
-            // 对客户端返回通用错误，不暴露内部细节
-            String errorMessage = e instanceof IllegalArgumentException
-                ? e.getMessage()  // 参数错误可以返回（如 "alias already exists"）
-                : "Node registration failed";  // 其他错误返回通用消息
+            // 对客户端返回一致的错误码
+            if (e instanceof IllegalArgumentException) {
+                String message = e.getMessage();
+                // 检查是否是 alias 冲突
+                if (message != null && message.toLowerCase().contains("alias already exists")) {
+                    return Mono.just(RpcResponse.error(request.getId(), "ALIAS_CONFLICT", message));
+                }
+                // 其他参数错误
+                return Mono.just(RpcResponse.error(request.getId(), "INVALID_ARGUMENT", message));
+            }
 
-            return Mono.just(RpcResponse.error(request.getId(), "REGISTER_FAILED", errorMessage));
+            // 其他错误返回通用消息
+            return Mono.just(RpcResponse.error(request.getId(), "REGISTER_FAILED", "Node registration failed"));
         });
     }
 }

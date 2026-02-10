@@ -2,6 +2,7 @@ package com.jaguarliu.ai.nodeconsole;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -51,9 +52,17 @@ public class NodeService {
                 .safetyPolicy(safetyPolicy != null ? safetyPolicy : properties.getDefaultSafetyPolicy())
                 .build();
 
-        NodeEntity saved = nodeRepository.save(node);
-        log.info("Registered node: alias={}, type={}", alias, connectorType);
-        return saved;
+        try {
+            NodeEntity saved = nodeRepository.save(node);
+            log.info("Registered node: alias={}, type={}", alias, connectorType);
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            // 捕获唯一约束冲突（可能是并发注册相同 alias）
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("alias")) {
+                throw new IllegalArgumentException("Node alias already exists: " + alias);
+            }
+            throw e;
+        }
     }
 
     /**
