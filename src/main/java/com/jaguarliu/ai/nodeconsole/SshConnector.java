@@ -127,14 +127,54 @@ public class SshConnector implements Connector {
                 .stderr("Execution interrupted by timeout")
                 .exitCode(-1)
                 .timedOut(true)
+                .errorType(ExecResult.ErrorType.TIMEOUT)
+                .build();
+        } catch (com.jcraft.jsch.JSchException e) {
+            // JSch 特定异常 - 映射到具体错误类型
+            log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
+            ExecResult.ErrorType errorType = mapJSchException(e);
+            return new ExecResult.Builder()
+                .stderr("SSH execution failed: " + e.getClass().getSimpleName())
+                .exitCode(-1)
+                .errorType(errorType)
                 .build();
         } catch (Exception e) {
             log.error("SSH execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
-            throw new RuntimeException("SSH command execution failed: " + e.getClass().getSimpleName(), e);
+            return new ExecResult.Builder()
+                .stderr("SSH command execution failed: " + e.getClass().getSimpleName())
+                .exitCode(-1)
+                .errorType(ExecResult.ErrorType.UNKNOWN)
+                .build();
         } finally {
             if (channel != null) channel.disconnect();
             if (session != null) session.disconnect();
         }
+    }
+
+    /**
+     * 映射 JSch 异常到 ErrorType
+     */
+    private ExecResult.ErrorType mapJSchException(com.jcraft.jsch.JSchException e) {
+        String message = e.getMessage();
+        if (message == null) {
+            return ExecResult.ErrorType.UNKNOWN;
+        }
+
+        message = message.toLowerCase();
+        if (message.contains("auth") || message.contains("password")) {
+            return ExecResult.ErrorType.AUTHENTICATION_FAILED;
+        }
+        if (message.contains("timeout") || message.contains("timed out")) {
+            return ExecResult.ErrorType.NETWORK_ERROR;
+        }
+        if (message.contains("connection") || message.contains("connect")) {
+            return ExecResult.ErrorType.NETWORK_ERROR;
+        }
+        if (message.contains("permission") || message.contains("denied")) {
+            return ExecResult.ErrorType.PERMISSION_DENIED;
+        }
+
+        return ExecResult.ErrorType.UNKNOWN;
     }
 
     @Override

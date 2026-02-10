@@ -54,14 +54,41 @@ public class K8sConnector implements Connector {
             return new ExecResult.Builder()
                 .stderr(e.getMessage())
                 .exitCode(-1)
+                .errorType(ExecResult.ErrorType.VALIDATION_ERROR)
+                .build();
+        } catch (io.kubernetes.client.openapi.ApiException e) {
+            // K8s API 异常 - 映射到具体错误类型
+            log.error("K8s API failed on node {}: HTTP {}", node.getAlias(), e.getCode());
+            ExecResult.ErrorType errorType = mapK8sApiException(e);
+            return new ExecResult.Builder()
+                .stderr("K8s API error (HTTP " + e.getCode() + "): " + e.getResponseBody())
+                .exitCode(-1)
+                .errorType(errorType)
                 .build();
         } catch (Exception e) {
             log.error("K8s execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
             return new ExecResult.Builder()
                 .stderr("K8s execution failed: " + e.getClass().getSimpleName())
                 .exitCode(-1)
+                .errorType(ExecResult.ErrorType.INTERNAL_ERROR)
                 .build();
         }
+    }
+
+    /**
+     * 映射 K8s API 异常到 ErrorType
+     */
+    private ExecResult.ErrorType mapK8sApiException(io.kubernetes.client.openapi.ApiException e) {
+        int code = e.getCode();
+
+        return switch (code) {
+            case 401 -> ExecResult.ErrorType.AUTHENTICATION_FAILED;  // Unauthorized
+            case 403 -> ExecResult.ErrorType.PERMISSION_DENIED;       // Forbidden
+            case 404 -> ExecResult.ErrorType.RESOURCE_NOT_FOUND;      // Not Found
+            case 408, 504 -> ExecResult.ErrorType.TIMEOUT;            // Timeout / Gateway Timeout
+            case 500, 502, 503 -> ExecResult.ErrorType.INTERNAL_ERROR; // Server errors
+            default -> ExecResult.ErrorType.UNKNOWN;
+        };
     }
 
     @Override
