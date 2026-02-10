@@ -48,6 +48,13 @@ public class K8sConnector implements Connector {
                 .originalLength(originalLength)
                 .build();
 
+        } catch (IllegalArgumentException e) {
+            // 命令验证失败（不支持的 verb 或空命令）
+            log.warn("K8s command validation failed: {}", e.getMessage());
+            return new ExecResult.Builder()
+                .stderr(e.getMessage())
+                .exitCode(-1)
+                .build();
         } catch (Exception e) {
             log.error("K8s execute failed on node {}: {}", node.getAlias(), e.getClass().getSimpleName());
             return new ExecResult.Builder()
@@ -87,6 +94,9 @@ public class K8sConnector implements Connector {
         String verb = parts[0].toLowerCase();
         String resource = parts.length > 1 ? parts[1].toLowerCase() : "";
 
+        // 验证 verb 是否支持（安全限制：仅允许只读操作）
+        validateVerb(verb);
+
         // 解析 namespace 标志
         String namespace = "default";
         if (command.contains("-n ")) {
@@ -111,6 +121,22 @@ public class K8sConnector implements Connector {
             default -> throw new IllegalArgumentException(
                     "Unsupported kubectl verb: " + verb + ". Supported: get, describe, logs");
         };
+    }
+
+    /**
+     * 验证 kubectl verb 是否在允许列表中
+     * 仅允许只读操作，拒绝写入/删除/修改操作
+     */
+    private void validateVerb(String verb) {
+        // 允许的只读操作列表
+        var allowedVerbs = java.util.Set.of("get", "describe", "logs");
+
+        if (!allowedVerbs.contains(verb)) {
+            throw new IllegalArgumentException(
+                String.format("Kubectl verb '%s' is not allowed. Only read-only operations are supported: %s",
+                    verb, String.join(", ", allowedVerbs))
+            );
+        }
     }
 
     private String handleGet(CoreV1Api coreApi, AppsV1Api appsApi, String resource, String namespace) throws ApiException {
