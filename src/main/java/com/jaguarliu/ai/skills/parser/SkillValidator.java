@@ -30,8 +30,9 @@ public class SkillValidator {
 
     /**
      * Description 最大长度
+     * 调整为 2000 以支持更详细的 Skill 描述
      */
-    private static final int MAX_DESCRIPTION_LENGTH = 500;
+    private static final int MAX_DESCRIPTION_LENGTH = 2000;
 
     /**
      * 验证 frontmatter Map

@@ -361,7 +361,7 @@ class SkillValidatorTest {
         void normalDescription() {
             Map<String, Object> frontmatter = Map.of(
                     "name", "test-skill",
-                    "description", "A".repeat(500)  // 刚好 500
+                    "description", "A".repeat(2000)  // 刚好 2000
             );
 
             List<SkillParseError> errors = validator.validate(frontmatter);
@@ -374,7 +374,7 @@ class SkillValidatorTest {
         void tooLongDescription() {
             Map<String, Object> frontmatter = Map.of(
                     "name", "test-skill",
-                    "description", "A".repeat(501)  // 超过 500
+                    "description", "A".repeat(2001)  // 超过 2000
             );
 
             List<SkillParseError> errors = validator.validate(frontmatter);
