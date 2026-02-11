@@ -1,0 +1,86 @@
+package com.jaguarliu.ai.rpc.handler.mcp;
+
+import com.jaguarliu.ai.mcp.McpProperties;
+import com.jaguarliu.ai.mcp.service.McpServerService;
+import com.jaguarliu.ai.gateway.rpc.RpcHandler;
+import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
+import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 更新 MCP Server 配置
+ * RPC Method: mcp.servers.update
+ *
+ * Payload:
+ * {
+ *   "id": 123,
+ *   "name": "my-server",
+ *   "transportType": "STDIO",
+ *   "command": "npx",
+ *   "args": ["-y", "..."],
+ *   "url": "http://...",
+ *   "enabled": true,
+ *   "toolPrefix": "prefix_"
+ * }
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class McpServerUpdateHandler implements RpcHandler {
+
+    private final McpServerService mcpServerService;
+
+    @Override
+    public String getMethod() {
+        return "mcp.servers.update";
+    }
+
+    @Override
+    public Mono<RpcResponse> handle(String connectionId, RpcRequest request) {
+        log.info("Updating MCP server");
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = (Map<String, Object>) request.getPayload();
+
+            // 获取 ID
+            Long id = ((Number) payload.get("id")).longValue();
+
+            // 构建配置
+            var config = new McpProperties.ServerConfig();
+            config.setName((String) payload.get("name"));
+            config.setTransport(McpProperties.TransportType.valueOf((String) payload.get("transportType")));
+            config.setCommand((String) payload.getOrDefault("command", null));
+            config.setArgs((List<String>) payload.getOrDefault("args", List.of()));
+            config.setWorkingDir((String) payload.getOrDefault("workingDir", null));
+            config.setEnv((List<String>) payload.getOrDefault("env", List.of()));
+            config.setUrl((String) payload.getOrDefault("url", null));
+            config.setEnabled((Boolean) payload.getOrDefault("enabled", true));
+            config.setToolPrefix((String) payload.getOrDefault("toolPrefix", ""));
+            config.setRequiresHitl((Boolean) payload.getOrDefault("requiresHitl", false));
+            config.setHitlTools((List<String>) payload.getOrDefault("hitlTools", List.of()));
+            config.setRequestTimeoutSeconds((Integer) payload.getOrDefault("requestTimeoutSeconds", 30));
+
+            // 更新服务器
+            var entity = mcpServerService.updateServer(id, config);
+
+            return Mono.just(RpcResponse.success(request.getId(), Map.of(
+                    "server", Map.of(
+                            "id", entity.getId(),
+                            "name", entity.getName(),
+                            "enabled", entity.getEnabled()
+                    )
+            )));
+
+        } catch (Exception e) {
+            log.error("Failed to update MCP server", e);
+            return Mono.just(RpcResponse.error(request.getId(), "MCP_UPDATE_FAILED", "Failed to update MCP server: " + e.getMessage()));
+        }
+    }
+}
