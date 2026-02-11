@@ -49,13 +49,24 @@ public class McpClientManager {
             return;
         }
 
+        int successCount = 0;
+        int failCount = 0;
+
         for (McpServerEntity entity : servers) {
             try {
                 McpProperties.ServerConfig config = entity.toConfig();
                 connectServer(config);
+                successCount++;
             } catch (Exception e) {
-                log.error("Failed to connect MCP server: {}", entity.getName(), e);
+                failCount++;
+                log.error("Failed to connect MCP server: {} - {}", entity.getName(), e.getMessage());
+                log.debug("Full error trace for MCP server: {}", entity.getName(), e);
             }
+        }
+
+        if (failCount > 0) {
+            log.warn("MCP Client Manager initialized with {} successful and {} failed connections",
+                    successCount, failCount);
         }
 
         log.info("MCP Client Manager initialized with {} clients", clients.size());

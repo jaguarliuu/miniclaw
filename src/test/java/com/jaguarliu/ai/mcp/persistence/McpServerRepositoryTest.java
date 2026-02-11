@@ -1,6 +1,7 @@
 package com.jaguarliu.ai.mcp.persistence;
 
 import com.jaguarliu.ai.mcp.McpProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -16,6 +17,12 @@ class McpServerRepositoryTest {
 
     @Autowired
     private McpServerRepository repository;
+
+    @BeforeEach
+    void setUp() {
+        // 清理数据库，确保测试隔离
+        repository.deleteAll();
+    }
 
     @Test
     void shouldSaveAndLoadMcpServerConfig() {
