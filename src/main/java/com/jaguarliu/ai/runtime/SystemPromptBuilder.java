@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.runtime;
 
+import com.jaguarliu.ai.mcp.prompt.McpPromptProvider;
 import com.jaguarliu.ai.memory.search.MemorySearchService;
 import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
 import com.jaguarliu.ai.tools.ToolDefinition;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -27,6 +29,7 @@ import java.util.Set;
  * 6. Workspace - 工作目录
  * 7. Current Date & Time - 当前时间
  * 8. Runtime - 运行环境信息
+ * 9. MCP Server Capabilities - MCP 服务器提供的提示词（如果有）
  *
  * 支持三种 Prompt Mode：
  * - FULL: 完整提示（默认）
@@ -40,6 +43,7 @@ public class SystemPromptBuilder {
     private final ToolRegistry toolRegistry;
     private final SkillIndexBuilder skillIndexBuilder;
     private final MemorySearchService memorySearchService;
+    private final Optional<McpPromptProvider> mcpPromptProvider;
 
     @Value("${tools.workspace:./workspace}")
     private String workspace;
@@ -106,10 +110,12 @@ public class SystemPromptBuilder {
         """;
 
     public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
-                                MemorySearchService memorySearchService) {
+                                MemorySearchService memorySearchService,
+                                Optional<McpPromptProvider> mcpPromptProvider) {
         this.toolRegistry = toolRegistry;
         this.skillIndexBuilder = skillIndexBuilder;
         this.memorySearchService = memorySearchService;
+        this.mcpPromptProvider = mcpPromptProvider;
     }
 
     /**
@@ -171,6 +177,17 @@ public class SystemPromptBuilder {
 
         // 8. Runtime
         sb.append(buildRuntimeSection(mode));
+
+        // 9. MCP Server Capabilities (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            mcpPromptProvider.ifPresent(provider -> {
+                String mcpAdditions = provider.getSystemPromptAdditions();
+                if (!mcpAdditions.isEmpty()) {
+                    sb.append(mcpAdditions.trim());
+                    sb.append("\n\n");
+                }
+            });
+        }
 
         // Append custom prompt if configured
         if (customSystemPrompt != null && !customSystemPrompt.isBlank()) {

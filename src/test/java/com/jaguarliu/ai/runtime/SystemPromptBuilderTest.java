@@ -1,17 +1,18 @@
 package com.jaguarliu.ai.runtime;
 
+import com.jaguarliu.ai.mcp.prompt.McpPromptProvider;
 import com.jaguarliu.ai.memory.search.MemorySearchService;
 import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolRegistry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,13 +34,24 @@ class SystemPromptBuilderTest {
     @Mock
     private MemorySearchService memorySearchService;
 
-    @InjectMocks
+    @Mock
+    private McpPromptProvider mcpPromptProvider;
+
     private SystemPromptBuilder builder;
 
     @BeforeEach
     void setUp() {
+        builder = new SystemPromptBuilder(
+                toolRegistry,
+                skillIndexBuilder,
+                memorySearchService,
+                Optional.of(mcpPromptProvider)
+        );
         ReflectionTestUtils.setField(builder, "workspace", "./workspace");
         ReflectionTestUtils.setField(builder, "customSystemPrompt", "");
+
+        // Default: MCP prompt provider returns empty (lenient to avoid unnecessary stubbing warnings)
+        lenient().when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn("");
     }
 
     // ==================== NONE 模式测试 ====================
@@ -424,6 +436,75 @@ class SystemPromptBuilderTest {
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
 
             assertFalse(result.contains("## Custom Instructions"));
+        }
+    }
+
+    // ==================== MCP Server Capabilities 测试 ====================
+
+    @Nested
+    @DisplayName("MCP Server Capabilities")
+    class McpCapabilitiesTests {
+
+        @Test
+        @DisplayName("FULL 模式包含 MCP prompts")
+        void fullModeIncludesMcpPrompts() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+                    "\n\n## MCP Server Capabilities\n\n### filesystem\n\n- **read_file**: Read files\n"
+            );
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
+
+            assertTrue(result.contains("## MCP Server Capabilities"));
+            assertTrue(result.contains("### filesystem"));
+            assertTrue(result.contains("**read_file**"));
+        }
+
+        @Test
+        @DisplayName("MINIMAL 模式不包含 MCP prompts")
+        void minimalModeExcludesMcpPrompts() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+                    "\n\n## MCP Server Capabilities\n\n### filesystem\n\n- **read_file**: Read files\n"
+            );
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
+
+            assertFalse(result.contains("## MCP Server Capabilities"));
+        }
+
+        @Test
+        @DisplayName("空 MCP prompts 不显示")
+        void emptyMcpPromptsNotShown() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn("");
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
+
+            // Should not break, just not show MCP section
+            assertFalse(result.contains("## MCP Server Capabilities"));
+        }
+
+        @Test
+        @DisplayName("MCP prompts 出现在 Runtime 之后，Custom Instructions 之前")
+        void mcpPromptsCorrectPosition() {
+            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(skillIndexBuilder.buildIndex()).thenReturn("");
+            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+                    "\n\n## MCP Server Capabilities\n\n### test\n"
+            );
+            ReflectionTestUtils.setField(builder, "customSystemPrompt", "Custom");
+
+            String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
+
+            int runtimeIdx = result.indexOf("## Runtime");
+            int mcpIdx = result.indexOf("## MCP Server Capabilities");
+            int customIdx = result.indexOf("## Custom Instructions");
+
+            assertTrue(runtimeIdx < mcpIdx, "Runtime should come before MCP");
+            assertTrue(mcpIdx < customIdx, "MCP should come before Custom Instructions");
         }
     }
 
