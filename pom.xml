@@ -111,6 +111,13 @@
             <artifactId>angus-mail</artifactId>
         </dependency>
 
+        <!-- Model Context Protocol (MCP) SDK v0.17.2 -->
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp</artifactId>
+            <version>0.17.2</version>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
