@@ -10,6 +10,7 @@ const sections = [
   { id: 'tools', label: '/tools' },
   { id: 'skills', label: '/skills' },
   { id: 'memory', label: '/memory' },
+  { id: 'mcp', label: '/mcp' },
   { id: 'nodes', label: '/nodes' },
   { id: 'channels', label: '/channels' },
   { id: 'audit', label: '/audit' },

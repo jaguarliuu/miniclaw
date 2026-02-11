@@ -68,6 +68,20 @@ onUnmounted(() => {
   --color-error: #d44040;
   --color-info: #4a7fd4;
 
+  /* Color scales for badges and status */
+  --color-blue-50: #eff6ff;
+  --color-blue-600: #2563eb;
+  --color-green-50: #f0fdf4;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-purple-50: #faf5ff;
+  --color-purple-600: #9333ea;
+  --color-red-50: #fef2f2;
+  --color-red-200: #fecaca;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
   --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
