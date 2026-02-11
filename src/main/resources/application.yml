@@ -116,6 +116,65 @@ memory:
     enabled: true
     token-threshold: 100000
 
+# MCP (Model Context Protocol) 配置
+# 作为 MCP Client，连接到任意 MCP Server（官方、第三方、用户自建）
+# 支持三种传输方式：STDIO（进程管道）、SSE（服务器推送事件）、HTTP（流式HTTP）
+mcp:
+  servers: []  # 默认为空，用户可以添加任意数量的 MCP Server
+    # ========================================
+    # 官方 MCP Server 示例（STDIO）
+    # ========================================
+    # - name: filesystem
+    #   transport: stdio
+    #   command: npx
+    #   args:
+    #     - "-y"
+    #     - "@modelcontextprotocol/server-filesystem"
+    #     - "/tmp"
+    #   enabled: true
+    #   tool-prefix: fs_
+    #   request-timeout-seconds: 30
+    #
+    # ========================================
+    # 第三方 MCP Server 示例（SSE）
+    # ========================================
+    # - name: tavily-search
+    #   transport: sse
+    #   url: http://localhost:3000/sse
+    #   enabled: true
+    #   tool-prefix: search_
+    #   requires-hitl: false
+    #
+    # ========================================
+    # 用户自定义 MCP Server 示例（HTTP）
+    # ========================================
+    # - name: my-custom-mcp
+    #   transport: http
+    #   url: http://localhost:8080/mcp
+    #   enabled: true
+    #   tool-prefix: custom_
+    #   hitl-tools: [delete_data, update_config]
+    #
+    # ========================================
+    # 用户自定义本地 MCP Server（STDIO）
+    # ========================================
+    # - name: my-python-mcp
+    #   transport: stdio
+    #   command: python
+    #   args:
+    #     - "/path/to/my_mcp_server.py"
+    #   working-dir: /path/to/workdir
+    #   env:
+    #     - "API_KEY=your-key"
+    #     - "DEBUG=true"
+    #   enabled: true
+    #   tool-prefix: py_
+    #   request-timeout-seconds: 60
+  health-check:
+    interval-seconds: 60
+    max-retries: 3
+    retry-backoff-seconds: 5
+
 # (files 配置已移至 tools.upload-dir)
 
 # Node Console 配置（远程机器管理）
