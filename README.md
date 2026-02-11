@@ -258,6 +258,25 @@ Agent 生成文件时，前端实时渲染预览：
 - **13+ 语言**：自动识别 JS、TS、Python、Java、SQL、CSS、JSON、HTML、Markdown 等
 - **可拖拽宽度**：面板宽度可自由调整
 
+### 🔌 MCP 协议集成
+
+完整支持 **Model Context Protocol (MCP)**，作为客户端动态连接 MCP 服务器：
+
+- **三种传输方式**：STDIO（本地进程）、SSE（服务器推送事件）、HTTP（REST API）
+- **自动工具发现**：连接到 MCP 服务器后自动注册所有可用工具
+- **资源访问**：支持读取 MCP 服务器提供的资源（文件、数据、API 响应）
+- **提示词集成**：将 MCP 服务器的提示词模板集成到系统提示中
+- **工具前缀**：避免多服务器工具命名冲突
+- **健康检查**：定期 ping 检测连接状态，自动重连断开的服务器
+- **HITL 支持**：可配置哪些 MCP 工具需要用户确认
+
+**可连接的 MCP 服务器：**
+- 官方服务器：filesystem、fetch、git、postgres、puppeteer...
+- 第三方服务器：Tavily Search、GitHub、AWS、Kubernetes...
+- 自定义服务器：用 Python/Node.js/Java 开发你自己的 MCP 服务器
+
+详见：[MCP 集成文档](docs/mcp-integration.md)
+
 ### 💬 会话自动命名
 
 首次发送消息时，后端调用 LLM 自动生成简短的会话标题，侧边栏实时更新。
@@ -335,6 +354,7 @@ miniclaw/
 │   ├── schedule/         # ⏰ 定时任务：Cron 调度、自动执行
 │   ├── channel/          # 📡 渠道推送：邮件 SMTP、Webhook HTTP
 │   ├── nodeconsole/      # 🖥️ 远程节点：SSH/K8s 连接、命令审计
+│   ├── mcp/              # 🔌 MCP 协议：客户端管理、工具适配、健康检查
 │   └── storage/          # 💾 持久化：JPA 实体、Repository、Flyway 迁移
 ├── miniclaw-ui/          # 🖥️ Vue 3 前端
 │   ├── src/components/   # 组件：聊天、工具卡片、SubAgent 面板、Artifact 预览
@@ -378,7 +398,7 @@ miniclaw/
 | 多 Agent 身份 | ✅ | ✅ (Profile + 工具权限) |
 | 多租户 | ✅ | ❌ (个人使用) |
 | 分布式节点 | ✅ | ❌ |
-| MCP 支持 | ✅ | 🚧 (计划中) |
+| MCP 支持 | ✅ | ✅ (STDIO/SSE/HTTP + 健康检查) |
 | Sandbox | ✅ | 🚧 (计划中) |
 
 ---
@@ -399,10 +419,10 @@ miniclaw/
 - [x] 文件预览面板（流式渲染，类 Claude Artifacts）
 - [x] 会话自动命名
 - [x] 多 Agent 身份配置
+- [x] MCP 协议集成（STDIO/SSE/HTTP + 工具/资源/提示词 + 健康检查）
 
 ### Next
 
-- [ ] MCP (Model Context Protocol) 接入
 - [ ] Sandbox 安全代码执行
 - [ ] 更多内置技能
 
@@ -416,7 +436,7 @@ miniclaw/
 - 📝 文档改进
 - 🎯 新技能（放到 `workspace/.miniclaw/skills/` 下）
 - 🔧 新工具
-- 🔌 MCP 协议集成
+- 🔌 MCP 服务器开发（用 Python/Node.js/Java 创建自定义 MCP 服务器）
 
 ---
 

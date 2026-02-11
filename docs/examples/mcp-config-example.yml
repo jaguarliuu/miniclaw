@@ -1,0 +1,83 @@
+mcp:
+  servers:
+    # ============================================
+    # 官方 MCP Server: Filesystem (STDIO)
+    # ============================================
+    - name: filesystem
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp"
+      enabled: true
+      tool-prefix: fs_
+      requires-hitl: false
+      hitl-tools: [delete_file, write_file]
+      request-timeout-seconds: 30
+
+    # ============================================
+    # 第三方 MCP Server: Tavily Search (SSE)
+    # ============================================
+    - name: tavily-search
+      transport: sse
+      url: http://localhost:3000/sse
+      enabled: true
+      tool-prefix: search_
+      requires-hitl: false
+      request-timeout-seconds: 60
+
+    # ============================================
+    # 用户自定义 MCP Server: Python 本地服务 (STDIO)
+    # ============================================
+    - name: my-data-analysis
+      transport: stdio
+      command: python
+      args:
+        - "/home/user/mcp-servers/data_analysis_server.py"
+      working-dir: /home/user/mcp-servers
+      env:
+        - "DATABASE_URL=postgresql://localhost/mydb"
+        - "LOG_LEVEL=info"
+      enabled: true
+      tool-prefix: data_
+      requires-hitl: true
+      request-timeout-seconds: 120
+
+    # ============================================
+    # 用户自定义 MCP Server: Node.js 服务 (HTTP)
+    # ============================================
+    - name: my-nodejs-api
+      transport: http
+      url: http://localhost:8080/mcp
+      enabled: true
+      tool-prefix: api_
+      hitl-tools: [delete_record, execute_sql]
+      request-timeout-seconds: 45
+
+    # ============================================
+    # 用户自定义 MCP Server: Docker 容器服务 (SSE)
+    # ============================================
+    - name: ml-inference
+      transport: sse
+      url: http://ml-container:9000/sse
+      enabled: true
+      tool-prefix: ml_
+      requires-hitl: false
+      request-timeout-seconds: 300
+
+    # ============================================
+    # 企业内部 MCP Server: Java Spring Boot (HTTP)
+    # ============================================
+    - name: internal-crm
+      transport: http
+      url: https://crm.company.internal/mcp
+      enabled: true
+      tool-prefix: crm_
+      requires-hitl: true
+      request-timeout-seconds: 60
+
+  health-check:
+    interval-seconds: 60
+    max-retries: 3
+    retry-backoff-seconds: 5
