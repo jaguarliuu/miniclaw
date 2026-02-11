@@ -59,7 +59,23 @@ public class McpServerUpdateHandler implements RpcHandler {
             config.setCommand((String) payload.getOrDefault("command", null));
             config.setArgs((List<String>) payload.getOrDefault("args", List.of()));
             config.setWorkingDir((String) payload.getOrDefault("workingDir", null));
-            config.setEnv((List<String>) payload.getOrDefault("env", List.of()));
+
+            // 处理环境变量：去除 = 号周围的空格
+            List<String> envVars = (List<String>) payload.getOrDefault("env", List.of());
+            config.setEnv(envVars.stream()
+                    .map(String::trim)
+                    .map(env -> {
+                        // 去除 = 号周围的空格
+                        int idx = env.indexOf('=');
+                        if (idx > 0 && idx < env.length() - 1) {
+                            String key = env.substring(0, idx).trim();
+                            String value = env.substring(idx + 1).trim();
+                            return key + "=" + value;
+                        }
+                        return env;
+                    })
+                    .collect(java.util.stream.Collectors.toList()));
+
             config.setUrl((String) payload.getOrDefault("url", null));
             config.setEnabled((Boolean) payload.getOrDefault("enabled", true));
             config.setToolPrefix((String) payload.getOrDefault("toolPrefix", ""));
