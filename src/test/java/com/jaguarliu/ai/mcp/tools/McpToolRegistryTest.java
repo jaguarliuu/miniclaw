@@ -1,7 +1,9 @@
 package com.jaguarliu.ai.mcp.tools;
 
 import com.jaguarliu.ai.mcp.client.McpClientManager;
+import com.jaguarliu.ai.mcp.persistence.McpServerRepository;
 import com.jaguarliu.ai.tools.ToolRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +25,15 @@ class McpToolRegistryTest {
 
     @Autowired
     private McpClientManager mcpClientManager;
+
+    @Autowired
+    private McpServerRepository repository;
+
+    @BeforeEach
+    void setUp() {
+        // Clean up database before each test
+        repository.deleteAll();
+    }
 
     @Test
     void shouldInitializeWithoutClients() {

@@ -87,13 +87,18 @@ public class McpToolRegistry implements SmartInitializingSingleton {
                 }
             }
 
-            // TODO Phase 4: Check if resources are supported and register McpResourceTool
-            // var listResourcesResult = client.getClient().listResources();
-            // if (listResourcesResult.resources() != null && !listResourcesResult.resources().isEmpty()) {
-            //     var resourceTool = new McpResourceTool(client);
-            //     toolRegistry.register(resourceTool);
-            //     count++;
-            // }
+            // Check if resources are supported and register McpResourceTool
+            try {
+                McpSchema.ListResourcesResult listResourcesResult = client.getClient().listResources();
+                if (listResourcesResult.resources() != null && !listResourcesResult.resources().isEmpty()) {
+                    var resourceTool = new McpResourceTool(client);
+                    toolRegistry.register(resourceTool);
+                    log.debug("Registered MCP resource tool: {}", resourceTool.getDefinition().getName());
+                    count++;
+                }
+            } catch (Exception e) {
+                log.debug("MCP server does not support resources: {}", client.getName());
+            }
 
             log.info("Registered {} tools from MCP server: {}", count, client.getName());
             return count;
