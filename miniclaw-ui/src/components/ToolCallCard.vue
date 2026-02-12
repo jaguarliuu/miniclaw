@@ -4,6 +4,7 @@ import type { ToolCall } from '@/types'
 
 const props = defineProps<{
   toolCall: ToolCall
+  sessionId?: string
 }>()
 
 const emit = defineEmits<{
@@ -151,7 +152,9 @@ const showDownloadBtn = computed(() => {
 const downloadUrl = computed(() => {
   if (!showDownloadBtn.value) return ''
   const path = String(props.toolCall.arguments.path || '')
-  return `/api/workspace/${encodeURIComponent(path)}?download`
+  const prefix = props.sessionId ? `${props.sessionId}/` : ''
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+  return `/api/workspace/${prefix}${encodedPath}?download`
 })
 
 const downloadFileName = computed(() => {

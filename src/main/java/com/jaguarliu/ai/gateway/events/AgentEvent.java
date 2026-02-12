@@ -55,7 +55,9 @@ public class AgentEvent {
         SESSION_RENAMED("session.renamed"),
         // Artifact 流式预览事件
         ARTIFACT_OPEN("artifact.open"),
-        ARTIFACT_DELTA("artifact.delta");
+        ARTIFACT_DELTA("artifact.delta"),
+        // 文件创建事件
+        FILE_CREATED("file.created");
 
         private final String value;
 
@@ -210,6 +212,19 @@ public class AgentEvent {
                 .build();
     }
 
+    /**
+     * 创建 file.created 事件（文件写入成功）
+     */
+    public static AgentEvent fileCreated(String connectionId, String runId,
+                                          String fileId, String path, String fileName, long size) {
+        return AgentEvent.builder()
+                .type(EventType.FILE_CREATED)
+                .connectionId(connectionId)
+                .runId(runId)
+                .data(new FileCreatedData(fileId, path, fileName, size))
+                .build();
+    }
+
     @Data
     @AllArgsConstructor
     public static class DeltaData {
@@ -278,6 +293,15 @@ public class AgentEvent {
     @AllArgsConstructor
     public static class ArtifactDeltaData {
         private String content;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class FileCreatedData {
+        private String fileId;
+        private String path;
+        private String fileName;
+        private long size;
     }
 
     // ==================== SubAgent 事件 ====================

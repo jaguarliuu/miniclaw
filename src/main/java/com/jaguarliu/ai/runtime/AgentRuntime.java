@@ -6,6 +6,7 @@ import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.ToolCall;
 import com.jaguarliu.ai.memory.flush.PreCompactionFlushHook;
+import com.jaguarliu.ai.session.SessionFileService;
 import com.jaguarliu.ai.skills.selector.SkillSelector;
 import com.jaguarliu.ai.skills.selector.SkillSelection;
 import com.jaguarliu.ai.subagent.SubagentCompletionTracker;
@@ -21,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.nio.file.Path;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +54,7 @@ public class AgentRuntime {
     private final SkillSelector skillSelector;
     private final PreCompactionFlushHook flushHook;
     private final SubagentCompletionTracker subagentCompletionTracker;
+    private final SessionFileService sessionFileService;
 
     /**
      * 执行 ReAct 多步循环
@@ -92,6 +96,49 @@ public class AgentRuntime {
         // 从消息中提取原始用户输入
         String originalInput = extractOriginalInput(messages);
         return executeLoop(connectionId, runId, sessionId, messages, originalInput);
+    }
+
+    /**
+     * 执行 ReAct 多步循环（支持排除 MCP 服务器）
+     *
+     * @param connectionId       连接 ID
+     * @param runId              运行 ID
+     * @param sessionId          会话 ID
+     * @param messages           初始消息列表（会被修改）
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合
+     * @return 最终回复内容
+     * @throws TimeoutException 如果超时
+     */
+    public String executeLoop(String connectionId, String runId, String sessionId,
+                              List<LlmRequest.Message> messages,
+                              Set<String> excludedMcpServers) throws TimeoutException {
+        String originalInput = extractOriginalInput(messages);
+        return executeLoop(connectionId, runId, sessionId, messages, originalInput, excludedMcpServers);
+    }
+
+    /**
+     * 执行 ReAct 多步循环（完整版，支持排除 MCP 服务器）
+     */
+    public String executeLoop(String connectionId, String runId, String sessionId,
+                              List<LlmRequest.Message> messages, String originalInput,
+                              Set<String> excludedMcpServers) throws TimeoutException {
+        // 1. 创建运行上下文
+        RunContext context = RunContext.create(runId, connectionId, sessionId,
+                loopConfig, cancellationManager);
+        context.setOriginalInput(originalInput);
+        context.setExcludedMcpServers(excludedMcpServers);
+
+        // 2. 注册到取消管理器
+        cancellationManager.register(runId);
+
+        try {
+            return doExecuteLoop(context, messages);
+        } finally {
+            // 3. 清理取消标记
+            cancellationManager.clearCancellation(runId);
+            // 4. 清理 flush 标记
+            flushHook.clearRun(runId);
+        }
     }
 
     /**
@@ -241,6 +288,9 @@ public class AgentRuntime {
             log.info("Step {} has {} tool calls: runId={}",
                     context.getCurrentStep(), result.toolCalls().size(), context.getRunId());
 
+            // 记录当前步骤前的消息数（用于 skill 激活时提取干净历史）
+            int preStepMessageCount = messages.size();
+
             messages.add(LlmRequest.Message.assistantWithToolCalls(result.toolCalls()));
 
             for (ToolCall toolCall : result.toolCalls()) {
@@ -255,6 +305,43 @@ public class AgentRuntime {
                         log.info("Tracked spawned subagent: subRunId={}, runId={}",
                                 subRunId, context.getRunId());
                     }
+                }
+            }
+
+            // ===== use_skill 工具拦截：检测 skill 激活并重启循环 =====
+            String activatedSkillName = detectUseSkillActivation(result.toolCalls());
+            if (activatedSkillName != null && context.getActiveSkill() == null) {
+                log.info("Detected skill activation via use_skill tool: skill={}, runId={}",
+                        activatedSkillName, context.getRunId());
+
+                // 提取当前步骤之前的干净历史（不含 use_skill 工具调用和结果）
+                List<LlmRequest.Message> cleanHistory = extractHistory(
+                        messages.subList(0, preStepMessageCount));
+
+                Optional<ContextBuilder.SkillAwareRequest> skillRequest =
+                        contextBuilder.handleSkillActivationByName(
+                                activatedSkillName,
+                                context.getOriginalInput(),
+                                cleanHistory,
+                                true);
+
+                if (skillRequest.isPresent()) {
+                    // 发布 skill.activated 事件
+                    eventBus.publish(AgentEvent.skillActivated(
+                            context.getConnectionId(),
+                            context.getRunId(),
+                            activatedSkillName,
+                            "tool"));
+
+                    // 用 skill 上下文重新开始循环
+                    messages.clear();
+                    messages.addAll(skillRequest.get().request().getMessages());
+                    context.setActiveSkill(skillRequest.get());
+                    context.setSkillBasePath(skillRequest.get().skillBasePath());
+
+                    log.info("Re-invoking with skill (via tool): {}, runId={}",
+                            activatedSkillName, context.getRunId());
+                    continue;
                 }
             }
 
@@ -311,13 +398,35 @@ public class AgentRuntime {
                 .messages(messages)
                 .toolChoice("auto");
 
+        // 获取排除的 MCP 服务器
+        Set<String> excluded = context.getExcludedMcpServers();
+
         // 如果有激活的 skill，使用其工具限制
         ContextBuilder.SkillAwareRequest activeSkill = context.getActiveSkill();
-        if (activeSkill != null && activeSkill.allowedTools() != null && !activeSkill.allowedTools().isEmpty()) {
-            requestBuilder.tools(toolRegistry.toOpenAiTools(activeSkill.allowedTools()));
+        Set<String> allowed = (activeSkill != null) ? activeSkill.allowedTools() : null;
+
+        // 获取完整工具列表
+        List<Map<String, Object>> tools;
+        if (allowed != null && !allowed.isEmpty()) {
+            tools = toolRegistry.toOpenAiTools(allowed, excluded);
+        } else if (excluded != null && !excluded.isEmpty()) {
+            tools = toolRegistry.toOpenAiToolsExcludingServers(excluded);
         } else {
-            requestBuilder.tools(toolRegistry.toOpenAiTools());
+            tools = toolRegistry.toOpenAiTools();
         }
+
+        // skill 已激活时，移除 use_skill 工具（防止 LLM 重复调用）
+        if (activeSkill != null && activeSkill.hasActiveSkill()) {
+            tools = tools.stream()
+                    .filter(t -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> fn = (Map<String, Object>) t.get("function");
+                        return fn == null || !"use_skill".equals(fn.get("name"));
+                    })
+                    .toList();
+        }
+
+        requestBuilder.tools(tools);
 
         return streamLlmCall(context.getConnectionId(), context.getRunId(), requestBuilder.build());
     }
@@ -442,6 +551,11 @@ public class AgentRuntime {
             result = ToolResult.error("Tool execution returned null");
         }
 
+        // 记录 write_file 成功创建的文件
+        if ("write_file".equals(toolName) && result.isSuccess()) {
+            recordWriteFile(context, arguments);
+        }
+
         // 发布 tool.result 事件
         eventBus.publish(AgentEvent.toolResult(
                 context.getConnectionId(),
@@ -493,6 +607,63 @@ public class AgentRuntime {
         }
 
         ToolExecutionContext.set(builder.build());
+    }
+
+    // ==================== 文件追踪辅助方法 ====================
+
+    /**
+     * 记录 write_file 成功创建的文件
+     */
+    private void recordWriteFile(RunContext context, Map<String, Object> arguments) {
+        String path = (String) arguments.get("path");
+        String content = (String) arguments.get("content");
+        if (path == null) return;
+
+        String fileName = Path.of(path).getFileName().toString();
+        long size = content != null ? content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length : 0;
+
+        try {
+            var entity = sessionFileService.record(
+                    context.getSessionId(),
+                    context.getRunId(),
+                    path,
+                    fileName,
+                    size
+            );
+
+            // 发布 file.created 事件（前端实时更新）
+            eventBus.publish(AgentEvent.fileCreated(
+                    context.getConnectionId(),
+                    context.getRunId(),
+                    entity.getId(),
+                    path,
+                    fileName,
+                    size
+            ));
+        } catch (Exception e) {
+            log.warn("Failed to record write_file: path={}, error={}", path, e.getMessage());
+        }
+    }
+
+    // ==================== Skill 工具激活辅助方法 ====================
+
+    /**
+     * 检测 tool_calls 中是否包含 use_skill 调用，提取 skill 名称
+     *
+     * @param toolCalls LLM 返回的工具调用列表
+     * @return 要激活的 skill 名称，如果没有返回 null
+     */
+    private String detectUseSkillActivation(List<ToolCall> toolCalls) {
+        for (ToolCall toolCall : toolCalls) {
+            if ("use_skill".equals(toolCall.getName())) {
+                Map<String, Object> args = parseArguments(toolCall.getArguments());
+                String skillName = (String) args.get("skill_name");
+                if (skillName != null && !skillName.isBlank()) {
+                    return skillName.trim();
+                }
+            }
+        }
+        return null;
     }
 
     // ==================== SubAgent 屏障辅助方法 ====================

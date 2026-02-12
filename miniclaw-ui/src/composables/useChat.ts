@@ -19,7 +19,9 @@ import type {
   SubagentAnnouncedPayload,
   SubagentFailedPayload,
   AttachedFile,
-  AttachedContext
+  AttachedContext,
+  SessionFile,
+  FileCreatedPayload
 } from '@/types'
 
 const sessions = ref<Session[]>([])
@@ -40,12 +42,18 @@ const subagentIndex = ref<Record<string, SubagentInfo>>({})
 // 右侧面板当前选中的 subagent
 const activeSubagentId = ref<string | null>(null)
 
+// 排除的 MCP 服务器名称集合（按会话过滤工具）
+const excludedMcpServers = ref<Set<string>>(new Set())
+
+// Session 文件列表
+const sessionFiles = ref<SessionFile[]>([])
+
 // 事件监听器清理函数
 let eventCleanups: (() => void)[] = []
 let isSetup = false
 
 const { request, onEvent } = useWebSocket()
-const { artifact, openArtifact, startStreaming, appendContent, finishStreaming } = useArtifact()
+const { artifact, openArtifact, closeArtifact, startStreaming, appendContent, finishStreaming } = useArtifact()
 
 // Computed
 const currentSession = computed(() =>
@@ -100,6 +108,16 @@ function setActiveSubagent(id: string | null) {
   activeSubagentId.value = id
 }
 
+function toggleMcpServer(name: string) {
+  const newSet = new Set(excludedMcpServers.value)
+  if (newSet.has(name)) {
+    newSet.delete(name)
+  } else {
+    newSet.add(name)
+  }
+  excludedMcpServers.value = newSet
+}
+
 // Session API
 async function loadSessions() {
   const result = await request<{ sessions: Session[] }>('session.list')
@@ -119,6 +137,9 @@ async function selectSession(sessionId: string) {
   streamBlocks.value = []
   toolCallIndex.value = {}
   subagentIndex.value = {}
+  excludedMcpServers.value = new Set()
+  sessionFiles.value = []
+  closeArtifact()
 
   // Load session messages
   await loadMessages(sessionId)
@@ -137,7 +158,9 @@ async function deleteSession(sessionId: string) {
       streamBlocks.value = []
       toolCallIndex.value = {}
       subagentIndex.value = {}
+      sessionFiles.value = []
       currentRun.value = null
+      closeArtifact()
     }
     console.log('[Chat] Deleted session:', sessionId)
   } catch (e) {
@@ -148,7 +171,20 @@ async function deleteSession(sessionId: string) {
 // Message API
 async function loadMessages(sessionId: string) {
   try {
-    const result = await request<{ messages: Message[] }>('message.list', { sessionId })
+    const result = await request<{ messages: Message[]; files?: SessionFile[] }>('message.list', { sessionId })
+
+    // 保存 session files
+    sessionFiles.value = result.files || []
+
+    // 将 files 按 runId 分组
+    const filesByRun: Record<string, SessionFile[]> = {}
+    for (const f of sessionFiles.value) {
+      if (f.runId) {
+        if (!filesByRun[f.runId]) filesByRun[f.runId] = []
+        filesByRun[f.runId].push(f)
+      }
+    }
+
     // 过滤 subagent_announce 消息，转化为带 SubagentCard 块的消息
     messages.value = result.messages.map(msg => {
       if (msg.role === 'assistant' && msg.content.startsWith('{"type":"subagent_announce"')) {
@@ -179,9 +215,28 @@ async function loadMessages(sessionId: string) {
       }
       return msg
     })
+
+    // 对每个 assistant message，如果其 runId 有文件，追加 file blocks
+    messages.value.forEach(msg => {
+      if (msg.role === 'assistant' && msg.runId && filesByRun[msg.runId]) {
+        const existingBlocks = msg.blocks || []
+        // 如果消息原本没有 blocks，需要先将 content 包装为 text block
+        // 否则 MessageItem 的 hasBlocks 分支会跳过纯文本内容的渲染
+        const baseBlocks: StreamBlock[] = existingBlocks.length === 0 && msg.content
+          ? [{ id: `text-${msg.id}`, type: 'text' as const, content: msg.content }]
+          : existingBlocks
+        const fileBlocks: StreamBlock[] = filesByRun[msg.runId].map(f => ({
+          id: `file-${f.id}`,
+          type: 'file' as const,
+          file: f
+        }))
+        msg.blocks = [...baseBlocks, ...fileBlocks]
+      }
+    })
   } catch (e) {
     console.error('Failed to load messages:', e)
     messages.value = []
+    sessionFiles.value = []
   }
 }
 
@@ -266,6 +321,11 @@ async function sendMessage(prompt: string, attachedContexts?: AttachedContext[],
   try {
     const payload: Record<string, unknown> = { sessionId, prompt: fullPrompt }
 
+    // 添加排除的 MCP 服务器
+    if (excludedMcpServers.value.size > 0) {
+      payload.excludedMcpServers = Array.from(excludedMcpServers.value)
+    }
+
     const result = await request<{ runId: string; sessionId: string; status: string }>(
       'agent.run',
       payload
@@ -312,6 +372,7 @@ function deepCopyBlocks(blocks: StreamBlock[]): StreamBlock[] {
     ...block,
     toolCall: block.toolCall ? { ...block.toolCall } : undefined,
     skillActivation: block.skillActivation ? { ...block.skillActivation } : undefined,
+    file: block.file ? { ...block.file } : undefined,
     subagent: block.subagent ? {
       ...block.subagent,
       streamBlocks: block.subagent.streamBlocks?.map(sb => ({
@@ -676,6 +737,28 @@ function setupEventListeners() {
     }
   }))
 
+  // Handle file.created - 文件创建完成，添加 file block
+  eventCleanups.push(onEvent('file.created', (event: RpcEvent) => {
+    const payload = event.payload as FileCreatedPayload
+    if (payload) {
+      const fileInfo: SessionFile = {
+        id: payload.fileId || `tmp-${Date.now()}`,
+        sessionId: currentSessionId.value || '',
+        runId: event.runId,
+        filePath: payload.path,
+        fileName: payload.fileName,
+        fileSize: payload.size,
+        createdAt: new Date().toISOString()
+      }
+      streamBlocks.value.push({
+        id: `file-${fileInfo.id}`,
+        type: 'file',
+        file: fileInfo
+      })
+      sessionFiles.value.push(fileInfo)
+    }
+  }))
+
   // Handle subagent.spawned - 创建子代理块
   eventCleanups.push(onEvent('subagent.spawned', (event: RpcEvent) => {
     const payload = event.payload as SubagentSpawnedPayload
@@ -798,11 +881,16 @@ export function useChat() {
     streamBlocks,
     isStreaming,
     subagentIndex,
+    sessionFiles,
 
     // Panel state
     activeSubagentId,
     activeSubagent,
     setActiveSubagent,
+
+    // MCP server filtering
+    excludedMcpServers,
+    toggleMcpServer,
 
     // Filtered sessions (excludes subagent child sessions)
     filteredSessions,

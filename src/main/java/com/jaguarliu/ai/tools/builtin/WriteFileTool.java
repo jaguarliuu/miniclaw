@@ -4,6 +4,7 @@ import com.jaguarliu.ai.tools.Tool;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolResult;
 import com.jaguarliu.ai.tools.ToolsProperties;
+import com.jaguarliu.ai.tools.WorkspaceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -64,7 +65,7 @@ public class WriteFileTool implements Tool {
             }
 
             try {
-                Path workspacePath = Path.of(properties.getWorkspace()).toAbsolutePath().normalize();
+                Path workspacePath = WorkspaceResolver.resolveSessionWorkspace(properties);
                 Path filePath = workspacePath.resolve(pathStr).normalize();
 
                 // 安全检查：写入只允许在 workspace 内（skill 资源目录只允许读取，不允许写入）

@@ -5,12 +5,14 @@ import { useMarkdown } from '@/composables/useMarkdown'
 import MessageItem from './MessageItem.vue'
 import ToolCallCard from './ToolCallCard.vue'
 import SubagentCard from './SubagentCard.vue'
+import FileCard from './FileCard.vue'
 
 const props = defineProps<{
   messages: Message[]
   streamBlocks: StreamBlock[]
   isStreaming: boolean
   activeSubagentId?: string | null
+  currentSessionId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -30,7 +32,7 @@ function renderTextBlock(content: string | undefined): string {
         // 检查是否有内容（用于显示 thinking 状态）
 const hasContent = computed(() => {
   return props.streamBlocks.some(block =>
-    (block.type === 'text' && block.content) || block.type === 'tool' || block.type === 'subagent'
+    (block.type === 'text' && block.content) || block.type === 'tool' || block.type === 'subagent' || block.type === 'file'
   )
 })
 
@@ -94,6 +96,7 @@ watch(
           <ToolCallCard
             v-else-if="block.type === 'tool' && block.toolCall"
             :tool-call="block.toolCall"
+            :session-id="currentSessionId ?? undefined"
             @confirm="(callId, decision) => emit('confirm', callId, decision)"
           />
 
@@ -103,6 +106,13 @@ watch(
             :subagent="block.subagent"
             :active-subagent-id="activeSubagentId"
             @select="(subRunId) => emit('select-subagent', subRunId)"
+          />
+
+          <!-- File block -->
+          <FileCard
+            v-else-if="block.type === 'file' && block.file"
+            :file="block.file"
+            :session-id="currentSessionId ?? undefined"
           />
         </template>
       </article>

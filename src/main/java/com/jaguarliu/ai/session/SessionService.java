@@ -3,6 +3,7 @@ package com.jaguarliu.ai.session;
 import com.jaguarliu.ai.storage.entity.SessionEntity;
 import com.jaguarliu.ai.storage.repository.MessageRepository;
 import com.jaguarliu.ai.storage.repository.RunRepository;
+import com.jaguarliu.ai.storage.repository.SessionFileRepository;
 import com.jaguarliu.ai.storage.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final RunRepository runRepository;
     private final MessageRepository messageRepository;
+    private final SessionFileRepository sessionFileRepository;
 
     /**
      * 创建新 Session（主会话）
@@ -171,6 +173,7 @@ public class SessionService {
         }
 
         messageRepository.deleteBySessionId(id);
+        sessionFileRepository.deleteBySessionId(id);
         runRepository.deleteBySessionId(id);
         sessionRepository.deleteById(id);
 

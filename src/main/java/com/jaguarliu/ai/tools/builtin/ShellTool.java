@@ -4,6 +4,7 @@ import com.jaguarliu.ai.tools.Tool;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolResult;
 import com.jaguarliu.ai.tools.ToolsProperties;
+import com.jaguarliu.ai.tools.WorkspaceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -85,8 +86,8 @@ public class ShellTool implements Tool {
                 // 构建进程
                 ProcessBuilder pb = buildProcess(command);
 
-                // 工作目录设为 workspace
-                Path workspacePath = Path.of(properties.getWorkspace()).toAbsolutePath().normalize();
+                // 工作目录设为 session workspace
+                Path workspacePath = WorkspaceResolver.resolveSessionWorkspace(properties);
                 pb.directory(workspacePath.toFile());
 
                 // 合并 stdout 和 stderr

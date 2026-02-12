@@ -5,6 +5,7 @@ import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolExecutionContext;
 import com.jaguarliu.ai.tools.ToolResult;
 import com.jaguarliu.ai.tools.ToolsProperties;
+import com.jaguarliu.ai.tools.WorkspaceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -232,16 +233,25 @@ public class ReadFileTool implements Tool {
      * @return 解析后的安全路径，或 null 表示拒绝访问
      */
     private Path resolvePath(String pathStr) {
-        Path workspacePath = Path.of(properties.getWorkspace()).toAbsolutePath().normalize();
+        Path globalWorkspace = WorkspaceResolver.resolveGlobalWorkspace(properties);
 
-        // 先尝试作为 workspace 内的路径解析
-        Path filePath = workspacePath.resolve(pathStr).normalize();
-        if (filePath.startsWith(workspacePath)) {
-            return filePath;
+        // 1. 尝试 session workspace
+        ToolExecutionContext ctx = ToolExecutionContext.current();
+        if (ctx != null && ctx.getSessionId() != null) {
+            Path sessionWorkspace = globalWorkspace.resolve(ctx.getSessionId()).normalize();
+            Path sessionPath = sessionWorkspace.resolve(pathStr).normalize();
+            if (sessionPath.startsWith(sessionWorkspace) && Files.exists(sessionPath)) {
+                return sessionPath;
+            }
         }
 
-        // 不在 workspace 内，检查是否为允许的额外路径（如 skill 资源目录）
-        ToolExecutionContext ctx = ToolExecutionContext.current();
+        // 2. Fallback 到全局 workspace（uploads 等）
+        Path globalPath = globalWorkspace.resolve(pathStr).normalize();
+        if (globalPath.startsWith(globalWorkspace)) {
+            return globalPath;
+        }
+
+        // 3. 检查额外允许路径（skill 资源等）
         if (ctx != null) {
             Path absolutePath = Path.of(pathStr).toAbsolutePath().normalize();
             if (ctx.isPathAllowed(absolutePath)) {

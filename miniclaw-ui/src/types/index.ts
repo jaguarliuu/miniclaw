@@ -47,17 +47,37 @@ export interface ToolCall {
 // Stream Block (流式内容块，用于交错显示文本和工具调用)
 export interface StreamBlock {
   id: string
-  type: 'text' | 'tool' | 'skill' | 'subagent'
+  type: 'text' | 'tool' | 'skill' | 'subagent' | 'file'
   content?: string      // type === 'text' 时的文本内容
   toolCall?: ToolCall   // type === 'tool' 时的工具调用
   skillActivation?: SkillActivation  // type === 'skill' 时的技能激活
   subagent?: SubagentInfo            // type === 'subagent' 时的子代理信息
+  file?: SessionFile                 // type === 'file' 时的文件信息
 }
 
 // Skill Activation (技能激活信息)
 export interface SkillActivation {
   skillName: string
   source: 'manual' | 'auto'
+}
+
+// Session File (会话生成的文件)
+export interface SessionFile {
+  id: string
+  sessionId: string
+  runId: string
+  filePath: string    // 相对路径 e.g. "report.pdf"
+  fileName: string
+  fileSize: number
+  createdAt: string
+}
+
+// File Created Event Payload
+export interface FileCreatedPayload {
+  fileId: string
+  path: string
+  fileName: string
+  size: number
 }
 
 // WebSocket Connection State
@@ -91,6 +111,7 @@ export interface RpcEventPayloadMap {
   'tool.confirm_request': ToolConfirmRequestPayload
   'step.completed': StepCompletedPayload
   'skill.activated': SkillActivatedPayload
+  'file.created': FileCreatedPayload
 
   'subagent.spawned': SubagentSpawnedPayload
   'subagent.started': SubagentStartedPayload
@@ -124,6 +145,7 @@ export type AgentEventType =
   | 'tool.result'
   | 'tool.confirm_request'
   | 'skill.activated'
+  | 'file.created'
   | 'session.renamed'
   | 'subagent.spawned'
   | 'subagent.started'

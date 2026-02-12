@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
 import { useLlmConfig } from '@/composables/useLlmConfig'
 import { useContext } from '@/composables/useContext'
+import { useMcpServers } from '@/composables/useMcpServers'
 import type { ContextType } from '@/types'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
@@ -20,6 +21,7 @@ const { checkStatus } = useLlmConfig()
 const router = useRouter()
 const { artifact } = useArtifact()
 const { contexts: attachedContexts, uploadFile, addContext, removeContext, clearContexts } = useContext()
+const { servers: mcpServers, loadServers: loadMcpServers } = useMcpServers()
 
 // Context input modal 状态
 const showContextModal = ref(false)
@@ -35,6 +37,8 @@ const {
   activeSubagentId,
   activeSubagent,
   setActiveSubagent,
+  excludedMcpServers,
+  toggleMcpServer,
   loadSessions,
   createSession,
   selectSession,
@@ -43,6 +47,11 @@ const {
   confirmToolCall,
   cancelRun
 } = useChat()
+
+// 只显示 enabled 且已连接（有 toolCount）的 MCP 服务器
+const connectedMcpServers = computed(() =>
+  mcpServers.value.filter(s => s.enabled && (s.toolCount ?? 0) > 0)
+)
 
 async function handleCreateSession() {
   const session = await createSession('New Conversation')
@@ -134,6 +143,7 @@ onMounted(() => {
       }
 
       loadSessions()
+      loadMcpServers()
     }
   }, 200)
 })
@@ -165,6 +175,7 @@ onMounted(() => {
         :stream-blocks="streamBlocks"
         :is-streaming="isStreaming"
         :active-subagent-id="activeSubagentId"
+        :current-session-id="currentSessionId"
         @confirm="handleConfirmToolCall"
         @select-subagent="handleSelectSubagent"
       />
@@ -173,11 +184,14 @@ onMounted(() => {
         :disabled="isStreaming || connectionState !== 'connected'"
         :is-running="isStreaming"
         :attached-contexts="attachedContexts"
+        :mcp-servers="connectedMcpServers"
+        :excluded-mcp-servers="excludedMcpServers"
         @send="handleSend"
         @cancel="handleCancel"
         @attach-file="handleAttachFile"
         @add-context="handleAddContext"
         @remove-context="handleRemoveContext"
+        @toggle-mcp-server="toggleMcpServer"
       />
     </main>
 

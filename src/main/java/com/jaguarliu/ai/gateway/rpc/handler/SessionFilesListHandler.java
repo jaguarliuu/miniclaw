@@ -3,9 +3,7 @@ package com.jaguarliu.ai.gateway.rpc.handler;
 import com.jaguarliu.ai.gateway.rpc.RpcHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
-import com.jaguarliu.ai.session.MessageService;
 import com.jaguarliu.ai.session.SessionFileService;
-import com.jaguarliu.ai.storage.entity.MessageEntity;
 import com.jaguarliu.ai.storage.entity.SessionFileEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,25 +11,23 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * message.list 处理器
- * 获取指定 session 的消息历史
+ * session.files.list 处理器
+ * 获取指定 session 的文件列表
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class MessageListHandler implements RpcHandler {
+public class SessionFilesListHandler implements RpcHandler {
 
-    private final MessageService messageService;
     private final SessionFileService sessionFileService;
 
     @Override
     public String getMethod() {
-        return "message.list";
+        return "session.files.list";
     }
 
     @Override
@@ -43,20 +39,11 @@ public class MessageListHandler implements RpcHandler {
         }
 
         return Mono.fromCallable(() -> {
-            List<MessageEntity> messages = messageService.getSessionHistory(sessionId);
-            List<Map<String, Object>> messageDtos = messages.stream()
-                    .map(this::toMessageDto)
-                    .toList();
-
             List<SessionFileEntity> files = sessionFileService.listBySession(sessionId);
             List<Map<String, Object>> fileDtos = files.stream()
                     .map(this::toFileDto)
                     .toList();
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("messages", messageDtos);
-            result.put("files", fileDtos);
-            return RpcResponse.success(request.getId(), result);
+            return RpcResponse.success(request.getId(), Map.of("files", fileDtos));
         }).subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -66,17 +53,6 @@ public class MessageListHandler implements RpcHandler {
             return id != null ? id.toString() : null;
         }
         return null;
-    }
-
-    private Map<String, Object> toMessageDto(MessageEntity message) {
-        return Map.of(
-                "id", message.getId(),
-                "sessionId", message.getSessionId(),
-                "runId", message.getRunId(),
-                "role", message.getRole(),
-                "content", message.getContent(),
-                "createdAt", message.getCreatedAt().toString()
-        );
     }
 
     private Map<String, Object> toFileDto(SessionFileEntity file) {

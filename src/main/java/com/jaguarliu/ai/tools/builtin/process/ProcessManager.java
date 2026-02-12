@@ -1,6 +1,7 @@
 package com.jaguarliu.ai.tools.builtin.process;
 
 import com.jaguarliu.ai.tools.ToolsProperties;
+import com.jaguarliu.ai.tools.WorkspaceResolver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -100,8 +101,8 @@ public class ProcessManager {
         // 构建进程
         ProcessBuilder pb = buildProcess(command);
 
-        // 工作目录设为 workspace
-        Path workspacePath = Path.of(properties.getWorkspace()).toAbsolutePath().normalize();
+        // 工作目录设为 session workspace
+        Path workspacePath = WorkspaceResolver.resolveSessionWorkspace(properties);
         pb.directory(workspacePath.toFile());
 
         // 合并 stdout 和 stderr
