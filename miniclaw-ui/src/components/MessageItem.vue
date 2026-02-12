@@ -97,8 +97,17 @@ const displayContexts = computed(() => {
 
       <!-- 简单消息：直接显示内容 -->
       <template v-else>
-        <!-- 用户消息附带的上下文 -->
-        <div v-if="message.role === 'user' && displayContexts.length > 0" class="user-contexts">
+        <!-- 用户消息附带的数据源和上下文 -->
+        <div v-if="message.role === 'user' && (message.dataSourceName || displayContexts.length > 0)" class="user-contexts">
+          <!-- 数据源 chip -->
+          <div v-if="message.dataSourceName" class="datasource-chip-display">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="chip-icon">
+              <path d="M2 3C2 2.44772 2.44772 2 3 2H9C9.55228 2 10 2.44772 10 3V4C10 4.55228 9.55228 5 9 5H3C2.44772 5 2 4.55228 2 4V3Z" fill="currentColor"/>
+              <path d="M2 8C2 7.44772 2.44772 7 3 7H9C9.55228 7 10 7.44772 10 8V9C10 9.55228 9.55228 10 9 10H3C2.44772 10 2 9.55228 2 9V8Z" fill="currentColor"/>
+            </svg>
+            <span class="chip-label">{{ message.dataSourceName }}</span>
+          </div>
+          <!-- 上下文 chips -->
           <ContextChip
             v-for="context in displayContexts"
             :key="context.id"
@@ -197,6 +206,28 @@ const displayContexts = computed(() => {
 
 .message.user .user-contexts {
   padding-left: 0;
+}
+
+.datasource-chip-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.datasource-chip-display .chip-icon {
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.datasource-chip-display .chip-label {
+  white-space: nowrap;
 }
 
 /* Assistant messages - full width, prominent */

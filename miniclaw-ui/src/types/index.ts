@@ -22,6 +22,8 @@ export interface Message {
   blocks?: StreamBlock[]          // 交错的内容块（用于 assistant 消息的详细显示）
   attachedFiles?: AttachedFile[]  // 用户消息附带的文件（仅前端展示用）- 向后兼容
   attachedContexts?: AttachedContext[]  // 用户消息附带的上下文（新字段）
+  dataSourceId?: string           // 用户消息选择的数据源 ID
+  dataSourceName?: string         // 数据源名称（用于显示）
 }
 
 // Run

@@ -1,5 +1,8 @@
 package com.jaguarliu.ai.runtime;
 
+import com.jaguarliu.ai.datasource.application.dto.DataSourceDTO;
+import com.jaguarliu.ai.datasource.application.service.DataSourceService;
+import com.jaguarliu.ai.datasource.domain.SchemaMetadata;
 import com.jaguarliu.ai.mcp.prompt.McpPromptProvider;
 import com.jaguarliu.ai.memory.search.MemorySearchService;
 import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
@@ -46,6 +49,7 @@ public class SystemPromptBuilder {
     private final MemorySearchService memorySearchService;
     private final Optional<McpPromptProvider> mcpPromptProvider;
     private final SoulConfigService soulConfigService;
+    private final Optional<DataSourceService> dataSourceService;
 
     @Value("${tools.workspace:./workspace}")
     private String workspace;
@@ -138,32 +142,41 @@ public class SystemPromptBuilder {
     public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
                                 MemorySearchService memorySearchService,
                                 Optional<McpPromptProvider> mcpPromptProvider,
-                                SoulConfigService soulConfigService) {
+                                SoulConfigService soulConfigService,
+                                Optional<DataSourceService> dataSourceService) {
         this.toolRegistry = toolRegistry;
         this.skillIndexBuilder = skillIndexBuilder;
         this.memorySearchService = memorySearchService;
         this.mcpPromptProvider = mcpPromptProvider;
         this.soulConfigService = soulConfigService;
+        this.dataSourceService = dataSourceService;
     }
 
     /**
      * 构建完整的系统提示
      */
     public String build(PromptMode mode) {
-        return build(mode, null, null);
+        return build(mode, null, null, null);
     }
 
     /**
      * 构建系统提示（可指定工具白名单）
      */
     public String build(PromptMode mode, Set<String> allowedTools) {
-        return build(mode, allowedTools, null);
+        return build(mode, allowedTools, null, null);
     }
 
     /**
      * 构建系统提示（可指定工具白名单和排除的 MCP 服务器）
      */
     public String build(PromptMode mode, Set<String> allowedTools, Set<String> excludedMcpServers) {
+        return build(mode, allowedTools, excludedMcpServers, null);
+    }
+
+    /**
+     * 构建系统提示（完整版本，支持所有参数）
+     */
+    public String build(PromptMode mode, Set<String> allowedTools, Set<String> excludedMcpServers, String dataSourceId) {
         if (mode == PromptMode.NONE) {
             return "You are MiniClaw, an AI coding assistant.";
         }
@@ -220,6 +233,14 @@ public class SystemPromptBuilder {
 
         // 6. Workspace
         sb.append(buildWorkspaceSection());
+
+        // 6.5. DataSource (only in FULL mode, when dataSourceId is provided)
+        if (mode == PromptMode.FULL && dataSourceId != null && !dataSourceId.isBlank()) {
+            String dataSourceSection = buildDataSourceSection(dataSourceId);
+            if (!dataSourceSection.isEmpty()) {
+                sb.append(dataSourceSection);
+            }
+        }
 
         // 7. Current Date & Time (only in FULL mode)
         if (mode == PromptMode.FULL) {
@@ -397,6 +418,80 @@ public class SystemPromptBuilder {
         sb.append(String.format("- Mode: %s\n", mode.name().toLowerCase()));
         sb.append("\n");
         return sb.toString();
+    }
+
+    /**
+     * 构建数据源段落
+     */
+    private String buildDataSourceSection(String dataSourceId) {
+        if (dataSourceService.isEmpty()) {
+            return "";
+        }
+
+        try {
+            DataSourceDTO dataSource = dataSourceService.get().getDataSource(dataSourceId);
+            if (dataSource == null) {
+                log.warn("DataSource not found: {}", dataSourceId);
+                return "";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## Active Data Source\n\n");
+            sb.append(String.format("**Name**: %s\n", dataSource.getName()));
+            sb.append(String.format("**Type**: %s\n", dataSource.getType()));
+            sb.append("\n");
+
+            // 获取 schema 信息
+            try {
+                SchemaMetadata schema = dataSourceService.get().getSchemaMetadata(dataSourceId);
+                if (schema != null) {
+                    sb.append("**Schema Information**:\n\n");
+
+                    if (schema.getTables() != null && !schema.getTables().isEmpty()) {
+                        sb.append("Available tables:\n");
+                        for (SchemaMetadata.TableMetadata table : schema.getTables()) {
+                            sb.append(String.format("- **%s**: %s\n",
+                                table.getTableName(),
+                                table.getComment() != null ? table.getComment() : ""));
+
+                            if (table.getColumns() != null && !table.getColumns().isEmpty()) {
+                                sb.append("  Columns:\n");
+                                for (SchemaMetadata.ColumnMetadata column : table.getColumns()) {
+                                    sb.append(String.format("  - `%s` (%s)%s%s\n",
+                                        column.getColumnName(),
+                                        column.getDataType(),
+                                        column.isPrimaryKey() ? " [PK]" : "",
+                                        column.getComment() != null ? " - " + column.getComment() : ""));
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch schema for dataSource: {}", dataSourceId, e);
+            }
+
+            sb.append("\n**IMPORTANT INSTRUCTIONS**:\n");
+            sb.append("- The user has selected this data source for their query\n");
+            sb.append("- **CRITICAL**: You can ONLY execute SELECT queries. INSERT, UPDATE, DELETE, DROP, and other write operations are FORBIDDEN\n");
+            sb.append("- Use the `datasource_query` tool to execute read-only SQL queries against this database\n");
+            sb.append("- **Tool parameters**: datasource_query(id=\"<dataSourceId>\", query=\"SELECT ...\")\n");
+            sb.append("  - The `id` parameter is automatically set to: " + dataSourceId + "\n");
+            sb.append("  - The `query` parameter should contain your SELECT statement\n");
+            sb.append("- Analyze the user's question and construct appropriate SELECT queries based on the schema above\n");
+            sb.append("- After retrieving data, you should:\n");
+            sb.append("  1. Summarize the findings in a clear, concise manner\n");
+            sb.append("  2. If appropriate, suggest creating visualizations (charts, graphs) to present the data\n");
+            sb.append("  3. Use the appropriate tools to generate visual representations when helpful\n");
+            sb.append("- Always validate your SQL queries against the schema before execution\n");
+            sb.append("- Handle errors gracefully and explain any issues to the user\n");
+            sb.append("- **NEVER** attempt to modify data - this is a read-only connection\n\n");
+
+            return sb.toString();
+        } catch (Exception e) {
+            log.error("Failed to build data source section for: {}", dataSourceId, e);
+            return "";
+        }
     }
 
     /**

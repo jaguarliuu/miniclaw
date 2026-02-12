@@ -277,7 +277,14 @@ function buildContextPrompt(contexts: AttachedContext[]): string {
 }
 
 // Agent API
-async function sendMessage(prompt: string, attachedContexts?: AttachedContext[], filePaths?: string[], attachedFiles?: AttachedFile[]) {
+async function sendMessage(
+  prompt: string,
+  attachedContexts?: AttachedContext[],
+  filePaths?: string[],
+  attachedFiles?: AttachedFile[],
+  dataSourceId?: string,
+  dataSourceName?: string
+) {
   if (!prompt.trim()) return
 
   let sessionId = currentSessionId.value
@@ -300,7 +307,7 @@ async function sendMessage(prompt: string, attachedContexts?: AttachedContext[],
     fullPrompt = `[Attached Files]\n${fileList}\n\n${prompt}`
   }
 
-  // Add user message to UI immediately（保存 attachedContexts 用于展示）
+  // Add user message to UI immediately（保存 attachedContexts 和 dataSourceId 用于展示）
   const userMessage: Message = {
     id: `temp-${Date.now()}`,
     sessionId,
@@ -309,7 +316,9 @@ async function sendMessage(prompt: string, attachedContexts?: AttachedContext[],
     content: prompt,
     createdAt: new Date().toISOString(),
     attachedContexts: attachedContexts && attachedContexts.length > 0 ? [...attachedContexts] : undefined,
-    attachedFiles: attachedFiles && attachedFiles.length > 0 ? [...attachedFiles] : undefined  // 向后兼容
+    attachedFiles: attachedFiles && attachedFiles.length > 0 ? [...attachedFiles] : undefined,  // 向后兼容
+    dataSourceId,
+    dataSourceName
   }
   messages.value.push(userMessage)
 
@@ -325,6 +334,11 @@ async function sendMessage(prompt: string, attachedContexts?: AttachedContext[],
     // 添加排除的 MCP 服务器
     if (excludedMcpServers.value.size > 0) {
       payload.excludedMcpServers = Array.from(excludedMcpServers.value)
+    }
+
+    // 添加数据源 ID
+    if (dataSourceId) {
+      payload.dataSourceId = dataSourceId
     }
 
     const result = await request<{ runId: string; sessionId: string; status: string }>(

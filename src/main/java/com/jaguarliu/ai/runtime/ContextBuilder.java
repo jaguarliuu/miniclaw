@@ -370,10 +370,23 @@ public class ContextBuilder {
      */
     public List<LlmRequest.Message> buildMessages(List<LlmRequest.Message> history, String userPrompt,
                                                     Set<String> excludedMcpServers) {
+        return buildMessages(history, userPrompt, excludedMcpServers, null);
+    }
+
+    /**
+     * 构建消息列表（支持排除 MCP 服务器和数据源）
+     * @param history 历史消息
+     * @param userPrompt 用户当前输入
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合
+     * @param dataSourceId 要使用的数据源 ID
+     * @return 消息列表（可变）
+     */
+    public List<LlmRequest.Message> buildMessages(List<LlmRequest.Message> history, String userPrompt,
+                                                    Set<String> excludedMcpServers, String dataSourceId) {
         List<LlmRequest.Message> messages = new ArrayList<>();
 
         // 1. System prompt - 使用结构化的完整提示
-        String systemPrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL, null, excludedMcpServers);
+        String systemPrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL, null, excludedMcpServers, dataSourceId);
         messages.add(LlmRequest.Message.system(systemPrompt));
 
         // 2. 历史消息

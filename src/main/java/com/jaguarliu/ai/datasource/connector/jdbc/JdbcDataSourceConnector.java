@@ -2,6 +2,7 @@ package com.jaguarliu.ai.datasource.connector.jdbc;
 
 import com.jaguarliu.ai.datasource.connector.AbstractDataSourceConnector;
 import com.jaguarliu.ai.datasource.connector.ConnectorException;
+import com.jaguarliu.ai.datasource.connector.SqlValidator;
 import com.jaguarliu.ai.datasource.domain.*;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -104,6 +105,18 @@ public class JdbcDataSourceConnector extends AbstractDataSourceConnector {
     public QueryResult executeQuery(String query, int maxRows, int timeoutSeconds)
             throws ConnectorException {
         ensureConnected();
+
+        // 验证 SQL 安全性（只允许 SELECT 查询）
+        try {
+            SqlValidator.validateReadOnlyQuery(query);
+        } catch (IllegalArgumentException e) {
+            log.error("SQL validation failed: {}", e.getMessage());
+            throw new ConnectorException(
+                    "Security validation failed: " + e.getMessage(),
+                    e,
+                    ConnectorException.ErrorType.SQL_SYNTAX_ERROR
+            );
+        }
 
         long startTime = System.currentTimeMillis();
         int effectiveMaxRows = getEffectiveMaxRows(maxRows);

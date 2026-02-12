@@ -24,7 +24,7 @@ const route = useRoute()
 const { artifact } = useArtifact()
 const { contexts: attachedContexts, uploadFile, addContext, removeContext, clearContexts } = useContext()
 const { servers: mcpServers, loadServers: loadMcpServers } = useMcpServers()
-const { dataSources, listDataSources } = useDataSource()
+const { dataSources, loadDataSources } = useDataSource()
 
 // Context input modal 状态
 const showContextModal = ref(false)
@@ -73,10 +73,19 @@ function handleDeleteSession(id: string) {
 }
 
 function handleSend(prompt: string, contexts: typeof attachedContexts.value) {
-  // 传递上下文信息给 sendMessage
+  // 获取选中数据源的名称
+  const dataSourceName = selectedDataSourceId.value
+    ? dataSources.value.find(ds => ds.id === selectedDataSourceId.value)?.name
+    : undefined
+
+  // 传递上下文信息和数据源 ID 给 sendMessage
   sendMessage(
     prompt,
-    contexts.length > 0 ? contexts : undefined
+    contexts.length > 0 ? contexts : undefined,
+    undefined, // filePaths (legacy)
+    undefined, // attachedFiles (legacy)
+    selectedDataSourceId.value,
+    dataSourceName
   )
   clearContexts()
 }
@@ -154,7 +163,7 @@ onMounted(() => {
 
       loadSessions()
       loadMcpServers()
-      listDataSources()
+      loadDataSources()
 
       // Handle install/uninstall action from system settings
       await handleInstallAction()

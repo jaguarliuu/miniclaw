@@ -73,6 +73,7 @@ public class AgentRunHandler implements RpcHandler {
         String sessionId = extractSessionId(request.getPayload());
         String prompt = extractPrompt(request.getPayload());
         Set<String> excludedMcpServers = extractExcludedMcpServers(request.getPayload());
+        String dataSourceId = extractDataSourceId(request.getPayload());
 
         if (prompt == null || prompt.isBlank()) {
             return Mono.just(RpcResponse.error(request.getId(), "INVALID_PARAMS", "Missing prompt"));
@@ -97,7 +98,7 @@ public class AgentRunHandler implements RpcHandler {
                 result.run.getId(),
                 result.sequence,
                 () -> {
-                    executeRun(connectionId, result.run, excludedMcpServers);
+                    executeRun(connectionId, result.run, excludedMcpServers, dataSourceId);
                     return null;
                 }
         ).subscribe();
@@ -130,7 +131,7 @@ public class AgentRunHandler implements RpcHandler {
     /**
      * 执行 run（使用 AgentRuntime 支持 ReAct 多步循环）
      */
-    private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers) {
+    private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers, String dataSourceId) {
         String runId = run.getId();
         String sessionId = run.getSessionId();
         String prompt = run.getPrompt();
@@ -152,8 +153,8 @@ public class AgentRunHandler implements RpcHandler {
                     .toList();
 
             // 4. 使用 AgentRuntime 执行多步循环
-            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt, excludedMcpServers);
-            log.debug("Context built: history={} messages", historyMessages.size());
+            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt, excludedMcpServers, dataSourceId);
+            log.debug("Context built: history={} messages, dataSourceId={}", historyMessages.size(), dataSourceId);
 
             String response = agentRuntime.executeLoop(connectionId, runId, sessionId, messages, excludedMcpServers);
 
@@ -278,6 +279,14 @@ public class AgentRunHandler implements RpcHandler {
                 }
                 return result.isEmpty() ? null : result;
             }
+        }
+        return null;
+    }
+
+    private String extractDataSourceId(Object payload) {
+        if (payload instanceof Map) {
+            Object id = ((Map<?, ?>) payload).get("dataSourceId");
+            return id != null ? id.toString() : null;
         }
         return null;
     }
