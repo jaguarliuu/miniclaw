@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.gateway.rpc.handler;
 
+import com.jaguarliu.ai.gateway.rpc.handler.memory.MemoryRebuildHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.memory.index.MemoryIndexer;

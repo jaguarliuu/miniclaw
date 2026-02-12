@@ -1,5 +1,6 @@
 package com.jaguarliu.ai.gateway.rpc.handler;
 
+import com.jaguarliu.ai.gateway.rpc.handler.skill.SkillListHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.skills.model.SkillEntry;

@@ -49,7 +49,8 @@ class SystemPromptBuilderTest {
                 skillIndexBuilder,
                 memorySearchService,
                 Optional.of(mcpPromptProvider),
-                soulConfigService
+                soulConfigService,
+                Optional.empty()
         );
         ReflectionTestUtils.setField(builder, "workspace", "./workspace");
         ReflectionTestUtils.setField(builder, "customSystemPrompt", "");

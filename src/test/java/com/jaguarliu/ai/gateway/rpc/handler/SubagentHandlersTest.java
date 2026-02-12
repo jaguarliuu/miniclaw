@@ -1,5 +1,8 @@
 package com.jaguarliu.ai.gateway.rpc.handler;
 
+import com.jaguarliu.ai.gateway.rpc.handler.subagent.SubagentListHandler;
+import com.jaguarliu.ai.gateway.rpc.handler.subagent.SubagentSendHandler;
+import com.jaguarliu.ai.gateway.rpc.handler.subagent.SubagentStopHandler;
 import com.jaguarliu.ai.gateway.rpc.model.RpcRequest;
 import com.jaguarliu.ai.gateway.rpc.model.RpcResponse;
 import com.jaguarliu.ai.storage.entity.RunEntity;
