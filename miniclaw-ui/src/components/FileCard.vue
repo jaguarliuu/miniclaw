@@ -13,7 +13,7 @@ const { openArtifact } = useArtifact()
 // 文件扩展名
 const fileExt = computed(() => {
   const parts = props.file.fileName.split('.')
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : ''
+  return parts.length > 1 ? (parts[parts.length - 1]?.toLowerCase() || '') : ''
 })
 
 // 文件图标

@@ -429,6 +429,7 @@ export interface SearchProviderEntry {
   apiKey: string      // GET 响应中为脱敏值
   enabled: boolean
   keyRequired: boolean
+  apiKeyUrl?: string  // API key获取地址
 }
 
 // Slash Command Autocomplete

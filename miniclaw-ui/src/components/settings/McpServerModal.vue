@@ -156,7 +156,7 @@ watch(config, () => {
           <div class="form-group">
             <label class="form-label">Transport Type <span class="required">*</span></label>
             <Select
-              v-model="config.transportType"
+              v-model="config.transportType!"
               :options="transportOptions"
             />
             <p class="form-help">

@@ -74,7 +74,10 @@ function handleKeyDown(e: KeyboardEvent) {
     case ' ':
       e.preventDefault()
       if (highlightedIndex.value >= 0 && highlightedIndex.value < props.options.length) {
-        selectOption(props.options[highlightedIndex.value])
+        const option = props.options[highlightedIndex.value]
+        if (option) {
+          selectOption(option)
+        }
       }
       break
   }

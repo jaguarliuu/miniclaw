@@ -49,8 +49,8 @@ async function handleSaveDomains(domains: string[]) {
         enabled: p.enabled
       })) || [],
       hitl: {
-        alwaysConfirmTools: config.value?.hitl?.alwaysConfirmTools || [],
-        dangerousKeywords: config.value?.hitl?.dangerousKeywords || []
+        alwaysConfirmTools: Array.from(config.value?.hitl?.alwaysConfirmTools || []),
+        dangerousKeywords: Array.from(config.value?.hitl?.dangerousKeywords || [])
       }
     })
     await getConfig()
@@ -70,11 +70,11 @@ async function handleSaveProviders(providers: { type: string; apiKey: string; en
   saveSuccess.value = false
   try {
     await saveConfig({
-      userDomains: config.value?.trustedDomains.user || [],
+      userDomains: Array.from(config.value?.trustedDomains.user || []),
       searchProviders: providers,
       hitl: {
-        alwaysConfirmTools: config.value?.hitl?.alwaysConfirmTools || [],
-        dangerousKeywords: config.value?.hitl?.dangerousKeywords || []
+        alwaysConfirmTools: Array.from(config.value?.hitl?.alwaysConfirmTools || []),
+        dangerousKeywords: Array.from(config.value?.hitl?.dangerousKeywords || [])
       }
     })
     await getConfig()
@@ -94,7 +94,7 @@ async function handleSaveSafety(data: { alwaysConfirmTools: string[]; dangerousK
   saveSuccess.value = false
   try {
     await saveConfig({
-      userDomains: config.value?.trustedDomains.user || [],
+      userDomains: Array.from(config.value?.trustedDomains.user || []),
       searchProviders: config.value?.searchProviders.map(p => ({
         type: p.type,
         apiKey: '',
@@ -172,8 +172,8 @@ onMounted(async () => {
     <!-- Modals -->
     <TrustedDomainsModal
       v-if="activeModal === 'domains' && config"
-      :default-domains="config.trustedDomains.defaults"
-      :user-domains="config.trustedDomains.user"
+      :default-domains="Array.from(config.trustedDomains.defaults)"
+      :user-domains="Array.from(config.trustedDomains.user)"
       @close="activeModal = null"
       @save="handleSaveDomains"
     />
@@ -186,7 +186,7 @@ onMounted(async () => {
         keyRequired: p.keyRequired,
         apiKey: p.apiKey,
         enabled: p.enabled,
-        apiKeyUrl: p.apiKeyUrl
+        apiKeyUrl: p.apiKeyUrl || ''
       }))"
       @close="activeModal = null"
       @save="handleSaveProviders"
@@ -194,8 +194,8 @@ onMounted(async () => {
 
     <CommandSafetyModal
       v-if="activeModal === 'safety' && config"
-      :always-confirm-tools="config.hitl?.alwaysConfirmTools || []"
-      :dangerous-keywords="config.hitl?.dangerousKeywords || []"
+      :always-confirm-tools="Array.from(config.hitl?.alwaysConfirmTools || [])"
+      :dangerous-keywords="Array.from(config.hitl?.dangerousKeywords || [])"
       @close="activeModal = null"
       @save="handleSaveSafety"
     />

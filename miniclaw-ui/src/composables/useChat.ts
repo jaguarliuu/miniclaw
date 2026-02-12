@@ -181,7 +181,7 @@ async function loadMessages(sessionId: string) {
     for (const f of sessionFiles.value) {
       if (f.runId) {
         if (!filesByRun[f.runId]) filesByRun[f.runId] = []
-        filesByRun[f.runId].push(f)
+        filesByRun[f.runId]?.push(f)
       }
     }
 
@@ -225,7 +225,8 @@ async function loadMessages(sessionId: string) {
         const baseBlocks: StreamBlock[] = existingBlocks.length === 0 && msg.content
           ? [{ id: `text-${msg.id}`, type: 'text' as const, content: msg.content }]
           : existingBlocks
-        const fileBlocks: StreamBlock[] = filesByRun[msg.runId].map(f => ({
+        const files = filesByRun[msg.runId]
+        const fileBlocks: StreamBlock[] = (files || []).map(f => ({
           id: `file-${f.id}`,
           type: 'file' as const,
           file: f
