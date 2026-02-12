@@ -109,6 +109,30 @@ public class SystemPromptBuilder {
         spawn a subagent without waiting for explicit instructions. Explain to the user what you've delegated.
         """;
 
+    // 自适应规划协议段落
+    private static final String PLANNING_SECTION = """
+        ## Planning Protocol (MANDATORY)
+
+        **CRITICAL RULE**: For any task that requires 2 or more tool calls, you MUST first output a plan \
+        in plain text BEFORE making any tool calls. Never jump directly into tool execution for complex tasks.
+
+        **When you receive a multi-step request, your FIRST response must be:**
+        1. A brief assessment of what's needed
+        2. A numbered list of steps you'll take (2-4 bullets)
+        3. Any clarifying questions if requirements are ambiguous
+
+        **Only AFTER outputting this plan** should you begin executing with tools.
+
+        **Skip planning for:**
+        - Simple questions (factual lookups, explanations)
+        - Single-tool operations (read one file, run one command)
+        - Follow-up actions in an ongoing task where the plan is already established
+
+        **Key Principle**: Prefer asking one good clarifying question over making wrong assumptions \
+        that lead to wasted effort. But don't over-ask — if the intent is reasonably clear, proceed \
+        with your plan and start executing.
+        """;
+
     public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
                                 MemorySearchService memorySearchService,
                                 Optional<McpPromptProvider> mcpPromptProvider) {
@@ -122,13 +146,20 @@ public class SystemPromptBuilder {
      * 构建完整的系统提示
      */
     public String build(PromptMode mode) {
-        return build(mode, null);
+        return build(mode, null, null);
     }
 
     /**
      * 构建系统提示（可指定工具白名单）
      */
     public String build(PromptMode mode, Set<String> allowedTools) {
+        return build(mode, allowedTools, null);
+    }
+
+    /**
+     * 构建系统提示（可指定工具白名单和排除的 MCP 服务器）
+     */
+    public String build(PromptMode mode, Set<String> allowedTools, Set<String> excludedMcpServers) {
         if (mode == PromptMode.NONE) {
             return "You are MiniClaw, an AI coding assistant.";
         }
@@ -139,12 +170,20 @@ public class SystemPromptBuilder {
         sb.append(IDENTITY_SECTION.trim());
         sb.append("\n\n");
 
-        // 2. Tooling
-        sb.append(buildToolingSection(allowedTools));
+        // 2. Tooling (SKILL 模式跳过——工具定义已通过 tools 参数传递给 LLM)
+        if (mode != PromptMode.SKILL) {
+            sb.append(buildToolingSection(allowedTools, excludedMcpServers));
+        }
 
         // 3. Safety (only in FULL mode)
         if (mode == PromptMode.FULL) {
             sb.append(SAFETY_SECTION.trim());
+            sb.append("\n\n");
+        }
+
+        // 3.3 Planning Protocol (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            sb.append(PLANNING_SECTION.trim());
             sb.append("\n\n");
         }
 
@@ -181,7 +220,7 @@ public class SystemPromptBuilder {
         // 9. MCP Server Capabilities (only in FULL mode)
         if (mode == PromptMode.FULL) {
             mcpPromptProvider.ifPresent(provider -> {
-                String mcpAdditions = provider.getSystemPromptAdditions();
+                String mcpAdditions = provider.getSystemPromptAdditions(excludedMcpServers);
                 if (!mcpAdditions.isEmpty()) {
                     sb.append(mcpAdditions.trim());
                     sb.append("\n\n");
@@ -214,8 +253,8 @@ public class SystemPromptBuilder {
     /**
      * 构建工具段落
      */
-    private String buildToolingSection(Set<String> allowedTools) {
-        List<ToolDefinition> tools = toolRegistry.listDefinitions();
+    private String buildToolingSection(Set<String> allowedTools, Set<String> excludedMcpServers) {
+        List<ToolDefinition> tools = toolRegistry.listDefinitions(excludedMcpServers);
 
         if (tools.isEmpty()) {
             return "";
@@ -254,18 +293,15 @@ public class SystemPromptBuilder {
 
         StringBuilder sb = new StringBuilder();
         sb.append("## Skills\n\n");
-        sb.append("Skills are specialized instruction sets that enhance your capabilities for specific tasks.\n\n");
+        sb.append("Skills are specialized instruction sets that dramatically improve output quality for specific tasks.\n\n");
         sb.append("**How to use skills:**\n");
         sb.append("1. **Manual trigger**: User types `/skill-name arguments` (e.g., `/frontend-design create a login page`)\n");
-        sb.append("2. **Auto trigger**: When you identify a task that matches a skill, respond with `[USE_SKILL:skill-name]`\n\n");
-        sb.append("**When to auto-trigger a skill:**\n");
-        sb.append("- The user's request clearly matches a skill's purpose\n");
-        sb.append("- The skill would significantly improve the quality of your response\n");
-        sb.append("- You need specialized knowledge or workflow guidance\n\n");
-        sb.append("**Important**: When you respond with `[USE_SKILL:xxx]`, the system will:\n");
-        sb.append("1. Load the full skill instructions\n");
-        sb.append("2. Re-invoke you with the skill context\n");
-        sb.append("3. You will then follow the skill's detailed instructions\n\n");
+        sb.append("2. **Auto trigger**: Call the `use_skill` tool when a task matches an available skill\n\n");
+        sb.append("**CRITICAL — Auto-activation rules:**\n");
+        sb.append("- **BEFORE** writing code, creating files, or generating content for a task, check if any skill matches\n");
+        sb.append("- If a skill matches, call `use_skill(skill_name=\"...\")` FIRST to load expert instructions\n");
+        sb.append("- Skills provide specialized workflows and quality standards — always prefer using a matching skill\n");
+        sb.append("- Do NOT skip skill activation to save a step — the quality improvement is significant\n\n");
 
         // 附加技能索引（只有 XML 部分，说明已在上面）
         sb.append(skillIndexBuilder.buildCompactIndex());
@@ -344,6 +380,8 @@ public class SystemPromptBuilder {
         FULL,
         /** 精简提示，用于子代理，省略 Skills、Safety、DateTime */
         MINIMAL,
+        /** 技能模式，仅 Identity + Workspace + Runtime，不含工具列表（工具通过 tools 参数传递） */
+        SKILL,
         /** 仅身份行 */
         NONE
     }

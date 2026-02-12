@@ -45,6 +45,11 @@ public class McpResourceTool implements Tool {
     }
 
     @Override
+    public String getMcpServerName() {
+        return mcpClient.getName();
+    }
+
+    @Override
     public Mono<ToolResult> execute(Map<String, Object> arguments) {
         String uri = (String) arguments.get("uri");
 

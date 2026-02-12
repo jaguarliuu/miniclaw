@@ -50,15 +50,28 @@ public class McpTransportFactory {
             throw new IllegalArgumentException("STDIO transport: command is required");
         }
 
-        log.info("Creating STDIO transport for command: {} with args: {}",
-                config.getCommand(), config.getArgs());
+        String command = config.getCommand();
+        List<String> args = config.getArgs() != null ? config.getArgs() : List.of();
 
-        // 使用 Builder 创建 ServerParameters - builder() 需要 command 参数
-        ServerParameters.Builder builder = ServerParameters.builder(config.getCommand());
+        // Windows 兼容：Java ProcessBuilder 无法直接执行 .cmd/.bat 脚本（如 npx.cmd, node.cmd）
+        // 需要通过 cmd.exe /c 包装来让 Windows 解析 PATHEXT 并找到对应的 .cmd 文件
+        boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        if (isWindows && !command.toLowerCase().endsWith(".exe")) {
+            List<String> wrappedArgs = new java.util.ArrayList<>();
+            wrappedArgs.add("/c");
+            wrappedArgs.add(command);
+            wrappedArgs.addAll(args);
+            command = "cmd.exe";
+            args = wrappedArgs;
+            log.info("Windows detected: wrapping STDIO command as cmd.exe /c {} {}", config.getCommand(), config.getArgs());
+        }
 
-        // 添加参数
-        if (config.getArgs() != null && !config.getArgs().isEmpty()) {
-            builder.args(config.getArgs());
+        log.info("Creating STDIO transport for command: {} with args: {}", command, args);
+
+        ServerParameters.Builder builder = ServerParameters.builder(command);
+
+        if (!args.isEmpty()) {
+            builder.args(args);
         }
 
         // 设置环境变量

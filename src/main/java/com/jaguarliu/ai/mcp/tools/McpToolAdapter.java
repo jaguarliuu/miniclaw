@@ -95,6 +95,11 @@ public class McpToolAdapter implements Tool {
     }
 
     @Override
+    public String getMcpServerName() {
+        return mcpClient.getName();
+    }
+
+    @Override
     public Mono<ToolResult> execute(Map<String, Object> arguments) {
         log.info("Executing MCP tool: {} with arguments: {}", mcpTool.name(), arguments);
 

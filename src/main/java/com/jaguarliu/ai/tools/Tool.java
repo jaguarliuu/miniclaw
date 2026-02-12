@@ -36,4 +36,12 @@ public interface Tool {
     default boolean requiresHitl() {
         return getDefinition().isHitl();
     }
+
+    /**
+     * 获取此工具所属的 MCP 服务器名称
+     * 内置工具返回 null，MCP 工具返回服务器名称
+     */
+    default String getMcpServerName() {
+        return null;
+    }
 }

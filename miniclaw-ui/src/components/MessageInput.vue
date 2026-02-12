@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import type { SlashCommandItem, AttachedContext, ContextType } from '@/types'
+import type { McpServer } from '@/composables/useMcpServers'
 import { useSlashCommands } from '@/composables/useSlashCommands'
 import ContextChip from '@/components/ContextChip.vue'
 import ContextTypeMenu from '@/components/ContextTypeMenu.vue'
+import McpServerFilter from '@/components/McpServerFilter.vue'
 
 const props = defineProps<{
   disabled: boolean
   isRunning?: boolean
   attachedContexts?: AttachedContext[]
+  mcpServers?: McpServer[]
+  excludedMcpServers?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -17,6 +21,7 @@ const emit = defineEmits<{
   'add-context': [type: ContextType]
   'attach-file': [file: File]
   'remove-context': [contextId: string]
+  'toggle-mcp-server': [serverName: string]
 }>()
 
 const input = ref('')
@@ -34,6 +39,18 @@ const menuRef = ref<HTMLElement | null>(null)
 // Context type menu
 const showContextMenu = ref(false)
 const contextMenuRef = ref<InstanceType<typeof ContextTypeMenu> | null>(null)
+
+// MCP server filter
+const showMcpFilter = ref(false)
+
+// MCP 状态标签
+const mcpStatusLabel = computed(() => {
+  const servers = props.mcpServers ?? []
+  if (servers.length === 0) return null
+  const excluded = props.excludedMcpServers?.size ?? 0
+  const active = servers.length - excluded
+  return `MCP: ${active}/${servers.length}`
+})
 
 // 是否有上下文正在上传
 const hasUploading = computed(() => props.attachedContexts?.some(c => c.uploading) ?? false)
@@ -178,7 +195,7 @@ function handleInput(e: Event) {
   showSlashMenu.value = false
 }
 
-// 点击外部关闭上下文菜单
+// 点击外部关闭上下文菜单和 MCP 过滤器
 function handleClickOutside(e: MouseEvent) {
   if (showContextMenu.value) {
     const target = e.target as HTMLElement
@@ -186,6 +203,14 @@ function handleClickOutside(e: MouseEvent) {
     const btnEl = document.querySelector('.attach-btn')
     if (menuEl && !menuEl.contains(target) && btnEl && !btnEl.contains(target)) {
       showContextMenu.value = false
+    }
+  }
+  if (showMcpFilter.value) {
+    const target = e.target as HTMLElement
+    const filterEl = document.querySelector('.mcp-filter')
+    const mcpBtn = document.querySelector('.mcp-status-btn')
+    if (filterEl && !filterEl.contains(target) && mcpBtn && !mcpBtn.contains(target)) {
+      showMcpFilter.value = false
     }
   }
 }
@@ -219,6 +244,14 @@ onMounted(() => {
         v-if="showContextMenu"
         ref="contextMenuRef"
         @select="handleContextTypeSelect"
+      />
+
+      <!-- MCP server filter -->
+      <McpServerFilter
+        v-if="showMcpFilter"
+        :servers="mcpServers ?? []"
+        :excluded-servers="excludedMcpServers ?? new Set()"
+        @toggle="emit('toggle-mcp-server', $event)"
       />
 
       <!-- Context attachment chips -->
@@ -297,6 +330,14 @@ onMounted(() => {
         <span>Enter to send</span>
         <span class="separator">·</span>
         <span>Shift+Enter for new line</span>
+        <template v-if="mcpStatusLabel">
+          <span class="separator">·</span>
+          <button
+            class="mcp-status-btn"
+            :class="{ active: showMcpFilter, 'has-excluded': (excludedMcpServers?.size ?? 0) > 0 }"
+            @click="showMcpFilter = !showMcpFilter"
+          >{{ mcpStatusLabel }}</button>
+        </template>
       </template>
     </div>
   </div>
@@ -534,5 +575,28 @@ textarea:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mcp-status-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-400);
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+.mcp-status-btn:hover,
+.mcp-status-btn.active {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.mcp-status-btn.has-excluded {
+  color: var(--color-gray-500);
+  font-weight: 500;
 }
 </style>

@@ -179,9 +179,9 @@ public class ContextBuilder {
 
         String compiledBody = templateEngine.render(skill.getBody(), context);
 
-        // 获取基础 system prompt（带工具限制）
+        // 获取基础 system prompt（SKILL 模式：仅 Identity + Workspace + Runtime，不含工具列表）
         Set<String> allowedTools = skill.getAllowedTools();
-        String basePrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.MINIMAL, allowedTools);
+        String basePrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.SKILL, allowedTools);
 
         // 构建 system prompt
         StringBuilder systemPrompt = new StringBuilder();
@@ -192,21 +192,12 @@ public class ContextBuilder {
         systemPrompt.append("## MANDATORY SKILL EXECUTION\n\n");
         systemPrompt.append("A skill has been activated for this task. You MUST:\n");
         systemPrompt.append("1. **Follow the skill instructions below step by step**\n");
-        systemPrompt.append("2. **Use the available tools** to accomplish the task (read files, write files, execute commands)\n");
-        systemPrompt.append("3. **Read any referenced files** mentioned in the skill before proceeding\n");
-        systemPrompt.append("4. **Do NOT just describe** what you would do - actually DO it using tools\n");
-        systemPrompt.append("5. **Complete the entire workflow** described in the skill\n\n");
+        systemPrompt.append("2. **Use the available tools** to accomplish the task (write files, execute commands)\n");
+        systemPrompt.append("3. **Do NOT just describe** what you would do - actually DO it using tools\n");
+        systemPrompt.append("4. **Complete the entire workflow** described in the skill\n\n");
 
         systemPrompt.append("---\n\n");
         systemPrompt.append("## Active Skill: ").append(skill.getName()).append("\n\n");
-
-        // 添加技能资源目录信息
-        if (skill.getBasePath() != null) {
-            systemPrompt.append("**Skill Resources Directory**: `").append(skill.getBasePath().toAbsolutePath()).append("`\n\n");
-            systemPrompt.append("This skill has resource files (templates, scripts, etc.) in the above directory. ");
-            systemPrompt.append("When the instructions reference files like `html2pptx.md`, `templates/`, or `scripts/`, ");
-            systemPrompt.append("read them from this directory.\n\n");
-        }
 
         systemPrompt.append(compiledBody);
 
@@ -321,16 +312,68 @@ public class ContextBuilder {
     }
 
     /**
+     * 通过 skill 名称直接激活 skill（use_skill 工具调用路径）
+     *
+     * @param skillName     要激活的 skill 名称
+     * @param originalInput 原始用户输入（作为 $ARGUMENTS）
+     * @param history       历史消息
+     * @param enableTools   是否启用工具
+     * @return 如果激活成功返回新请求，否则返回 empty
+     */
+    public Optional<SkillAwareRequest> handleSkillActivationByName(
+            String skillName,
+            String originalInput,
+            List<LlmRequest.Message> history,
+            boolean enableTools) {
+
+        if (skillName == null || skillName.isBlank()) {
+            return Optional.empty();
+        }
+
+        if (!skillRegistry.isAvailable(skillName)) {
+            log.warn("Skill activation by name failed: {} not available", skillName);
+            return Optional.empty();
+        }
+
+        Optional<LoadedSkill> loaded = skillRegistry.activate(skillName);
+        if (loaded.isEmpty()) {
+            return Optional.empty();
+        }
+
+        log.info("Skill activation via use_skill tool: {}", skillName);
+
+        return Optional.of(buildWithActiveSkill(
+                loaded.get(),
+                originalInput,  // 原始输入作为参数
+                history,
+                originalInput,
+                enableTools
+        ));
+    }
+
+    /**
      * 构建消息列表（不包含 LlmRequest 包装，供 AgentRuntime 使用）
      * @param history 历史消息
      * @param userPrompt 用户当前输入
      * @return 消息列表（可变）
      */
     public List<LlmRequest.Message> buildMessages(List<LlmRequest.Message> history, String userPrompt) {
+        return buildMessages(history, userPrompt, null);
+    }
+
+    /**
+     * 构建消息列表（支持排除 MCP 服务器）
+     * @param history 历史消息
+     * @param userPrompt 用户当前输入
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合
+     * @return 消息列表（可变）
+     */
+    public List<LlmRequest.Message> buildMessages(List<LlmRequest.Message> history, String userPrompt,
+                                                    Set<String> excludedMcpServers) {
         List<LlmRequest.Message> messages = new ArrayList<>();
 
         // 1. System prompt - 使用结构化的完整提示
-        String systemPrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL);
+        String systemPrompt = systemPromptBuilder.build(SystemPromptBuilder.PromptMode.FULL, null, excludedMcpServers);
         messages.add(LlmRequest.Message.system(systemPrompt));
 
         // 2. 历史消息

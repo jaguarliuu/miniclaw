@@ -28,6 +28,12 @@ public class ManagedMcpClient {
     private final AtomicBoolean connected = new AtomicBoolean(false);
 
     /**
+     * 服务端能力（initialize 后可用）
+     */
+    @Getter
+    private McpSchema.ServerCapabilities serverCapabilities;
+
+    /**
      * 构造函数（用于单元测试）
      */
     public ManagedMcpClient(
@@ -96,7 +102,16 @@ public class ManagedMcpClient {
 
         log.info("Initializing MCP client: {}", name);
         try {
-            client.initialize();
+            var initResult = client.initialize();
+            // 缓存 server capabilities 供后续能力检查使用（避免对不支持的能力发起 RPC 调用）
+            if (initResult != null && initResult.capabilities() != null) {
+                this.serverCapabilities = initResult.capabilities();
+                log.info("Server '{}' capabilities: prompts={}, resources={}, tools={}",
+                        name,
+                        serverCapabilities.prompts() != null,
+                        serverCapabilities.resources() != null,
+                        serverCapabilities.tools() != null);
+            }
             markConnected();
             log.info("MCP client initialized successfully: {}", name);
         } catch (Exception e) {

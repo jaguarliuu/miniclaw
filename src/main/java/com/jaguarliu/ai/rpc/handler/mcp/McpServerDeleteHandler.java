@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
 
@@ -36,24 +37,26 @@ public class McpServerDeleteHandler implements RpcHandler {
     public Mono<RpcResponse> handle(String connectionId, RpcRequest request) {
         log.info("Deleting MCP server");
 
-        try {
+        return Mono.fromCallable(() -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = (Map<String, Object>) request.getPayload();
 
             // 获取 ID
             Long id = ((Number) payload.get("id")).longValue();
 
-            // 删除服务器
-            mcpServerService.deleteServer(id);
+            try {
+                // 删除服务器（包含阻塞的 MCP 断开连接操作）
+                mcpServerService.deleteServer(id);
 
-            return Mono.just(RpcResponse.success(request.getId(), Map.of(
-                    "success", true,
-                    "message", "MCP server deleted successfully"
-            )));
-
-        } catch (Exception e) {
-            log.error("Failed to delete MCP server", e);
-            return Mono.just(RpcResponse.error(request.getId(), "MCP_DELETE_FAILED", "Failed to delete MCP server: " + e.getMessage()));
-        }
+                return RpcResponse.success(request.getId(), Map.of(
+                        "success", true,
+                        "message", "MCP server deleted successfully"
+                ));
+            } catch (Exception e) {
+                log.error("Failed to delete MCP server", e);
+                return RpcResponse.error(request.getId(), "MCP_DELETE_FAILED",
+                        "Failed to delete MCP server: " + e.getMessage());
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }

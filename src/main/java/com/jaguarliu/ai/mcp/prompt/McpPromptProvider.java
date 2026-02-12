@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * MCP Prompt Provider
@@ -26,6 +27,16 @@ public class McpPromptProvider {
      * @return Combined system prompt additions
      */
     public String getSystemPromptAdditions() {
+        return getSystemPromptAdditions(null);
+    }
+
+    /**
+     * Get system prompt additions from MCP servers (with optional exclusion)
+     *
+     * @param excludedServers MCP server names to exclude (null means no exclusion)
+     * @return Combined system prompt additions
+     */
+    public String getSystemPromptAdditions(Set<String> excludedServers) {
         List<ManagedMcpClient> clients = mcpClientManager.getAllClients();
 
         if (clients.isEmpty()) {
@@ -37,6 +48,11 @@ public class McpPromptProvider {
 
         for (ManagedMcpClient client : clients) {
             if (!client.isConnected()) {
+                continue;
+            }
+
+            // Skip excluded servers
+            if (excludedServers != null && excludedServers.contains(client.getName())) {
                 continue;
             }
 
@@ -64,6 +80,13 @@ public class McpPromptProvider {
      */
     private String getPromptsFromServer(ManagedMcpClient client) {
         try {
+            // 检查 server 是否声明了 prompts 能力
+            // 如果 server 不支持 prompts，直接跳过避免 SDK 层报 ERROR
+            McpSchema.ServerCapabilities capabilities = client.getServerCapabilities();
+            if (capabilities == null || capabilities.prompts() == null) {
+                return "";
+            }
+
             McpSchema.ListPromptsResult listPromptsResult = client.getClient().listPrompts();
 
             if (listPromptsResult.prompts() == null || listPromptsResult.prompts().isEmpty()) {

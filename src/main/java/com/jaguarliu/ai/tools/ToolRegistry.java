@@ -107,6 +107,77 @@ public class ToolRegistry implements SmartInitializingSingleton {
     }
 
     /**
+     * 转换为 OpenAI Function Calling 格式（排除指定 MCP 服务器）
+     *
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合
+     * @return 过滤后的工具列表
+     */
+    public List<Map<String, Object>> toOpenAiToolsExcludingServers(Set<String> excludedMcpServers) {
+        if (excludedMcpServers == null || excludedMcpServers.isEmpty()) {
+            return toOpenAiTools();
+        }
+        return registry.values().stream()
+                .filter(tool -> {
+                    String serverName = tool.getMcpServerName();
+                    return serverName == null || !excludedMcpServers.contains(serverName);
+                })
+                .map(tool -> tool.getDefinition().toOpenAiFormat())
+                .toList();
+    }
+
+    /**
+     * 转换为 OpenAI Function Calling 格式（组合过滤：skill 白名单 + MCP 排除）
+     *
+     * @param allowedTools       允许的工具名称集合（null 表示不限制）
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合（null 表示不排除）
+     * @return 过滤后的工具列表
+     */
+    public List<Map<String, Object>> toOpenAiTools(Set<String> allowedTools, Set<String> excludedMcpServers) {
+        if ((allowedTools == null || allowedTools.isEmpty())
+                && (excludedMcpServers == null || excludedMcpServers.isEmpty())) {
+            return toOpenAiTools();
+        }
+        return registry.values().stream()
+                .filter(tool -> {
+                    // skill 白名单过滤
+                    if (allowedTools != null && !allowedTools.isEmpty()
+                            && !allowedTools.contains(tool.getName())) {
+                        return false;
+                    }
+                    // MCP 服务器排除过滤
+                    if (excludedMcpServers != null && !excludedMcpServers.isEmpty()) {
+                        String serverName = tool.getMcpServerName();
+                        if (serverName != null && excludedMcpServers.contains(serverName)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .map(tool -> tool.getDefinition().toOpenAiFormat())
+                .toList();
+    }
+
+    /**
+     * 列出所有工具定义（排除指定 MCP 服务器）
+     * 供 SystemPromptBuilder 使用
+     *
+     * @param excludedMcpServers 要排除的 MCP 服务器名称集合
+     * @return 过滤后的工具定义列表
+     */
+    public List<ToolDefinition> listDefinitions(Set<String> excludedMcpServers) {
+        if (excludedMcpServers == null || excludedMcpServers.isEmpty()) {
+            return listDefinitions();
+        }
+        return registry.values().stream()
+                .filter(tool -> {
+                    String serverName = tool.getMcpServerName();
+                    return serverName == null || !excludedMcpServers.contains(serverName);
+                })
+                .map(Tool::getDefinition)
+                .toList();
+    }
+
+    /**
      * 检查工具是否存在
      */
     public boolean exists(String name) {

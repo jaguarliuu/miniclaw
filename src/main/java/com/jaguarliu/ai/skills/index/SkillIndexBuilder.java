@@ -91,11 +91,11 @@ public class SkillIndexBuilder {
         sb.append("## Available Skills\n\n");
         sb.append("The following skills are available. To use a skill:\n");
         sb.append("- Manual: User types `/skill-name arguments`\n");
-        sb.append("- Auto: Respond with `[USE_SKILL:skill-name]` when appropriate\n\n");
+        sb.append("- Auto: Call `use_skill(skill_name=\"...\")` tool when a task matches a skill\n\n");
         sb.append("<skills>\n");
         sb.append(skillsXml);
         sb.append("</skills>\n\n");
-        sb.append("When you use `[USE_SKILL:xxx]`, the system will load the full skill instructions.\n");
+        sb.append("Call `use_skill` BEFORE writing code or creating files to load expert instructions.\n");
 
         log.debug("Built skill index: {} skills, ~{} tokens", includedCount, usedTokens);
 

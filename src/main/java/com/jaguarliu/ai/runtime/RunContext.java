@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 
 /**
  * ReAct 循环运行上下文
@@ -109,6 +110,12 @@ public class RunContext {
      */
     @Setter
     private Path skillBasePath;
+
+    /**
+     * 排除的 MCP 服务器名称集合（按会话过滤）
+     */
+    @Setter
+    private Set<String> excludedMcpServers;
 
     /**
      * 检查是否已被取消

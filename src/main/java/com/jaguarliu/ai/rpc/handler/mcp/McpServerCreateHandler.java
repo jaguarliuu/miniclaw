@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ public class McpServerCreateHandler implements RpcHandler {
     public Mono<RpcResponse> handle(String connectionId, RpcRequest request) {
         log.info("Creating new MCP server");
 
-        try {
+        return Mono.fromCallable(() -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = (Map<String, Object>) request.getPayload();
 
@@ -79,20 +80,22 @@ public class McpServerCreateHandler implements RpcHandler {
             config.setHitlTools((List<String>) payload.getOrDefault("hitlTools", List.of()));
             config.setRequestTimeoutSeconds((Integer) payload.getOrDefault("requestTimeoutSeconds", 30));
 
-            // 创建服务器
-            var entity = mcpServerService.createServer(config);
+            try {
+                // 创建服务器（包含阻塞的 MCP 连接初始化）
+                var entity = mcpServerService.createServer(config);
 
-            return Mono.just(RpcResponse.success(request.getId(), Map.of(
-                    "server", Map.of(
-                            "id", entity.getId(),
-                            "name", entity.getName(),
-                            "enabled", entity.getEnabled()
-                    )
-            )));
-
-        } catch (Exception e) {
-            log.error("Failed to create MCP server", e);
-            return Mono.just(RpcResponse.error(request.getId(), "MCP_CREATE_FAILED", "Failed to create MCP server: " + e.getMessage()));
-        }
+                return RpcResponse.success(request.getId(), Map.of(
+                        "server", Map.of(
+                                "id", entity.getId(),
+                                "name", entity.getName(),
+                                "enabled", entity.getEnabled()
+                        )
+                ));
+            } catch (Exception e) {
+                log.error("Failed to create MCP server", e);
+                return RpcResponse.error(request.getId(), "MCP_CREATE_FAILED",
+                        "Failed to create MCP server: " + e.getMessage());
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }

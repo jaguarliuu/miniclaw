@@ -27,6 +27,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -71,6 +72,7 @@ public class AgentRunHandler implements RpcHandler {
     public Mono<RpcResponse> handle(String connectionId, RpcRequest request) {
         String sessionId = extractSessionId(request.getPayload());
         String prompt = extractPrompt(request.getPayload());
+        Set<String> excludedMcpServers = extractExcludedMcpServers(request.getPayload());
 
         if (prompt == null || prompt.isBlank()) {
             return Mono.just(RpcResponse.error(request.getId(), "INVALID_PARAMS", "Missing prompt"));
@@ -95,7 +97,7 @@ public class AgentRunHandler implements RpcHandler {
                 result.run.getId(),
                 result.sequence,
                 () -> {
-                    executeRun(connectionId, result.run);
+                    executeRun(connectionId, result.run, excludedMcpServers);
                     return null;
                 }
         ).subscribe();
@@ -128,7 +130,7 @@ public class AgentRunHandler implements RpcHandler {
     /**
      * 执行 run（使用 AgentRuntime 支持 ReAct 多步循环）
      */
-    private void executeRun(String connectionId, RunEntity run) {
+    private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers) {
         String runId = run.getId();
         String sessionId = run.getSessionId();
         String prompt = run.getPrompt();
@@ -150,10 +152,10 @@ public class AgentRunHandler implements RpcHandler {
                     .toList();
 
             // 4. 使用 AgentRuntime 执行多步循环
-            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt);
+            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt, excludedMcpServers);
             log.debug("Context built: history={} messages", historyMessages.size());
 
-            String response = agentRuntime.executeLoop(connectionId, runId, sessionId, messages);
+            String response = agentRuntime.executeLoop(connectionId, runId, sessionId, messages, excludedMcpServers);
 
             // 5. 保存助手消息
             messageService.saveAssistantMessage(sessionId, runId, response);
@@ -259,6 +261,23 @@ public class AgentRunHandler implements RpcHandler {
         if (payload instanceof Map) {
             Object prompt = ((Map<?, ?>) payload).get("prompt");
             return prompt != null ? prompt.toString() : null;
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> extractExcludedMcpServers(Object payload) {
+        if (payload instanceof Map) {
+            Object excluded = ((Map<?, ?>) payload).get("excludedMcpServers");
+            if (excluded instanceof List<?> list) {
+                Set<String> result = new java.util.HashSet<>();
+                for (Object item : list) {
+                    if (item != null) {
+                        result.add(item.toString());
+                    }
+                }
+                return result.isEmpty() ? null : result;
+            }
         }
         return null;
     }
