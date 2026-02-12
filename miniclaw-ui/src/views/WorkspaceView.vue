@@ -6,6 +6,7 @@ import { useChat } from '@/composables/useChat'
 import { useLlmConfig } from '@/composables/useLlmConfig'
 import { useContext } from '@/composables/useContext'
 import { useMcpServers } from '@/composables/useMcpServers'
+import { useDataSource } from '@/composables/useDataSource'
 import type { ContextType } from '@/types'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import SessionSidebar from '@/components/SessionSidebar.vue'
@@ -23,10 +24,14 @@ const route = useRoute()
 const { artifact } = useArtifact()
 const { contexts: attachedContexts, uploadFile, addContext, removeContext, clearContexts } = useContext()
 const { servers: mcpServers, loadServers: loadMcpServers } = useMcpServers()
+const { dataSources, listDataSources } = useDataSource()
 
 // Context input modal 状态
 const showContextModal = ref(false)
 const currentContextType = ref<ContextType>('folder')
+
+// 选中的数据源 ID
+const selectedDataSourceId = ref<string | undefined>(undefined)
 
 const {
   currentSession,
@@ -130,6 +135,10 @@ function handleSelectSubagent(subRunId: string) {
   }
 }
 
+function handleSelectDataSource(dataSourceId: string | undefined) {
+  selectedDataSourceId.value = dataSourceId
+}
+
 onMounted(() => {
   // Wait for connection (managed by App.vue), then check LLM config and load sessions
   const checkConnection = setInterval(async () => {
@@ -145,6 +154,7 @@ onMounted(() => {
 
       loadSessions()
       loadMcpServers()
+      listDataSources()
 
       // Handle install/uninstall action from system settings
       await handleInstallAction()
@@ -218,12 +228,15 @@ async function handleInstallAction() {
         :attached-contexts="attachedContexts"
         :mcp-servers="connectedMcpServers"
         :excluded-mcp-servers="excludedMcpServers"
+        :data-sources="dataSources"
+        :selected-data-source-id="selectedDataSourceId"
         @send="handleSend"
         @cancel="handleCancel"
         @attach-file="handleAttachFile"
         @add-context="handleAddContext"
         @remove-context="handleRemoveContext"
         @toggle-mcp-server="toggleMcpServer"
+        @select-datasource="handleSelectDataSource"
       />
     </main>
 

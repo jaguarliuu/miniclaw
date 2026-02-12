@@ -14,6 +14,7 @@ const sections = [
   { id: 'soul', label: '/soul' },
   { id: 'system', label: '/system' },
   { id: 'nodes', label: '/nodes' },
+  { id: 'datasources', label: '/datasources' },
   { id: 'channels', label: '/channels' },
   { id: 'audit', label: '/audit' },
   { id: 'tasks', label: '/tasks' }

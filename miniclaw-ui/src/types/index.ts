@@ -471,3 +471,128 @@ export interface AttachedContext {
 
 /** 向后兼容：AttachedFile 类型别名 */
 export type AttachedFile = AttachedContext
+
+// ==================== DataSource Types ====================
+
+/** 数据源类型 */
+export type DataSourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE' | 'GAUSS' | 'CSV' | 'XLSX'
+
+/** 数据源状态 */
+export type DataSourceStatus = 'ACTIVE' | 'INACTIVE' | 'ERROR' | 'DISABLED'
+
+/** 连接配置基类 */
+export interface ConnectionConfig {
+  type: 'jdbc' | 'file'
+}
+
+/** JDBC 连接配置 */
+export interface JdbcConnectionConfig extends ConnectionConfig {
+  type: 'jdbc'
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+  properties?: Record<string, string>
+}
+
+/** 文件连接配置 */
+export interface FileConnectionConfig extends ConnectionConfig {
+  type: 'file'
+  filePath: string
+  encoding?: string
+  delimiter?: string
+  hasHeader?: boolean
+}
+
+/** 安全配置 */
+export interface SecurityConfig {
+  maxConnections?: number
+  minIdle?: number
+  connectionTimeout?: number
+  idleTimeout?: number
+  maxLifetime?: number
+  queryTimeout?: number
+  maxResultRows?: number
+  maxResultSize?: number
+  readOnly?: boolean
+}
+
+/** 数据源信息 */
+export interface DataSourceInfo {
+  id: string
+  name: string
+  type: DataSourceType
+  connectionConfig: JdbcConnectionConfig | FileConnectionConfig
+  securityConfig: SecurityConfig
+  status: DataSourceStatus
+  lastTestedAt: string | null
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** 创建数据源请求 */
+export interface DataSourceCreatePayload {
+  name: string
+  type: DataSourceType
+  connectionConfig: JdbcConnectionConfig | FileConnectionConfig
+  securityConfig?: SecurityConfig
+}
+
+/** 更新数据源请求 */
+export interface DataSourceUpdatePayload {
+  name?: string
+  connectionConfig?: JdbcConnectionConfig | FileConnectionConfig
+  securityConfig?: SecurityConfig
+}
+
+/** 连接测试结果 */
+export interface ConnectionTestResult {
+  success: boolean
+  responseTime?: number
+  errorMessage?: string
+  details?: string
+}
+
+/** 查询结果 */
+export interface QueryResult {
+  columns: string[]
+  rows: Record<string, any>[]
+  rowCount: number
+  executionTime: number
+  truncated: boolean
+  error?: string
+}
+
+/** 列元数据 */
+export interface ColumnMetadata {
+  columnName: string
+  dataType: string
+  nullable: boolean
+  primaryKey: boolean
+  comment: string | null
+  defaultValue: string | null
+}
+
+/** 表元数据 */
+export interface TableMetadata {
+  tableName: string
+  comment: string | null
+  columns: ColumnMetadata[]
+  rowCount: number | null
+}
+
+/** Schema 元数据 */
+export interface SchemaMetadata {
+  schemaName: string
+  tables: TableMetadata[]
+}
+
+/** 查询请求 */
+export interface DataSourceQueryPayload {
+  id: string
+  query: string
+  maxRows?: number
+  timeoutSeconds?: number
+}

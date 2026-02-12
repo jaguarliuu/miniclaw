@@ -48,8 +48,10 @@ const emit = defineEmits<{
 <style scoped>
 .mcp-filter {
   position: absolute;
-  bottom: calc(100% + 4px);
+  top: auto;
+  bottom: 100%;
   left: 0;
+  margin-bottom: 8px;
   min-width: 240px;
   max-width: 320px;
   background: var(--color-white);

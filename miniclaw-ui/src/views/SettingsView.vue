@@ -12,6 +12,7 @@ import McpSection from '@/components/settings/McpSection.vue'
 import SoulSection from '@/components/settings/SoulSection.vue'
 import SystemSection from '@/components/settings/SystemSection.vue'
 import NodesSection from '@/components/settings/NodesSection.vue'
+import DataSourcesSection from '@/components/settings/DataSourcesSection.vue'
 import ChannelsSection from '@/components/settings/ChannelsSection.vue'
 import AuditLogSection from '@/components/settings/AuditLogSection.vue'
 import SchedulesSection from '@/components/settings/SchedulesSection.vue'
@@ -49,6 +50,7 @@ const currentSection = computed(() => {
         <SoulSection v-else-if="currentSection === 'soul'" />
         <SystemSection v-else-if="currentSection === 'system'" />
         <NodesSection v-else-if="currentSection === 'nodes'" />
+        <DataSourcesSection v-else-if="currentSection === 'datasources'" />
         <ChannelsSection v-else-if="currentSection === 'channels'" />
         <AuditLogSection v-else-if="currentSection === 'audit'" />
         <SchedulesSection v-else-if="currentSection === 'tasks'" />

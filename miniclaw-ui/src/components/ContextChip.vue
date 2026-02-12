@@ -88,18 +88,37 @@ function getContextDetail(context: AttachedContext): string {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  border: var(--border);
-  border-radius: var(--radius-md);
-  background: var(--color-gray-50);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1;
+  padding: 6px 10px;
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-200);
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.2;
   max-width: 320px;
+  transition: all 0.15s ease;
+  animation: chipIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-chip:hover {
+  background: var(--color-gray-200);
+  border-color: var(--color-gray-300);
 }
 
 .context-chip.uploading {
   opacity: 0.6;
+  pointer-events: none;
 }
 
 .context-icon {
@@ -109,12 +128,13 @@ function getContextDetail(context: AttachedContext): string {
 }
 
 .context-type {
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-weight: 600;
   font-size: 9px;
-  letter-spacing: 0.05em;
-  padding: 2px 4px;
-  background: var(--color-gray-200);
-  border-radius: var(--radius-sm);
+  letter-spacing: 0.08em;
+  padding: 2px 5px;
+  background: var(--color-white);
+  border-radius: 4px;
   color: var(--color-gray-600);
   flex-shrink: 0;
 }
@@ -128,9 +148,9 @@ function getContextDetail(context: AttachedContext): string {
 }
 
 .context-detail {
-  color: var(--color-gray-400);
+  color: var(--color-gray-500);
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -138,36 +158,37 @@ function getContextDetail(context: AttachedContext): string {
 }
 
 .upload-spinner {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--color-gray-300);
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-gray-300);
   border-top-color: var(--color-gray-600);
   border-radius: 50%;
   flex-shrink: 0;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 .remove-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   background: transparent;
-  color: var(--color-gray-400);
+  color: var(--color-gray-500);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   padding: 0;
   flex-shrink: 0;
-  transition: all var(--duration-fast) var(--ease-in-out);
+  transition: all 0.12s ease;
 }
 
 .remove-btn:hover {
-  background: var(--color-gray-200);
+  background: var(--color-gray-300);
   color: var(--color-gray-700);
+  transform: scale(1.1);
 }
 
 @keyframes spin {
