@@ -11,6 +11,8 @@ const sections = [
   { id: 'skills', label: '/skills' },
   { id: 'memory', label: '/memory' },
   { id: 'mcp', label: '/mcp' },
+  { id: 'soul', label: '/soul' },
+  { id: 'system', label: '/system' },
   { id: 'nodes', label: '/nodes' },
   { id: 'channels', label: '/channels' },
   { id: 'audit', label: '/audit' },

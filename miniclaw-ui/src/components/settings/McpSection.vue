@@ -116,10 +116,10 @@ function getTransportBadgeClass(type: string) {
             <td>
               <div class="actions">
                 <button class="btn-icon" @click="openEditModal(server)" title="Edit">
-                  <span class="icon">✏️</span>
+                  Edit
                 </button>
                 <button class="btn-icon btn-danger" @click="handleDelete(server)" title="Delete">
-                  <span class="icon">🗑️</span>
+                  Delete
                 </button>
               </div>
             </td>
@@ -355,6 +355,8 @@ function getTransportBadgeClass(type: string) {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--duration-fast);
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .btn-icon:hover {
@@ -365,9 +367,6 @@ function getTransportBadgeClass(type: string) {
 .btn-icon.btn-danger:hover {
   background: var(--color-red-50);
   border-color: var(--color-red-200);
-}
-
-.btn-icon .icon {
-  font-size: 14px;
+  color: var(--color-red-600);
 }
 </style>

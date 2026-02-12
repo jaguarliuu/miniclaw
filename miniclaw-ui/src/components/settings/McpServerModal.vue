@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useMcpServers, type McpServer } from '@/composables/useMcpServers'
+import Select from '@/components/common/Select.vue'
+import type { SelectOption } from '@/components/common/Select.vue'
 
 const props = defineProps<{
   mode: 'create' | 'edit'
@@ -12,6 +14,12 @@ const emit = defineEmits(['close', 'success'])
 const { testConnection, createServer, updateServer } = useMcpServers()
 
 const activeTab = ref<'basic' | 'connection' | 'advanced'>('basic')
+
+const transportOptions: SelectOption<string>[] = [
+  { label: 'STDIO (Local Process)', value: 'STDIO' },
+  { label: 'SSE (Server-Sent Events)', value: 'SSE' },
+  { label: 'HTTP (REST API)', value: 'HTTP' }
+]
 
 const config = ref<Partial<McpServer>>({
   name: props.server?.name || '',
@@ -147,11 +155,10 @@ watch(config, () => {
 
           <div class="form-group">
             <label class="form-label">Transport Type <span class="required">*</span></label>
-            <select v-model="config.transportType" class="form-select">
-              <option value="STDIO">STDIO (Local Process)</option>
-              <option value="SSE">SSE (Server-Sent Events)</option>
-              <option value="HTTP">HTTP (REST API)</option>
-            </select>
+            <Select
+              v-model="config.transportType"
+              :options="transportOptions"
+            />
             <p class="form-help">
               How to connect to the MCP server
             </p>
@@ -407,8 +414,7 @@ watch(config, () => {
   color: var(--color-red-500);
 }
 
-.form-input,
-.form-select {
+.form-input {
   padding: 10px 12px;
   border: var(--border);
   border-radius: var(--radius-md);
@@ -417,8 +423,7 @@ watch(config, () => {
   transition: border-color var(--duration-fast);
 }
 
-.form-input:focus,
-.form-select:focus {
+.form-input:focus {
   outline: none;
   border-color: var(--color-black);
 }

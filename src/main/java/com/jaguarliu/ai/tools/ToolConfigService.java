@@ -231,6 +231,9 @@ public class ToolConfigService {
         entry.put("displayName", displayName);
         entry.put("keyRequired", keyRequired);
 
+        // 添加获取 API Key 的链接
+        entry.put("apiKeyUrl", getApiKeyUrl(type));
+
         // 从当前配置中查找该类型的状态
         Optional<ToolConfigProperties.SearchProviderConfig> existing = properties.getSearchProviders().stream()
                 .filter(p -> type.equals(p.getType()))
@@ -245,6 +248,20 @@ public class ToolConfigService {
         }
 
         return entry;
+    }
+
+    /**
+     * 获取各个提供商的 API Key 申请地址
+     */
+    private String getApiKeyUrl(String type) {
+        return switch (type) {
+            case "bing" -> "https://www.microsoft.com/en-us/bing/apis/bing-web-search-api";
+            case "tavily" -> "https://tavily.com/#api";
+            case "perplexity" -> "https://www.perplexity.ai/settings/api";
+            case "github" -> "https://github.com/settings/tokens";
+            case "arxiv" -> ""; // arXiv 不需要 API key
+            default -> "";
+        };
     }
 
     private String maskApiKey(String apiKey) {

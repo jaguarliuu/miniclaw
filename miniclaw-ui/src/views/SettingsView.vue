@@ -9,6 +9,8 @@ import ToolsConfigSection from '@/components/settings/ToolsConfigSection.vue'
 import SkillsSection from '@/components/settings/SkillsSection.vue'
 import MemorySection from '@/components/settings/MemorySection.vue'
 import McpSection from '@/components/settings/McpSection.vue'
+import SoulSection from '@/components/settings/SoulSection.vue'
+import SystemSection from '@/components/settings/SystemSection.vue'
 import NodesSection from '@/components/settings/NodesSection.vue'
 import ChannelsSection from '@/components/settings/ChannelsSection.vue'
 import AuditLogSection from '@/components/settings/AuditLogSection.vue'
@@ -44,6 +46,8 @@ const currentSection = computed(() => {
         <SkillsSection v-else-if="currentSection === 'skills'" />
         <MemorySection v-else-if="currentSection === 'memory'" />
         <McpSection v-else-if="currentSection === 'mcp'" />
+        <SoulSection v-else-if="currentSection === 'soul'" />
+        <SystemSection v-else-if="currentSection === 'system'" />
         <NodesSection v-else-if="currentSection === 'nodes'" />
         <ChannelsSection v-else-if="currentSection === 'channels'" />
         <AuditLogSection v-else-if="currentSection === 'audit'" />

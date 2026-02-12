@@ -3,6 +3,7 @@ package com.jaguarliu.ai.runtime;
 import com.jaguarliu.ai.mcp.prompt.McpPromptProvider;
 import com.jaguarliu.ai.memory.search.MemorySearchService;
 import com.jaguarliu.ai.skills.index.SkillIndexBuilder;
+import com.jaguarliu.ai.soul.SoulConfigService;
 import com.jaguarliu.ai.tools.ToolDefinition;
 import com.jaguarliu.ai.tools.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class SystemPromptBuilder {
     private final SkillIndexBuilder skillIndexBuilder;
     private final MemorySearchService memorySearchService;
     private final Optional<McpPromptProvider> mcpPromptProvider;
+    private final SoulConfigService soulConfigService;
 
     @Value("${tools.workspace:./workspace}")
     private String workspace;
@@ -135,11 +137,13 @@ public class SystemPromptBuilder {
 
     public SystemPromptBuilder(ToolRegistry toolRegistry, SkillIndexBuilder skillIndexBuilder,
                                 MemorySearchService memorySearchService,
-                                Optional<McpPromptProvider> mcpPromptProvider) {
+                                Optional<McpPromptProvider> mcpPromptProvider,
+                                SoulConfigService soulConfigService) {
         this.toolRegistry = toolRegistry;
         this.skillIndexBuilder = skillIndexBuilder;
         this.memorySearchService = memorySearchService;
         this.mcpPromptProvider = mcpPromptProvider;
+        this.soulConfigService = soulConfigService;
     }
 
     /**
@@ -169,6 +173,14 @@ public class SystemPromptBuilder {
         // 1. Identity
         sb.append(IDENTITY_SECTION.trim());
         sb.append("\n\n");
+
+        // 1.5 Soul Configuration (only in FULL mode)
+        if (mode == PromptMode.FULL) {
+            String soulSection = buildSoulSection();
+            if (!soulSection.isEmpty()) {
+                sb.append(soulSection);
+            }
+        }
 
         // 2. Tooling (SKILL 模式跳过——工具定义已通过 tools 参数传递给 LLM)
         if (mode != PromptMode.SKILL) {
@@ -237,6 +249,21 @@ public class SystemPromptBuilder {
         }
 
         return sb.toString().trim();
+    }
+
+    /**
+     * 构建 Soul 配置段落
+     */
+    private String buildSoulSection() {
+        try {
+            String soulPrompt = soulConfigService.generateSystemPrompt();
+            if (soulPrompt != null && !soulPrompt.isEmpty()) {
+                return soulPrompt.trim() + "\n\n";
+            }
+        } catch (Exception e) {
+            log.warn("Failed to build soul section", e);
+        }
+        return "";
     }
 
     /**

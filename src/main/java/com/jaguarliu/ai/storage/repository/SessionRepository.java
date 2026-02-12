@@ -4,6 +4,7 @@ import com.jaguarliu.ai.storage.entity.SessionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,4 +32,9 @@ public interface SessionRepository extends JpaRepository<SessionEntity, String> 
      * 根据创建来源 run 查询
      */
     List<SessionEntity> findByCreatedByRunId(String createdByRunId);
+
+    /**
+     * 按创建时间范围查询（用于每日回顾）
+     */
+    List<SessionEntity> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }

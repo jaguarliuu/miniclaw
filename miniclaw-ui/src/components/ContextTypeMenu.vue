@@ -21,42 +21,42 @@ const selectedIndex = ref(0)
 const contextTypes: ContextTypeOption[] = [
   {
     type: 'file',
-    icon: '📄',
+    icon: '',
     label: 'File',
     description: 'Upload a local file',
     available: true
   },
   {
     type: 'folder',
-    icon: '📁',
+    icon: '',
     label: 'Folder',
     description: 'Reference a folder path',
     available: true
   },
   {
     type: 'web',
-    icon: '🌐',
+    icon: '',
     label: 'Web',
     description: 'Fetch content from a URL',
     available: true
   },
   {
     type: 'doc',
-    icon: '📝',
+    icon: '',
     label: 'Doc',
     description: 'Link to internal documentation',
     available: false
   },
   {
     type: 'code',
-    icon: '💻',
+    icon: '',
     label: 'Code',
     description: 'Paste a code snippet',
     available: false
   },
   {
     type: 'rule',
-    icon: '📋',
+    icon: '',
     label: 'Rule',
     description: 'Define custom rules',
     available: false
@@ -115,7 +115,6 @@ defineExpose({
       @mousedown.prevent="selectType(item.type)"
       @mouseenter="selectedIndex = i"
     >
-      <span class="type-icon">{{ item.icon }}</span>
       <div class="type-info">
         <span class="type-label">{{ item.label }}</span>
         <span class="type-desc">{{ item.description }}</span>
@@ -143,7 +142,6 @@ defineExpose({
 .context-type-item {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 10px 12px;
   cursor: pointer;
   border-radius: var(--radius-md);
@@ -156,12 +154,6 @@ defineExpose({
 
 .context-type-item:hover {
   background: var(--color-gray-50);
-}
-
-.type-icon {
-  font-size: 20px;
-  line-height: 1;
-  flex-shrink: 0;
 }
 
 .type-info {

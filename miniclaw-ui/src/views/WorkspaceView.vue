@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useChat } from '@/composables/useChat'
 import { useLlmConfig } from '@/composables/useLlmConfig'
@@ -19,6 +19,7 @@ import { useArtifact } from '@/composables/useArtifact'
 const { state: connectionState } = useWebSocket()
 const { checkStatus } = useLlmConfig()
 const router = useRouter()
+const route = useRoute()
 const { artifact } = useArtifact()
 const { contexts: attachedContexts, uploadFile, addContext, removeContext, clearContexts } = useContext()
 const { servers: mcpServers, loadServers: loadMcpServers } = useMcpServers()
@@ -144,9 +145,40 @@ onMounted(() => {
 
       loadSessions()
       loadMcpServers()
+
+      // Handle install/uninstall action from system settings
+      await handleInstallAction()
     }
   }, 200)
 })
+
+// Watch for query parameter changes (install/uninstall actions from system settings)
+watch(() => route.query, async (newQuery) => {
+  if (newQuery.action && newQuery.prompt) {
+    await handleInstallAction()
+  }
+})
+
+async function handleInstallAction() {
+  const { action, env, prompt } = route.query
+
+  if (action && prompt && typeof prompt === 'string') {
+    // Create a new session for the installation
+    const sessionName = action === 'install'
+      ? `Install ${env}`
+      : `Uninstall ${env}`
+
+    const session = await createSession(sessionName)
+    await selectSession(session.id)
+
+    // Send the installation prompt
+    setTimeout(() => {
+      sendMessage(prompt)
+      // Clear query parameters
+      router.replace({ path: '/workspace' })
+    }, 500)
+  }
+}
 </script>
 
 <template>
