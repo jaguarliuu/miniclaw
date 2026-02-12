@@ -7,14 +7,26 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   flyway:
     enabled: true
     baseline-on-migrate: true
+
+# 日志配置
+logging:
+  file:
+    name: ${MINICLAW_CONFIG_DIR:./data}/logs/miniclaw.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 7
+  level:
+    root: INFO
+    com.jaguarliu: DEBUG
 
 server:
   port: 8080

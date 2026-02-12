@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.server.RequestPredicates;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -18,6 +19,10 @@ import java.nio.file.Path;
  * WebFlux 静态资源配置。
  * 当 miniclaw.webapp-dir 非空时启用，从指定目录提供前端静态文件，
  * 并为 SPA 路由提供 index.html fallback。
+ *
+ * 注意：必须使用 RequestPredicates 排除 /api/、/ws、/actuator 路径，
+ * 否则 RouterFunctionMapping（order=-1）会先于 RequestMappingHandlerMapping（order=0）
+ * 拦截这些路径导致 @RestController 端点无法被访问。
  */
 @Configuration
 @ConditionalOnExpression("!'${miniclaw.webapp-dir:}'.isEmpty()")
@@ -30,20 +35,15 @@ public class StaticResourceConfig {
     public RouterFunction<ServerResponse> staticResourceRouter() {
         Path root = Path.of(webappDir);
 
+        // 排除后端路径：/api/**、/ws、/actuator/**
+        // 让这些路径不被 RouterFunction 匹配，从而由 @RestController 处理
+        var excludeBackend = RequestPredicates.path("/api/**").negate()
+                .and(RequestPredicates.path("/ws").negate())
+                .and(RequestPredicates.path("/actuator/**").negate());
+
         return RouterFunctions.route()
-                // 静态文件：请求路径含扩展名的，直接查找文件
-                .GET("/**", request -> {
+                .GET("/**", excludeBackend, request -> {
                     String path = request.path();
-
-                    // 排除 WebSocket 和 Actuator 路径
-                    if (path.equals("/ws") || path.startsWith("/actuator")) {
-                        return ServerResponse.notFound().build();
-                    }
-
-                    // 排除 RPC 路径
-                    if (path.startsWith("/api/")) {
-                        return ServerResponse.notFound().build();
-                    }
 
                     // 尝试作为静态文件提供
                     String filePath = path.equals("/") ? "index.html" : path.substring(1);
