@@ -44,12 +44,15 @@ class SubagentSessionRunServiceTest {
     @Mock
     private MessageRepository messageRepository;
 
+    @Mock
+    private com.jaguarliu.ai.storage.repository.SessionFileRepository sessionFileRepository;
+
     private SessionService sessionService;
     private RunService runService;
 
     @BeforeEach
     void setUp() {
-        sessionService = new SessionService(sessionRepository, runRepository, messageRepository);
+        sessionService = new SessionService(sessionRepository, runRepository, messageRepository, sessionFileRepository);
         runService = new RunService(runRepository);
     }
 

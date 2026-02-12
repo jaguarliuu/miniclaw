@@ -37,6 +37,9 @@ class SystemPromptBuilderTest {
     @Mock
     private McpPromptProvider mcpPromptProvider;
 
+    @Mock
+    private com.jaguarliu.ai.soul.SoulConfigService soulConfigService;
+
     private SystemPromptBuilder builder;
 
     @BeforeEach
@@ -45,13 +48,18 @@ class SystemPromptBuilderTest {
                 toolRegistry,
                 skillIndexBuilder,
                 memorySearchService,
-                Optional.of(mcpPromptProvider)
+                Optional.of(mcpPromptProvider),
+                soulConfigService
         );
         ReflectionTestUtils.setField(builder, "workspace", "./workspace");
         ReflectionTestUtils.setField(builder, "customSystemPrompt", "");
 
         // Default: MCP prompt provider returns empty (lenient to avoid unnecessary stubbing warnings)
         lenient().when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn("");
+        lenient().when(mcpPromptProvider.getSystemPromptAdditions(any())).thenReturn("");
+
+        // Default: Soul config service returns empty (lenient to avoid unnecessary stubbing warnings)
+        lenient().when(soulConfigService.generateSystemPrompt()).thenReturn("");
     }
 
     // ==================== NONE 模式测试 ====================
@@ -78,7 +86,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Identity 段落")
         void containsIdentity() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -88,7 +97,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("不包含 Safety 段落")
         void doesNotContainSafety() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -98,7 +108,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("不包含 Memory 段落")
         void doesNotContainMemory() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -108,7 +119,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("不包含 Skills 段落")
         void doesNotContainSkills() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -118,7 +130,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Workspace 段落")
         void containsWorkspace() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -128,7 +141,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Runtime 段落")
         void containsRuntime() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -146,7 +160,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Identity 段落")
         void containsIdentity() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -157,7 +172,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Safety 段落")
         void containsSafety() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -168,7 +184,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Memory 段落")
         void containsMemory() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -183,7 +200,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("Memory 段落包含正确的工具说明")
         void memoryContainsToolDescriptions() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -205,7 +223,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("Memory 段落强调跨会话特性")
         void memoryEmphasizesCrossSession() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -218,7 +237,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Workspace 段落")
         void containsWorkspace() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -229,7 +249,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Current Date & Time 段落")
         void containsDateTime() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -240,7 +261,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("包含 Runtime 段落")
         void containsRuntime() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -259,7 +281,7 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("无工具时不显示工具段落")
         void noToolsNoSection() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -279,7 +301,7 @@ class SystemPromptBuilderTest {
                     .description("执行 shell 命令")
                     .hitl(true)
                     .build();
-            when(toolRegistry.listDefinitions()).thenReturn(List.of(readFile, bash));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(readFile, bash));
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -302,7 +324,7 @@ class SystemPromptBuilderTest {
                     .description("执行 shell 命令")
                     .hitl(true)
                     .build();
-            when(toolRegistry.listDefinitions()).thenReturn(List.of(readFile, bash));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(readFile, bash));
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL, Set.of("read_file"));
 
@@ -320,7 +342,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("无技能时不显示 Skills 段落")
         void noSkillsNoSection() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -331,7 +354,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("有技能时显示 Skills 段落")
         void withSkillsShowsSection() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("<skills>...</skills>");
             when(skillIndexBuilder.buildCompactIndex()).thenReturn("<skills>...</skills>");
 
@@ -340,7 +364,7 @@ class SystemPromptBuilderTest {
             assertTrue(result.contains("## Skills"));
             assertTrue(result.contains("Manual trigger"));
             assertTrue(result.contains("Auto trigger"));
-            assertTrue(result.contains("[USE_SKILL:"));
+            assertTrue(result.contains("use_skill"));
         }
     }
 
@@ -360,6 +384,7 @@ class SystemPromptBuilderTest {
         @DisplayName("FULL 模式有 sessions_spawn 工具时包含 SubAgent 段落")
         void fullModeWithSpawnToolContainsSubagentSection() {
             when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(spawnTool));
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -378,6 +403,7 @@ class SystemPromptBuilderTest {
                     .description("读取文件")
                     .build();
             when(toolRegistry.listDefinitions()).thenReturn(List.of(otherTool));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(otherTool));
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
@@ -388,7 +414,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("MINIMAL 模式不包含 SubAgent 段落")
         void minimalModeNoSubagentSection() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(spawnTool));
 
             String result = builder.build(SystemPromptBuilder.PromptMode.MINIMAL);
 
@@ -399,6 +426,7 @@ class SystemPromptBuilderTest {
         @DisplayName("白名单不含 sessions_spawn 时不包含 SubAgent 段落")
         void whitelistWithoutSpawnNoSubagentSection() {
             when(toolRegistry.listDefinitions()).thenReturn(List.of(spawnTool));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(spawnTool));
             when(skillIndexBuilder.buildIndex()).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL, Set.of("read_file"));
@@ -416,7 +444,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("附加自定义提示")
         void appendsCustomPrompt() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
             ReflectionTestUtils.setField(builder, "customSystemPrompt", "Always reply in Chinese.");
 
@@ -429,7 +458,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("空白自定义提示不显示")
         void blankCustomPromptNotShown() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
             ReflectionTestUtils.setField(builder, "customSystemPrompt", "   ");
 
@@ -448,9 +478,10 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("FULL 模式包含 MCP prompts")
         void fullModeIncludesMcpPrompts() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
-            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+            when(mcpPromptProvider.getSystemPromptAdditions(any())).thenReturn(
                     "\n\n## MCP Server Capabilities\n\n### filesystem\n\n- **read_file**: Read files\n"
             );
 
@@ -464,8 +495,8 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("MINIMAL 模式不包含 MCP prompts")
         void minimalModeExcludesMcpPrompts() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
-            lenient().when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
+            lenient().when(mcpPromptProvider.getSystemPromptAdditions(any())).thenReturn(
                     "\n\n## MCP Server Capabilities\n\n### filesystem\n\n- **read_file**: Read files\n"
             );
 
@@ -477,9 +508,10 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("空 MCP prompts 不显示")
         void emptyMcpPromptsNotShown() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
-            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn("");
+            when(mcpPromptProvider.getSystemPromptAdditions(any())).thenReturn("");
 
             String result = builder.build(SystemPromptBuilder.PromptMode.FULL);
 
@@ -490,9 +522,10 @@ class SystemPromptBuilderTest {
         @Test
         @DisplayName("MCP prompts 出现在 Runtime 之后，Custom Instructions 之前")
         void mcpPromptsCorrectPosition() {
-            when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            lenient().when(toolRegistry.listDefinitions()).thenReturn(List.of());
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of());
             when(skillIndexBuilder.buildIndex()).thenReturn("");
-            when(mcpPromptProvider.getSystemPromptAdditions()).thenReturn(
+            when(mcpPromptProvider.getSystemPromptAdditions(any())).thenReturn(
                     "\n\n## MCP Server Capabilities\n\n### test\n"
             );
             ReflectionTestUtils.setField(builder, "customSystemPrompt", "Custom");
@@ -518,6 +551,9 @@ class SystemPromptBuilderTest {
         @DisplayName("FULL 模式段落顺序正确")
         void fullModeCorrectOrder() {
             when(toolRegistry.listDefinitions()).thenReturn(List.of(
+                    ToolDefinition.builder().name("test").description("test").build()
+            ));
+            when(toolRegistry.listDefinitions(any())).thenReturn(List.of(
                     ToolDefinition.builder().name("test").description("test").build()
             ));
             when(skillIndexBuilder.buildIndex()).thenReturn("<skills>test</skills>");
