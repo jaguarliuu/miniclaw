@@ -41,7 +41,9 @@ nul
 
 miniclaw.db
 
-data/
+data/uploads/
+data/llm-config.yml
+data/tool-config.yml
 
 # Electron
 electron/resources/

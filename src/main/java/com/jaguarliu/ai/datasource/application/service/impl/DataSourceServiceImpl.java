@@ -95,7 +95,22 @@ public class DataSourceServiceImpl implements DataSourceService {
             if (!request.getConnectionConfig().isValid()) {
                 throw new IllegalArgumentException("连接配置无效");
             }
-            dataSource.setConnectionConfig(request.getConnectionConfig());
+            ConnectionConfig newConfig = request.getConnectionConfig();
+            // 如果未提供密码，保留现有密码
+            if (newConfig instanceof JdbcConnectionConfig newJdbc
+                    && dataSource.getConnectionConfig() instanceof JdbcConnectionConfig existingJdbc) {
+                if (newJdbc.getPassword() == null || newJdbc.getPassword().isBlank()) {
+                    newConfig = new JdbcConnectionConfig(
+                            newJdbc.getHost(),
+                            newJdbc.getPort(),
+                            newJdbc.getDatabase(),
+                            newJdbc.getUsername(),
+                            existingJdbc.getPassword(),
+                            newJdbc.getProperties()
+                    );
+                }
+            }
+            dataSource.setConnectionConfig(newConfig);
             // 配置变更后，需要重新测试
             dataSource.setStatus(DataSourceStatus.INACTIVE);
         }

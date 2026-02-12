@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useDataSource } from '@/composables/useDataSource'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
+import FileBrowser from '@/components/common/FileBrowser.vue'
 import type {
   DataSourceType,
   DataSourceInfo,
@@ -16,6 +17,7 @@ const {
   error,
   loadDataSources,
   createDataSource,
+  updateDataSource,
   deleteDataSource,
   testConnection,
   enableDataSource,
@@ -24,6 +26,7 @@ const {
 
 // Form state
 const showForm = ref(false)
+const editingId = ref<string | null>(null)  // null = create mode, string = edit mode
 const formName = ref('')
 const formType = ref<DataSourceType>('MYSQL')
 const formError = ref<string | null>(null)
@@ -33,9 +36,19 @@ const submitting = ref(false)
 const formHost = ref('')
 const formPort = ref<number>(3306)
 const formDatabase = ref('')
+const formSchema = ref('')
 const formUsername = ref('')
 const formPassword = ref('')
 const passwordVisible = ref(false)
+const formProperties = ref<Array<{ key: string; value: string }>>([])
+
+// Common property hints per database type
+const propertyHints: Record<string, string> = {
+  MYSQL: 'e.g. characterEncoding=utf8mb4, useSSL=true, serverTimezone=Asia/Shanghai',
+  POSTGRESQL: 'e.g. sslmode=require, prepareThreshold=0, ApplicationName=miniclaw',
+  ORACLE: 'e.g. oracle.net.CONNECT_TIMEOUT=10000, oracle.jdbc.ReadTimeout=60000',
+  GAUSS: 'e.g. sslmode=require, prepareThreshold=0'
+}
 
 // File fields
 const formFilePath = ref('')
@@ -55,6 +68,9 @@ const testingDataSources = ref<Set<string>>(new Set())
 // Delete confirmation
 const confirmDeleteId = ref<string | null>(null)
 
+// File browser
+const showFileBrowser = ref(false)
+
 // Select options
 const dataSourceTypeOptions: SelectOption<DataSourceType>[] = [
   { label: 'MySQL', value: 'MYSQL' },
@@ -69,19 +85,26 @@ const isJdbcType = computed(() =>
   ['MYSQL', 'POSTGRESQL', 'ORACLE', 'GAUSS'].includes(formType.value)
 )
 
+const hasSchema = computed(() =>
+  ['POSTGRESQL', 'GAUSS'].includes(formType.value)
+)
+
 const isFileType = computed(() =>
   ['CSV', 'XLSX'].includes(formType.value)
 )
 
 function resetForm() {
+  editingId.value = null
   formName.value = ''
   formType.value = 'MYSQL'
   formHost.value = ''
   formPort.value = 3306
   formDatabase.value = ''
+  formSchema.value = ''
   formUsername.value = ''
   formPassword.value = ''
   passwordVisible.value = false
+  formProperties.value = []
   formFilePath.value = ''
   formEncoding.value = 'UTF-8'
   formDelimiter.value = ','
@@ -103,6 +126,48 @@ function closeForm() {
   resetForm()
 }
 
+function openEditForm(ds: DataSourceInfo) {
+  resetForm()
+  editingId.value = ds.id
+  formName.value = ds.name
+  formType.value = ds.type
+
+  if (ds.connectionConfig.type === 'jdbc') {
+    const jdbc = ds.connectionConfig as any
+    formHost.value = jdbc.host || ''
+    formPort.value = jdbc.port || 3306
+    formDatabase.value = jdbc.database || ''
+    formUsername.value = jdbc.username || ''
+    formPassword.value = ''  // password is not returned from backend
+
+    // Extract schema and properties
+    const props = jdbc.properties as Record<string, string> | undefined
+    if (props) {
+      formSchema.value = props.currentSchema || ''
+      // Remaining properties (exclude currentSchema)
+      formProperties.value = Object.entries(props)
+        .filter(([k]) => k !== 'currentSchema')
+        .map(([key, value]) => ({ key, value }))
+    }
+  } else if (ds.connectionConfig.type === 'file') {
+    const file = ds.connectionConfig as any
+    formFilePath.value = file.filePath || ''
+    formEncoding.value = file.encoding || 'UTF-8'
+    formDelimiter.value = file.delimiter || ','
+    formHasHeader.value = file.hasHeader !== false
+  }
+
+  if (ds.securityConfig) {
+    const sec = ds.securityConfig as any
+    formMaxConnections.value = sec.maxConnections ?? 10
+    formQueryTimeout.value = sec.queryTimeout ?? 30
+    formMaxResultRows.value = sec.maxResultRows ?? 1000
+    formReadOnly.value = sec.readOnly !== false
+  }
+
+  showForm.value = true
+}
+
 function updateDefaultPort() {
   switch (formType.value) {
     case 'MYSQL':
@@ -120,27 +185,69 @@ function updateDefaultPort() {
   }
 }
 
+function addProperty() {
+  formProperties.value.push({ key: '', value: '' })
+}
+
+function removeProperty(index: number) {
+  formProperties.value.splice(index, 1)
+}
+
+function buildPropertiesMap(): Record<string, string> | undefined {
+  const props: Record<string, string> = {}
+  // Schema → currentSchema property
+  if (hasSchema.value && formSchema.value.trim()) {
+    props.currentSchema = formSchema.value.trim()
+  }
+  // Custom properties
+  for (const { key, value } of formProperties.value) {
+    if (key.trim()) {
+      props[key.trim()] = value.trim()
+    }
+  }
+  return Object.keys(props).length > 0 ? props : undefined
+}
+
+function handleFileSelected(path: string) {
+  formFilePath.value = path
+  showFileBrowser.value = false
+}
+
 async function handleSubmit() {
   if (!formName.value.trim()) {
     formError.value = 'Name is required'
     return
   }
 
-  let connectionConfig: JdbcConnectionConfig | FileConnectionConfig
+  let connectionConfig: JdbcConnectionConfig | FileConnectionConfig | undefined
 
   if (isJdbcType.value) {
-    if (!formHost.value || !formDatabase.value || !formUsername.value || !formPassword.value) {
+    // In edit mode, password is optional (empty = keep existing)
+    if (!editingId.value && (!formHost.value || !formDatabase.value || !formUsername.value || !formPassword.value)) {
       formError.value = 'Please fill in all required JDBC fields'
       return
     }
-    connectionConfig = {
+    if (editingId.value && (!formHost.value || !formDatabase.value || !formUsername.value)) {
+      formError.value = 'Please fill in Host, Database, and Username'
+      return
+    }
+    const jdbc: any = {
       type: 'jdbc',
       host: formHost.value,
       port: formPort.value,
       database: formDatabase.value,
-      username: formUsername.value,
-      password: formPassword.value
+      username: formUsername.value
     }
+    // Only include password if provided (edit mode: empty means keep existing)
+    if (formPassword.value) {
+      jdbc.password = formPassword.value
+    }
+    // Include properties (schema + custom key-value pairs)
+    const props = buildPropertiesMap()
+    if (props) {
+      jdbc.properties = props
+    }
+    connectionConfig = jdbc
   } else {
     if (!formFilePath.value) {
       formError.value = 'File path is required'
@@ -165,15 +272,25 @@ async function handleSubmit() {
   submitting.value = true
   formError.value = null
   try {
-    await createDataSource({
-      name: formName.value.trim(),
-      type: formType.value,
-      connectionConfig,
-      securityConfig
-    })
+    if (editingId.value) {
+      // Update mode
+      await updateDataSource(editingId.value, {
+        name: formName.value.trim(),
+        connectionConfig,
+        securityConfig
+      })
+    } else {
+      // Create mode
+      await createDataSource({
+        name: formName.value.trim(),
+        type: formType.value,
+        connectionConfig: connectionConfig!,
+        securityConfig
+      })
+    }
     closeForm()
   } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Failed to create data source'
+    formError.value = e instanceof Error ? e.message : (editingId.value ? 'Failed to update data source' : 'Failed to create data source')
   } finally {
     submitting.value = false
   }
@@ -262,9 +379,9 @@ onMounted(() => {
       <button class="retry-btn" @click="loadDataSources">Retry</button>
     </div>
 
-    <!-- Add Form -->
+    <!-- Add/Edit Form -->
     <div v-if="showForm" class="form-panel">
-      <h3 class="form-title">Create Data Source</h3>
+      <h3 class="form-title">{{ editingId ? 'Edit Data Source' : 'Create Data Source' }}</h3>
 
       <div class="form-grid">
         <div class="form-group">
@@ -277,6 +394,7 @@ onMounted(() => {
           <Select
             v-model="formType"
             :options="dataSourceTypeOptions"
+            :disabled="!!editingId"
             @update:modelValue="updateDefaultPort"
           />
         </div>
@@ -298,6 +416,11 @@ onMounted(() => {
             <input v-model="formDatabase" class="form-input" placeholder="Database name" />
           </div>
 
+          <div class="form-group" v-if="hasSchema">
+            <label class="form-label">Schema</label>
+            <input v-model="formSchema" class="form-input" placeholder="e.g. public (default if empty)" />
+          </div>
+
           <div class="form-group">
             <label class="form-label">Username *</label>
             <input v-model="formUsername" class="form-input" placeholder="Database user" />
@@ -305,7 +428,7 @@ onMounted(() => {
 
           <div class="form-group credential-group">
             <div class="credential-label-row">
-              <label class="form-label">Password *</label>
+              <label class="form-label">Password {{ editingId ? '' : '*' }}</label>
               <button
                 type="button"
                 class="visibility-toggle"
@@ -318,16 +441,42 @@ onMounted(() => {
               v-model="formPassword"
               :type="passwordVisible ? 'text' : 'password'"
               class="form-input"
-              placeholder="Database password"
+              :placeholder="editingId ? 'Leave empty to keep current password' : 'Database password'"
             />
+          </div>
+
+          <!-- Connection Properties -->
+          <div class="form-group properties-group">
+            <div class="properties-header">
+              <label class="form-label">Connection Properties</label>
+              <button type="button" class="add-prop-btn" @click="addProperty">+ Add</button>
+            </div>
+            <p class="form-hint" v-if="propertyHints[formType]">{{ propertyHints[formType] }}</p>
+            <div v-for="(prop, index) in formProperties" :key="index" class="property-row">
+              <input
+                v-model="prop.key"
+                class="form-input prop-key-input"
+                placeholder="Key"
+              />
+              <span class="prop-separator">=</span>
+              <input
+                v-model="prop.value"
+                class="form-input prop-value-input"
+                placeholder="Value"
+              />
+              <button type="button" class="remove-prop-btn" @click="removeProperty(index)">x</button>
+            </div>
           </div>
         </template>
 
         <!-- File Fields -->
         <template v-if="isFileType">
-          <div class="form-group">
+          <div class="form-group file-path-group">
             <label class="form-label">File Path *</label>
-            <input v-model="formFilePath" class="form-input" placeholder="e.g. data/sales.csv" />
+            <div class="file-path-row">
+              <input v-model="formFilePath" class="form-input file-path-input" placeholder="Click Browse to select..." readonly />
+              <button type="button" class="browse-btn" @click="showFileBrowser = true">Browse</button>
+            </div>
           </div>
 
           <div class="form-group" v-if="formType === 'CSV'">
@@ -377,14 +526,14 @@ onMounted(() => {
       <div class="form-actions">
         <button class="cancel-btn" @click="closeForm" :disabled="submitting">Cancel</button>
         <button class="submit-btn" @click="handleSubmit" :disabled="submitting">
-          {{ submitting ? 'Creating...' : 'Create Data Source' }}
+          {{ submitting ? (editingId ? 'Saving...' : 'Creating...') : (editingId ? 'Save Changes' : 'Create Data Source') }}
         </button>
       </div>
     </div>
 
     <!-- Data Sources List -->
     <div v-if="!loading || dataSources.length > 0" class="datasources-list">
-      <div v-for="ds in dataSources" :key="ds.id" class="datasource-card">
+      <div v-for="ds in dataSources" v-show="ds.id !== editingId" :key="ds.id" class="datasource-card">
         <div class="card-header">
           <div class="header-left">
             <h3 class="datasource-name">{{ ds.name }}</h3>
@@ -392,6 +541,13 @@ onMounted(() => {
             <span class="datasource-status" :class="getStatusClass(ds)">{{ ds.status }}</span>
           </div>
           <div class="header-actions">
+            <button
+              class="action-btn edit-btn"
+              @click="openEditForm(ds)"
+              title="Edit"
+            >
+              Edit
+            </button>
             <button
               class="action-btn test-btn"
               @click="handleTest(ds.id)"
@@ -425,7 +581,12 @@ onMounted(() => {
             </div>
             <div class="info-item" v-if="ds.connectionConfig.type === 'jdbc'">
               <span class="info-label">Database:</span>
-              <span class="info-value">{{ (ds.connectionConfig as any).database }}</span>
+              <span class="info-value">
+                {{ (ds.connectionConfig as any).database }}
+                <template v-if="(ds.connectionConfig as any).properties?.currentSchema">
+                  / {{ (ds.connectionConfig as any).properties.currentSchema }}
+                </template>
+              </span>
             </div>
             <div class="info-item" v-if="ds.connectionConfig.type === 'file'">
               <span class="info-label">File Path:</span>
@@ -457,6 +618,15 @@ onMounted(() => {
         <button class="add-btn-secondary" @click="openForm">Create your first data source</button>
       </div>
     </div>
+
+    <!-- File Browser Dialog -->
+    <FileBrowser
+      :visible="showFileBrowser"
+      mode="file"
+      title="Select File"
+      @select="handleFileSelected"
+      @cancel="showFileBrowser = false"
+    />
   </div>
 </template>
 
@@ -566,6 +736,111 @@ onMounted(() => {
 
 .credential-group {
   grid-column: 1 / -1;
+}
+
+.file-path-group {
+  grid-column: 1 / -1;
+}
+
+.file-path-row {
+  display: flex;
+  gap: 8px;
+}
+
+.file-path-input {
+  flex: 1;
+  cursor: pointer;
+  background: var(--color-gray-50);
+}
+
+.browse-btn {
+  padding: 8px 16px;
+  background: var(--color-black);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast);
+}
+
+.browse-btn:hover {
+  background: var(--color-gray-800);
+}
+
+.properties-group {
+  grid-column: 1 / -1;
+}
+
+.properties-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-gray-400);
+}
+
+.add-prop-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--color-gray-600);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--duration-fast);
+}
+
+.add-prop-btn:hover {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.property-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.prop-key-input {
+  flex: 2;
+}
+
+.prop-separator {
+  color: var(--color-gray-400);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.prop-value-input {
+  flex: 3;
+}
+
+.remove-prop-btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--color-gray-400);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+
+.remove-prop-btn:hover {
+  background: var(--color-error);
+  color: white;
+  border-color: var(--color-error);
 }
 
 .credential-label-row {
@@ -721,6 +996,7 @@ onMounted(() => {
 }
 
 .test-btn:hover { background: var(--color-info); color: white; }
+.edit-btn:hover { background: var(--color-black); color: white; }
 .toggle-btn:hover { background: var(--color-warning); color: black; }
 .delete-btn:hover { background: var(--color-error); color: white; }
 

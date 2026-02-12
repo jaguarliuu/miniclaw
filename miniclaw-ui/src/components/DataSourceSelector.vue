@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { DataSourceInfo } from '@/types'
 
 const props = defineProps<{
-  dataSources: DataSourceInfo[]
+  dataSources: readonly DataSourceInfo[]
   selectedDataSourceId?: string
 }>()
 

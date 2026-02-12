@@ -226,18 +226,20 @@ public class ReadFileTool implements Tool {
     /**
      * 解析并验证文件路径
      * 优先级：
-     * 1. workspace 内的相对路径
-     * 2. 绝对路径在 workspace 内
-     * 3. 绝对路径在 ToolExecutionContext 额外允许的路径内（如 skill 资源目录）
+     * 1. workspace 内的相对路径（session workspace 优先）
+     * 2. skill 资源目录的相对路径（技能激活时）
+     * 3. 全局 workspace（兜底相对路径）
+     * 4. 绝对路径在 workspace 或 skill 允许路径内
      *
      * @return 解析后的安全路径，或 null 表示拒绝访问
      */
     private Path resolvePath(String pathStr) {
         Path globalWorkspace = WorkspaceResolver.resolveGlobalWorkspace(properties);
-
-        // 1. 尝试 session workspace
         ToolExecutionContext ctx = ToolExecutionContext.current();
-        if (ctx != null && ctx.getSessionId() != null) {
+        boolean isRelative = !Path.of(pathStr).isAbsolute();
+
+        // 1. 尝试 session workspace（相对路径且文件存在）
+        if (isRelative && ctx != null && ctx.getSessionId() != null) {
             Path sessionWorkspace = globalWorkspace.resolve(ctx.getSessionId()).normalize();
             Path sessionPath = sessionWorkspace.resolve(pathStr).normalize();
             if (sessionPath.startsWith(sessionWorkspace) && Files.exists(sessionPath)) {
@@ -245,16 +247,31 @@ public class ReadFileTool implements Tool {
             }
         }
 
-        // 2. Fallback 到全局 workspace（uploads 等）
-        Path globalPath = globalWorkspace.resolve(pathStr).normalize();
-        if (globalPath.startsWith(globalWorkspace)) {
-            return globalPath;
+        // 2. 尝试 skill 资源目录（相对路径，技能激活时）
+        if (isRelative && ctx != null) {
+            for (Path allowedPath : ctx.getAdditionalAllowedPaths()) {
+                Path skillPath = allowedPath.resolve(pathStr).normalize();
+                if (skillPath.startsWith(allowedPath) && Files.exists(skillPath)) {
+                    return skillPath;
+                }
+            }
         }
 
-        // 3. 检查额外允许路径（skill 资源等）
-        if (ctx != null) {
+        // 3. Fallback 到全局 workspace（相对路径）
+        if (isRelative) {
+            Path globalPath = globalWorkspace.resolve(pathStr).normalize();
+            if (globalPath.startsWith(globalWorkspace)) {
+                return globalPath;  // 可能不存在，由调用方检查
+            }
+        }
+
+        // 4. 绝对路径：检查 workspace 或额外允许路径
+        if (!isRelative) {
             Path absolutePath = Path.of(pathStr).toAbsolutePath().normalize();
-            if (ctx.isPathAllowed(absolutePath)) {
+            if (absolutePath.startsWith(globalWorkspace)) {
+                return absolutePath;
+            }
+            if (ctx != null && ctx.isPathAllowed(absolutePath)) {
                 return absolutePath;
             }
         }

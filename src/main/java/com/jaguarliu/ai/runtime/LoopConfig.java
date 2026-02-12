@@ -26,4 +26,15 @@ public class LoopConfig {
      * 单步超时时间（秒），包含 LLM 调用 + 工具执行
      */
     private long stepTimeoutSeconds = 120;
+
+    /**
+     * 创建一个覆盖了 maxSteps 的新配置实例，其余参数继承自 base
+     */
+    public static LoopConfig withMaxSteps(int maxSteps, LoopConfig base) {
+        LoopConfig config = new LoopConfig();
+        config.setMaxSteps(maxSteps);
+        config.setRunTimeoutSeconds(base.getRunTimeoutSeconds());
+        config.setStepTimeoutSeconds(base.getStepTimeoutSeconds());
+        return config;
+    }
 }

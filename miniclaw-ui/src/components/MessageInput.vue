@@ -14,7 +14,7 @@ const props = defineProps<{
   attachedContexts?: AttachedContext[]
   mcpServers?: McpServer[]
   excludedMcpServers?: Set<string>
-  dataSources?: DataSourceInfo[]
+  dataSources?: readonly DataSourceInfo[]
   selectedDataSourceId?: string
 }>()
 

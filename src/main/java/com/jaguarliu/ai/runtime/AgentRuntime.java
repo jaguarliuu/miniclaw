@@ -309,8 +309,10 @@ public class AgentRuntime {
             }
 
             // ===== use_skill 工具拦截：检测 skill 激活并重启循环 =====
+            // 允许激活条件：没有 activeSkill，或 activeSkill 不是真正的 skill（如策略仅用于工具白名单）
             String activatedSkillName = detectUseSkillActivation(result.toolCalls());
-            if (activatedSkillName != null && context.getActiveSkill() == null) {
+            if (activatedSkillName != null
+                    && (context.getActiveSkill() == null || !context.getActiveSkill().hasActiveSkill())) {
                 log.info("Detected skill activation via use_skill tool: skill={}, runId={}",
                         activatedSkillName, context.getRunId());
 

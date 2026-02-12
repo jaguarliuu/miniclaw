@@ -2,6 +2,7 @@ package com.jaguarliu.ai.tools.builtin;
 
 import com.jaguarliu.ai.tools.Tool;
 import com.jaguarliu.ai.tools.ToolDefinition;
+import com.jaguarliu.ai.tools.ToolExecutionContext;
 import com.jaguarliu.ai.tools.ToolResult;
 import com.jaguarliu.ai.tools.ToolsProperties;
 import com.jaguarliu.ai.tools.WorkspaceResolver;
@@ -13,9 +14,11 @@ import reactor.core.publisher.Mono;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 
 /**
@@ -86,9 +89,13 @@ public class ShellTool implements Tool {
                 // 构建进程
                 ProcessBuilder pb = buildProcess(command);
 
-                // 工作目录设为 session workspace
+                // 工作目录：skill 激活时使用 skill 资源目录，否则使用 session workspace
                 Path workspacePath = WorkspaceResolver.resolveSessionWorkspace(properties);
-                pb.directory(workspacePath.toFile());
+                Path workingDir = resolveWorkingDirectory(workspacePath);
+                pb.directory(workingDir.toFile());
+
+                // 将 workspace 路径注入环境变量，供脚本输出文件使用
+                pb.environment().put("WORKSPACE_DIR", workspacePath.toString());
 
                 // 合并 stdout 和 stderr
                 pb.redirectErrorStream(true);
@@ -157,6 +164,34 @@ public class ShellTool implements Tool {
         }
 
         return output.toString();
+    }
+
+    /**
+     * 确定命令的工作目录
+     * skill 激活时使用 skill 资源目录（脚本和引用文件在那里），
+     * 否则使用 session workspace。
+     */
+    private Path resolveWorkingDirectory(Path sessionWorkspace) {
+        ToolExecutionContext ctx = ToolExecutionContext.current();
+        if (ctx != null) {
+            Set<Path> allowedPaths = ctx.getAdditionalAllowedPaths();
+            if (!allowedPaths.isEmpty()) {
+                // skill 激活时，使用 skill 资源目录作为工作目录
+                Path skillBasePath = allowedPaths.iterator().next();
+                if (Files.isDirectory(skillBasePath)) {
+                    log.debug("Using skill base path as working directory: {}", skillBasePath);
+                    return skillBasePath;
+                }
+            }
+        }
+
+        // 确保 session workspace 目录存在
+        try {
+            Files.createDirectories(sessionWorkspace);
+        } catch (Exception e) {
+            log.warn("Failed to create session workspace: {}", sessionWorkspace, e);
+        }
+        return sessionWorkspace;
     }
 
     /**

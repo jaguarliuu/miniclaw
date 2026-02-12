@@ -9,8 +9,15 @@ import com.jaguarliu.ai.llm.LlmClient;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.LlmResponse;
 import com.jaguarliu.ai.runtime.AgentRuntime;
+import com.jaguarliu.ai.runtime.CancellationManager;
 import com.jaguarliu.ai.runtime.ContextBuilder;
+import com.jaguarliu.ai.runtime.LoopConfig;
+import com.jaguarliu.ai.runtime.RunContext;
 import com.jaguarliu.ai.runtime.SessionLaneManager;
+import com.jaguarliu.ai.runtime.strategy.AgentContext;
+import com.jaguarliu.ai.runtime.strategy.AgentExecutionPlan;
+import com.jaguarliu.ai.runtime.strategy.AgentStrategy;
+import com.jaguarliu.ai.runtime.strategy.AgentStrategyResolver;
 import com.jaguarliu.ai.session.MessageService;
 import com.jaguarliu.ai.session.RunService;
 import com.jaguarliu.ai.session.RunStatus;
@@ -25,6 +32,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,6 +59,9 @@ public class AgentRunHandler implements RpcHandler {
     private final AgentRuntime agentRuntime;
     private final LlmClient llmClient;
     private final ToolConfigProperties toolConfigProperties;
+    private final AgentStrategyResolver strategyResolver;
+    private final LoopConfig loopConfig;
+    private final CancellationManager cancellationManager;
 
     /**
      * 历史消息数量限制（避免上下文过长）
@@ -129,7 +140,7 @@ public class AgentRunHandler implements RpcHandler {
     }
 
     /**
-     * 执行 run（使用 AgentRuntime 支持 ReAct 多步循环）
+     * 执行 run（使用 Agent Strategy 路由到不同策略）
      */
     private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers, String dataSourceId) {
         String runId = run.getId();
@@ -144,30 +155,66 @@ public class AgentRunHandler implements RpcHandler {
             // 2. 保存用户消息
             messageService.saveUserMessage(sessionId, runId, prompt);
 
-            // 3. 获取历史消息并构建上下文
+            // 3. 获取历史消息
             List<MessageEntity> history = messageService.getSessionHistory(sessionId, maxHistoryMessages);
-            // 排除刚保存的这条用户消息（会在 ContextBuilder 中添加）
+            // 排除刚保存的这条用户消息
             List<LlmRequest.Message> historyMessages = history.stream()
                     .filter(m -> !m.getRunId().equals(runId))
                     .map(m -> LlmRequest.Message.builder().role(m.getRole()).content(m.getContent()).build())
                     .toList();
 
-            // 4. 使用 AgentRuntime 执行多步循环
-            List<LlmRequest.Message> messages = contextBuilder.buildMessages(historyMessages, prompt, excludedMcpServers, dataSourceId);
-            log.debug("Context built: history={} messages, dataSourceId={}", historyMessages.size(), dataSourceId);
+            // 4. 构建策略上下文
+            AgentContext agentCtx = AgentContext.builder()
+                    .sessionId(sessionId)
+                    .runId(runId)
+                    .connectionId(connectionId)
+                    .prompt(prompt)
+                    .dataSourceId(dataSourceId)
+                    .excludedMcpServers(excludedMcpServers)
+                    .build();
 
-            String response = agentRuntime.executeLoop(connectionId, runId, sessionId, messages, excludedMcpServers);
+            // 5. 解析策略并生成执行方案
+            AgentStrategy strategy = strategyResolver.resolve(agentCtx);
+            AgentExecutionPlan plan = strategy.prepare(agentCtx);
 
-            // 5. 保存助手消息
+            // 6. 组装消息（使用策略的 system prompt + 会话历史 + 用户输入）
+            List<LlmRequest.Message> messages = new ArrayList<>();
+            messages.add(LlmRequest.Message.system(plan.getSystemPrompt()));
+            messages.addAll(historyMessages);
+            messages.add(LlmRequest.Message.user(prompt));
+
+            log.debug("Context built: strategy={}, history={} messages, dataSourceId={}",
+                    plan.getStrategyName(), historyMessages.size(), dataSourceId);
+
+            // 7. 构建 RunContext 并设置工具白名单
+            LoopConfig effectiveConfig = plan.getMaxStepsOverride() != null
+                    ? LoopConfig.withMaxSteps(plan.getMaxStepsOverride(), loopConfig)
+                    : loopConfig;
+            RunContext context = RunContext.create(runId, connectionId, sessionId,
+                    effectiveConfig, cancellationManager);
+            context.setExcludedMcpServers(plan.getExcludedMcpServers());
+            if (plan.getAllowedTools() != null) {
+                // 复用 SkillAwareRequest 机制传递工具白名单
+                // activeSkillName 传 null：策略不是 skill，不应阻止 use_skill 调用
+                context.setActiveSkill(new ContextBuilder.SkillAwareRequest(
+                        null, null, plan.getAllowedTools(), null, null));
+            }
+            context.setOriginalInput(prompt);
+
+            // 8. 执行
+            String response = agentRuntime.executeLoopWithContext(context, messages, prompt);
+
+            // 9. 保存助手消息
             messageService.saveAssistantMessage(sessionId, runId, response);
 
-            // 6. lifecycle.end
+            // 10. lifecycle.end
             runService.updateStatus(runId, RunStatus.DONE);
             eventBus.publish(AgentEvent.lifecycleEnd(connectionId, runId));
 
-            log.info("Run completed: id={}, response length={}", runId, response.length());
+            log.info("Run completed: id={}, strategy={}, response length={}",
+                    runId, plan.getStrategyName(), response.length());
 
-            // 7. 自动生成会话标题（首轮对话）
+            // 11. 自动生成会话标题（首轮对话）
             tryGenerateSessionTitle(connectionId, runId, sessionId, prompt, response);
 
         } catch (java.util.concurrent.CancellationException e) {

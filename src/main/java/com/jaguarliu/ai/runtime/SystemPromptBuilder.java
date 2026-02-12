@@ -422,7 +422,11 @@ public class SystemPromptBuilder {
 
     /**
      * 构建数据源段落
+     *
+     * @deprecated 数据源查询已由 DataQueryAgentStrategy 通过独立的 DataQueryPromptBuilder 处理。
+     *             此方法保留用于向后兼容，不再被主流程调用。
      */
+    @Deprecated
     private String buildDataSourceSection(String dataSourceId) {
         if (dataSourceService.isEmpty()) {
             return "";
