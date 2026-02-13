@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jaguarliu.ai.llm.model.LlmChunk;
+import com.jaguarliu.ai.llm.model.LlmProviderConfig;
 import com.jaguarliu.ai.llm.model.LlmRequest;
 import com.jaguarliu.ai.llm.model.LlmResponse;
 import com.jaguarliu.ai.llm.model.ToolCall;
@@ -21,40 +22,107 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * OpenAI 兼容的 LLM 客户端
  * 支持 OpenAI、DeepSeek、通义千问、Ollama 等
  * 支持 Function Calling
+ * 支持多 Provider WebClient 缓存
  */
 @Slf4j
 @Component
 public class OpenAiCompatibleLlmClient implements LlmClient {
 
     private final LlmProperties properties;
-    private volatile WebClient webClient;
+    private final ConcurrentHashMap<String, WebClient> clientCache = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
 
     public OpenAiCompatibleLlmClient(LlmProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
 
-        if (properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
+        // 初始化所有已配置的 Provider 的 WebClient
+        if (properties.getProviders() != null && !properties.getProviders().isEmpty()) {
+            for (LlmProviderConfig provider : properties.getProviders()) {
+                if (provider.getEndpoint() != null && !provider.getEndpoint().isBlank()) {
+                    String endpoint = normalizeEndpoint(provider.getEndpoint());
+                    clientCache.put(provider.getId(), buildWebClient(endpoint, provider.getApiKey()));
+                    log.info("LLM Client initialized for provider: id={}, endpoint={}", provider.getId(), endpoint);
+                }
+            }
+        }
+
+        // 向后兼容：如果没有 providers 但有旧配置，初始化默认 client
+        if (clientCache.isEmpty() && properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
             String endpoint = normalizeEndpoint(properties.getEndpoint());
-            this.webClient = buildWebClient(endpoint, properties.getApiKey());
-            log.info("LLM Client initialized: endpoint={}, model={}", endpoint, properties.getModel());
-        } else {
+            clientCache.put("__default__", buildWebClient(endpoint, properties.getApiKey()));
+            log.info("LLM Client initialized (legacy): endpoint={}, model={}", endpoint, properties.getModel());
+        }
+
+        if (clientCache.isEmpty()) {
             log.info("LLM Client created without endpoint — waiting for configuration");
         }
     }
 
     /**
-     * 运行时重新配置 LLM Client（热更新）
+     * 运行时重新配置指定 Provider 的 WebClient
+     */
+    public void reconfigure(String providerId, String endpoint, String apiKey) {
+        String normalizedEndpoint = normalizeEndpoint(endpoint);
+        clientCache.put(providerId, buildWebClient(normalizedEndpoint, apiKey));
+        log.info("LLM Client reconfigured: providerId={}, endpoint={}", providerId, normalizedEndpoint);
+    }
+
+    /**
+     * 运行时重新配置（向后兼容，更新默认 client）
      */
     public void reconfigure(String endpoint, String apiKey) {
-        String normalizedEndpoint = normalizeEndpoint(endpoint);
-        this.webClient = buildWebClient(normalizedEndpoint, apiKey);
-        log.info("LLM Client reconfigured: endpoint={}", normalizedEndpoint);
+        reconfigure("__default__", endpoint, apiKey);
+    }
+
+    /**
+     * 移除指定 Provider 的 WebClient
+     */
+    public void invalidateProvider(String providerId) {
+        clientCache.remove(providerId);
+        log.info("LLM Client invalidated: providerId={}", providerId);
+    }
+
+    /**
+     * 解析请求对应的 WebClient
+     */
+    private WebClient resolveClient(LlmRequest request) {
+        String providerId = request.getProviderId();
+
+        if (providerId != null && !providerId.isBlank()) {
+            WebClient client = clientCache.get(providerId);
+            if (client != null) {
+                return client;
+            }
+            log.warn("No WebClient for providerId={}, falling back to default", providerId);
+        }
+
+        // 尝试默认 provider
+        String defaultProviderId = properties.getDefaultProviderId();
+        if (defaultProviderId != null) {
+            WebClient client = clientCache.get(defaultProviderId);
+            if (client != null) {
+                return client;
+            }
+        }
+
+        // 兜底：使用 __default__ 或第一个可用的
+        WebClient client = clientCache.get("__default__");
+        if (client != null) {
+            return client;
+        }
+
+        if (!clientCache.isEmpty()) {
+            return clientCache.values().iterator().next();
+        }
+
+        throw new IllegalStateException("No LLM client configured. Please configure an LLM provider first.");
     }
 
     private WebClient buildWebClient(String endpoint, String apiKey) {
@@ -82,6 +150,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public LlmResponse chat(LlmRequest request) {
         ChatCompletionRequest apiRequest = buildApiRequest(request, false);
+        WebClient webClient = resolveClient(request);
 
         String responseBody = webClient.post()
                 .uri("/chat/completions")
@@ -97,6 +166,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public Flux<LlmChunk> stream(LlmRequest request) {
         ChatCompletionRequest apiRequest = buildApiRequest(request, true);
+        WebClient webClient = resolveClient(request);
 
         // 用于累积 tool_calls（流式模式下 arguments 是分片到达的）
         Map<Integer, ToolCallAccumulator> toolCallAccumulators = new HashMap<>();

@@ -118,6 +118,12 @@ public class RunContext {
     private Set<String> excludedMcpServers;
 
     /**
+     * 用户选择的模型，格式 "providerId:modelName"（可空，为空使用默认模型）
+     */
+    @Setter
+    private String modelSelection;
+
+    /**
      * 检查是否已被取消
      */
     public boolean isAborted() {

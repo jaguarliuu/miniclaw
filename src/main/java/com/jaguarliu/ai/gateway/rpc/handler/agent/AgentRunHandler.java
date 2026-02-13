@@ -85,6 +85,7 @@ public class AgentRunHandler implements RpcHandler {
         String prompt = extractPrompt(request.getPayload());
         Set<String> excludedMcpServers = extractExcludedMcpServers(request.getPayload());
         String dataSourceId = extractDataSourceId(request.getPayload());
+        String modelSelection = extractModelSelection(request.getPayload());
 
         if (prompt == null || prompt.isBlank()) {
             return Mono.just(RpcResponse.error(request.getId(), "INVALID_PARAMS", "Missing prompt"));
@@ -109,7 +110,7 @@ public class AgentRunHandler implements RpcHandler {
                 result.run.getId(),
                 result.sequence,
                 () -> {
-                    executeRun(connectionId, result.run, excludedMcpServers, dataSourceId);
+                    executeRun(connectionId, result.run, excludedMcpServers, dataSourceId, modelSelection);
                     return null;
                 }
         ).subscribe();
@@ -142,7 +143,7 @@ public class AgentRunHandler implements RpcHandler {
     /**
      * 执行 run（使用 Agent Strategy 路由到不同策略）
      */
-    private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers, String dataSourceId) {
+    private void executeRun(String connectionId, RunEntity run, Set<String> excludedMcpServers, String dataSourceId, String modelSelection) {
         String runId = run.getId();
         String sessionId = run.getSessionId();
         String prompt = run.getPrompt();
@@ -200,6 +201,9 @@ public class AgentRunHandler implements RpcHandler {
                         null, null, plan.getAllowedTools(), null, null));
             }
             context.setOriginalInput(prompt);
+            if (modelSelection != null && !modelSelection.isBlank()) {
+                context.setModelSelection(modelSelection);
+            }
 
             // 8. 执行
             String response = agentRuntime.executeLoopWithContext(context, messages, prompt);
@@ -215,7 +219,7 @@ public class AgentRunHandler implements RpcHandler {
                     runId, plan.getStrategyName(), response.length());
 
             // 11. 自动生成会话标题（首轮对话）
-            tryGenerateSessionTitle(connectionId, runId, sessionId, prompt, response);
+            tryGenerateSessionTitle(connectionId, runId, sessionId, prompt, response, modelSelection);
 
         } catch (java.util.concurrent.CancellationException e) {
             log.info("Run cancelled: id={}", runId);
@@ -245,7 +249,8 @@ public class AgentRunHandler implements RpcHandler {
      * 尝试自动生成会话标题（首轮对话时）
      */
     private void tryGenerateSessionTitle(String connectionId, String runId,
-                                          String sessionId, String prompt, String response) {
+                                          String sessionId, String prompt, String response,
+                                          String modelSelection) {
         try {
             var sessionOpt = sessionService.get(sessionId);
             if (sessionOpt.isEmpty()) return;
@@ -256,7 +261,7 @@ public class AgentRunHandler implements RpcHandler {
             // 异步生成，不阻塞主流程
             CompletableFuture.runAsync(() -> {
                 try {
-                    String title = generateTitle(prompt, response);
+                    String title = generateTitle(prompt, response, modelSelection);
                     if (title != null && !title.isBlank()) {
                         sessionService.rename(sessionId, title);
                         eventBus.publish(AgentEvent.sessionRenamed(connectionId, runId, sessionId, title));
@@ -274,11 +279,11 @@ public class AgentRunHandler implements RpcHandler {
     /**
      * 调用 LLM 生成会话标题
      */
-    private String generateTitle(String prompt, String response) {
+    private String generateTitle(String prompt, String response, String modelSelection) {
         String truncatedPrompt = prompt.length() > 500 ? prompt.substring(0, 500) : prompt;
         String truncatedResponse = response.length() > 500 ? response.substring(0, 500) : response;
 
-        LlmRequest request = LlmRequest.builder()
+        LlmRequest.LlmRequestBuilder requestBuilder = LlmRequest.builder()
                 .messages(List.of(
                         LlmRequest.Message.system("Generate a short title (max 8 words) for this conversation. " +
                                 "Return ONLY the title, no quotes, no punctuation at the end. " +
@@ -286,10 +291,16 @@ public class AgentRunHandler implements RpcHandler {
                         LlmRequest.Message.user("User: " + truncatedPrompt + "\n\nAssistant: " + truncatedResponse)
                 ))
                 .maxTokens(30)
-                .temperature(0.5)
-                .build();
+                .temperature(0.5);
 
-        LlmResponse llmResponse = llmClient.chat(request);
+        // 使用用户选择的模型（如果有）
+        if (modelSelection != null && modelSelection.contains(":")) {
+            String[] parts = modelSelection.split(":", 2);
+            requestBuilder.providerId(parts[0]);
+            requestBuilder.model(parts[1]);
+        }
+
+        LlmResponse llmResponse = llmClient.chat(requestBuilder.build());
         String title = llmResponse.getContent();
         if (title == null) return null;
         title = title.trim();
@@ -334,6 +345,14 @@ public class AgentRunHandler implements RpcHandler {
         if (payload instanceof Map) {
             Object id = ((Map<?, ?>) payload).get("dataSourceId");
             return id != null ? id.toString() : null;
+        }
+        return null;
+    }
+
+    private String extractModelSelection(Object payload) {
+        if (payload instanceof Map) {
+            Object model = ((Map<?, ?>) payload).get("model");
+            return model != null ? model.toString() : null;
         }
         return null;
     }

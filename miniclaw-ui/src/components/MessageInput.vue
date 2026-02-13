@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import type { SlashCommandItem, AttachedContext, ContextType, DataSourceInfo } from '@/types'
+import type { SlashCommandItem, AttachedContext, ContextType, DataSourceInfo, ModelOption } from '@/types'
 import type { McpServer } from '@/composables/useMcpServers'
 import { useSlashCommands } from '@/composables/useSlashCommands'
 import ContextChip from '@/components/ContextChip.vue'
 import ContextTypeMenu from '@/components/ContextTypeMenu.vue'
 import McpServerFilter from '@/components/McpServerFilter.vue'
 import DataSourceSelector from '@/components/DataSourceSelector.vue'
+import ModelSelector from '@/components/ModelSelector.vue'
 
 const props = defineProps<{
   disabled: boolean
@@ -16,6 +17,10 @@ const props = defineProps<{
   excludedMcpServers?: Set<string>
   dataSources?: readonly DataSourceInfo[]
   selectedDataSourceId?: string
+  availableModels?: ModelOption[]
+  selectedModel?: string | null
+  defaultModel?: string
+  activeModelLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +31,8 @@ const emit = defineEmits<{
   'remove-context': [contextId: string]
   'toggle-mcp-server': [serverName: string]
   'select-datasource': [dataSourceId: string | undefined]
+  'select-model': [providerId: string, modelName: string]
+  'open-model-settings': []
 }>()
 
 const input = ref('')
@@ -50,6 +57,19 @@ const showMcpFilter = ref(false)
 
 // Data source selector
 const showDataSourceSelector = ref(false)
+
+// Model selector
+const showModelSelector = ref(false)
+
+// 是否显示模型选择按钮
+const showModelButton = computed(() => {
+  return (props.availableModels?.length ?? 0) > 0
+})
+
+// 模型标签
+const modelLabel = computed(() => {
+  return props.activeModelLabel || 'Model'
+})
 
 // MCP 状态标签
 const mcpStatusLabel = computed(() => {
@@ -264,6 +284,15 @@ function handleClickOutside(e: MouseEvent) {
       showDataSourceSelector.value = false
     }
   }
+
+  // 关闭模型选择器
+  if (showModelSelector.value) {
+    const selectorEl = document.querySelector('.model-selector')
+    const toolbarBtn = target.closest('.toolbar-btn')
+    if (selectorEl && !selectorEl.contains(target) && !toolbarBtn) {
+      showModelSelector.value = false
+    }
+  }
 }
 
 function handleRemoveDataSource() {
@@ -347,6 +376,16 @@ onMounted(() => {
         :data-sources="dataSources ?? []"
         :selected-data-source-id="selectedDataSourceId"
         @select="emit('select-datasource', $event)"
+      />
+
+      <!-- Model selector -->
+      <ModelSelector
+        v-if="showModelSelector"
+        :available-models="availableModels ?? []"
+        :selected-model="selectedModel ?? null"
+        :default-model="defaultModel ?? ''"
+        @select="(pid: string, mname: string) => emit('select-model', pid, mname)"
+        @open-settings="emit('open-model-settings')"
       />
 
       <!-- Context attachment chips -->
@@ -459,6 +498,21 @@ onMounted(() => {
             </div>
 
             <div class="toolbar-right">
+              <!-- Model selector button -->
+              <button
+                v-if="showModelButton"
+                class="toolbar-btn model-btn"
+                :class="{ active: showModelSelector }"
+                :disabled="disabled"
+                @click="showModelSelector = !showModelSelector"
+                title="选择模型"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="toolbar-label">{{ modelLabel }}</span>
+              </button>
+
               <!-- Send or Cancel button -->
               <button
                 v-if="isRunning"
@@ -696,6 +750,7 @@ textarea:disabled {
 .toolbar-right {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .toolbar-btn {

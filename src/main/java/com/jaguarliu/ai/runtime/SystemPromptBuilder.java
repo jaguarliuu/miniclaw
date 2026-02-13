@@ -54,9 +54,6 @@ public class SystemPromptBuilder {
     @Value("${tools.workspace:./workspace}")
     private String workspace;
 
-    @Value("${agent.system-prompt:}")
-    private String customSystemPrompt;
-
     // 身份段落
     private static final String IDENTITY_SECTION = """
         You are MiniClaw, an AI coding assistant. You help users with software engineering tasks including:
@@ -259,14 +256,6 @@ public class SystemPromptBuilder {
                     sb.append("\n\n");
                 }
             });
-        }
-
-        // Append custom prompt if configured
-        if (customSystemPrompt != null && !customSystemPrompt.isBlank()) {
-            sb.append("\n---\n\n");
-            sb.append("## Custom Instructions\n\n");
-            sb.append(customSystemPrompt.trim());
-            sb.append("\n");
         }
 
         return sb.toString().trim();

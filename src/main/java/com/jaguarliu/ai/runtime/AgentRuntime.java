@@ -430,6 +430,15 @@ public class AgentRuntime {
 
         requestBuilder.tools(tools);
 
+        // 如果有用户指定的模型选择，设置 providerId 和 model
+        if (context.getModelSelection() != null) {
+            String[] parts = context.getModelSelection().split(":", 2);
+            if (parts.length == 2) {
+                requestBuilder.providerId(parts[0]);
+                requestBuilder.model(parts[1]);
+            }
+        }
+
         return streamLlmCall(context.getConnectionId(), context.getRunId(), requestBuilder.build());
     }
 

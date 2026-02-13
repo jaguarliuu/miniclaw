@@ -52,6 +52,11 @@ public class LlmRequest {
      */
     private String toolChoice;
 
+    /**
+     * Provider ID（可选，用于路由到指定 Provider 的 WebClient）
+     */
+    private String providerId;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

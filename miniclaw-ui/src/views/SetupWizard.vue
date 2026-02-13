@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLlmConfig } from '@/composables/useLlmConfig'
+import { providerPresets } from '@/data/providerPresets'
 
 const router = useRouter()
 const { saveConfig, testConfig } = useLlmConfig()
@@ -9,15 +10,17 @@ const { saveConfig, testConfig } = useLlmConfig()
 // Wizard step
 const step = ref<'provider' | 'config'>('provider')
 
-// Provider presets
-const providers = [
-  { id: 'deepseek', label: 'DeepSeek', endpoint: 'https://api.deepseek.com', model: 'deepseek-chat' },
-  { id: 'openai', label: 'OpenAI', endpoint: 'https://api.openai.com', model: 'gpt-4o' },
-  { id: 'ollama', label: 'Ollama', endpoint: 'http://localhost:11434', model: 'qwen2.5:7b' },
-  { id: 'qwen', label: '通义千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode', model: 'qwen-plus' },
-  { id: 'glm', label: 'GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
-  { id: 'custom', label: '自定义', endpoint: '', model: '' }
-]
+// Derive wizard provider list from shared presets
+// Show a curated subset for quick setup; "custom" is always last
+const wizardProviderIds = ['deepseek', 'openai', 'ollama', 'qwen', 'glm', 'custom']
+const providers = providerPresets
+  .filter(p => wizardProviderIds.includes(p.id))
+  .map(p => ({
+    id: p.id,
+    label: p.name,
+    endpoint: p.endpoint,
+    model: p.models[0] ?? ''
+  }))
 
 // Form state
 const selectedProvider = ref('')

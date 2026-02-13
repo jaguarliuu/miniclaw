@@ -1,54 +1,111 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useLlmConfig } from '@/composables/useLlmConfig'
+import { providerPresets } from '@/data/providerPresets'
+import type { LlmProviderConfig, LlmProviderInput } from '@/types'
 
-const { config, loading, error, getConfig, saveConfig, testConfig } = useLlmConfig()
+const {
+  multiConfig,
+  loading,
+  error,
+  getConfig,
+  testConfig,
+  addProvider,
+  updateProvider,
+  removeProvider,
+  setDefaultModel
+} = useLlmConfig()
 
-// Provider presets
-const providers = [
-  { id: 'deepseek', label: 'DeepSeek', endpoint: 'https://api.deepseek.com', model: 'deepseek-chat' },
-  { id: 'openai', label: 'OpenAI', endpoint: 'https://api.openai.com', model: 'gpt-4o' },
-  { id: 'ollama', label: 'Ollama', endpoint: 'http://localhost:11434', model: 'qwen2.5:7b' },
-  { id: 'qwen', label: '通义千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode', model: 'qwen-plus' },
-  { id: 'glm', label: 'GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
-  { id: 'custom', label: '自定义', endpoint: '', model: '' }
-]
+// Add form state
+const showAddForm = ref(false)
+const addForm = ref<LlmProviderInput>({
+  id: '',
+  name: '',
+  endpoint: '',
+  apiKey: '',
+  models: []
+})
+const newModelInput = ref('')
+const adding = ref(false)
+const addError = ref<string | null>(null)
 
-// Form state
-const endpoint = ref('')
-const apiKey = ref('')
-const model = ref('')
-const apiKeyVisible = ref(false)
+// Edit state
+const editingProviderId = ref<string | null>(null)
+const editForm = ref<LlmProviderInput>({
+  name: '',
+  endpoint: '',
+  apiKey: '',
+  models: []
+})
+const editModelInput = ref('')
+const editing = ref(false)
+const editError = ref<string | null>(null)
 
 // Test state
 const testing = ref(false)
 const testResult = ref<{ success: boolean; message: string; latencyMs?: number } | null>(null)
 
-// Save state
-const saving = ref(false)
-const saveError = ref<string | null>(null)
-const saveSuccess = ref(false)
+// Delete confirm
+const confirmDeleteId = ref<string | null>(null)
 
-function applyPreset(providerId: string) {
-  const provider = providers.find(p => p.id === providerId)
-  if (provider) {
-    endpoint.value = provider.endpoint
-    model.value = provider.model
+// Default model selector
+const defaultModelValue = computed({
+  get: () => multiConfig.value?.defaultModel ?? '',
+  set: (val: string) => {
+    if (val) setDefaultModel(val)
   }
-  testResult.value = null
-  saveError.value = null
-  saveSuccess.value = false
+})
+
+// All model options for default selector
+const allModelOptions = computed(() => {
+  if (!multiConfig.value?.providers) return []
+  const options: { value: string; label: string }[] = []
+  for (const p of multiConfig.value.providers) {
+    for (const m of p.models ?? []) {
+      options.push({ value: `${p.id}:${m}`, label: `${p.name} / ${m}` })
+    }
+  }
+  return options
+})
+
+function applyPreset(presetId: string) {
+  const preset = providerPresets.find(p => p.id === presetId)
+  if (preset) {
+    addForm.value = {
+      id: preset.id,
+      name: preset.name,
+      endpoint: preset.endpoint,
+      apiKey: '',
+      models: [...preset.models]
+    }
+    showAddForm.value = true
+    testResult.value = null
+    addError.value = null
+  }
+}
+
+function addModelTag(list: string[], input: { value: string }) {
+  const val = input.value.trim()
+  if (val && !list.includes(val)) {
+    list.push(val)
+  }
+  input.value = ''
+}
+
+function removeModelTag(list: string[], index: number) {
+  list.splice(index, 1)
 }
 
 async function handleTest() {
-  if (!endpoint.value.trim() || !apiKey.value.trim() || !model.value.trim()) return
+  const form = editingProviderId.value ? editForm.value : addForm.value
+  if (!form.endpoint.trim() || !form.apiKey.trim() || form.models.length === 0) return
   testing.value = true
   testResult.value = null
   try {
     testResult.value = await testConfig({
-      endpoint: endpoint.value.trim(),
-      apiKey: apiKey.value.trim(),
-      model: model.value.trim()
+      endpoint: form.endpoint.trim(),
+      apiKey: form.apiKey.trim(),
+      model: form.models[0]
     })
   } catch {
     testResult.value = { success: false, message: 'Request failed' }
@@ -57,35 +114,88 @@ async function handleTest() {
   }
 }
 
-async function handleSave() {
-  if (!endpoint.value.trim() || !apiKey.value.trim() || !model.value.trim()) return
-  saving.value = true
-  saveError.value = null
-  saveSuccess.value = false
+async function handleAdd() {
+  const form = addForm.value
+  if (!form.endpoint.trim() || !form.apiKey.trim()) return
+  adding.value = true
+  addError.value = null
   try {
-    await saveConfig({
-      endpoint: endpoint.value.trim(),
-      apiKey: apiKey.value.trim(),
-      model: model.value.trim()
+    await addProvider({
+      id: form.id || undefined,
+      name: form.name.trim() || 'Provider',
+      endpoint: form.endpoint.trim(),
+      apiKey: form.apiKey.trim(),
+      models: form.models
     })
-    saveSuccess.value = true
-    // Reset apiKey field to show masked value
-    apiKey.value = ''
-    setTimeout(() => { saveSuccess.value = false }, 3000)
+    showAddForm.value = false
+    addForm.value = { id: '', name: '', endpoint: '', apiKey: '', models: [] }
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : 'Failed to save'
+    addError.value = e instanceof Error ? e.message : 'Failed to add'
   } finally {
-    saving.value = false
+    adding.value = false
   }
+}
+
+function startEdit(provider: LlmProviderConfig) {
+  editingProviderId.value = provider.id
+  editForm.value = {
+    name: provider.name,
+    endpoint: provider.endpoint,
+    apiKey: '', // Leave empty, placeholder shows masked key
+    models: [...(provider.models ?? [])]
+  }
+  editError.value = null
+  testResult.value = null
+}
+
+function cancelEdit() {
+  editingProviderId.value = null
+  editError.value = null
+  testResult.value = null
+}
+
+async function handleUpdate() {
+  if (!editingProviderId.value) return
+  editing.value = true
+  editError.value = null
+  try {
+    const updates: Partial<LlmProviderInput> = {
+      name: editForm.value.name.trim(),
+      endpoint: editForm.value.endpoint.trim(),
+      models: editForm.value.models
+    }
+    if (editForm.value.apiKey.trim()) {
+      updates.apiKey = editForm.value.apiKey.trim()
+    }
+    await updateProvider(editingProviderId.value, updates)
+    editingProviderId.value = null
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : 'Failed to update'
+  } finally {
+    editing.value = false
+  }
+}
+
+async function handleDelete(providerId: string) {
+  if (confirmDeleteId.value !== providerId) {
+    confirmDeleteId.value = providerId
+    return
+  }
+  try {
+    await removeProvider(providerId)
+  } catch (e) {
+    console.error('Failed to delete provider:', e)
+  }
+  confirmDeleteId.value = null
+}
+
+function truncateEndpoint(endpoint: string): string {
+  if (endpoint.length <= 40) return endpoint
+  return endpoint.substring(0, 37) + '...'
 }
 
 onMounted(async () => {
   await getConfig()
-  if (config.value) {
-    endpoint.value = config.value.endpoint
-    model.value = config.value.model
-    // apiKey remains empty (masked on server)
-  }
 })
 </script>
 
@@ -99,109 +209,187 @@ onMounted(async () => {
     </header>
 
     <!-- Loading -->
-    <div v-if="loading && !config" class="loading-state">Loading configuration...</div>
+    <div v-if="loading && !multiConfig" class="loading-state">Loading configuration...</div>
 
     <!-- Error -->
-    <div v-if="error && !config" class="error-state">
+    <div v-if="error && !multiConfig" class="error-state">
       <p>{{ error }}</p>
       <button class="retry-btn" @click="getConfig">Retry</button>
     </div>
 
     <!-- Config Status -->
-    <div v-if="config" class="status-bar" :class="config.configured ? 'status-configured' : 'status-unconfigured'">
-      <span class="status-dot">●</span>
-      <span v-if="config.configured">
-        LLM configured — {{ config.model }} @ {{ config.endpoint }}
+    <div v-if="multiConfig" class="status-bar" :class="multiConfig.configured ? 'status-configured' : 'status-unconfigured'">
+      <span class="status-dot">&#9679;</span>
+      <span v-if="multiConfig.configured">
+        {{ multiConfig.providers.length }} provider(s) configured
       </span>
       <span v-else>LLM not configured</span>
     </div>
 
-    <!-- Provider Presets -->
-    <div class="presets">
-      <span class="presets-label">快速填充：</span>
-      <button
-        v-for="provider in providers"
-        :key="provider.id"
-        class="preset-btn"
-        @click="applyPreset(provider.id)"
-      >
-        {{ provider.label }}
-      </button>
+    <!-- Default Model Selector -->
+    <div v-if="allModelOptions.length > 0" class="default-model">
+      <label class="form-label">DEFAULT MODEL</label>
+      <select v-model="defaultModelValue" class="form-select">
+        <option v-for="opt in allModelOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
+      </select>
     </div>
 
-    <!-- Config Form -->
-    <div class="config-form">
-      <div class="form-group">
-        <label class="form-label">API Endpoint</label>
-        <input
-          v-model="endpoint"
-          class="form-input"
-          placeholder="https://api.deepseek.com"
-          spellcheck="false"
-        />
+    <!-- Provider List -->
+    <div v-if="multiConfig && multiConfig.providers.length > 0" class="provider-list">
+      <div
+        v-for="provider in multiConfig.providers"
+        :key="provider.id"
+        class="provider-card"
+      >
+        <!-- View mode -->
+        <template v-if="editingProviderId !== provider.id">
+          <div class="provider-header">
+            <div class="provider-info">
+              <span class="provider-name">{{ provider.name }}</span>
+              <span class="provider-endpoint">{{ truncateEndpoint(provider.endpoint) }}</span>
+            </div>
+            <div class="provider-meta">
+              <span class="model-count">{{ provider.models?.length ?? 0 }} models</span>
+              <button class="icon-btn" title="Edit" @click="startEdit(provider)">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10 2L12 4L5 11H3V9L10 2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              </button>
+              <button
+                class="icon-btn danger"
+                :title="confirmDeleteId === provider.id ? 'Click again to confirm' : 'Delete'"
+                @click="handleDelete(provider.id)"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 4H11M5 4V3H9V4M4 4V12H10V4" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="provider-models">
+            <span v-for="m in (provider.models ?? [])" :key="m" class="model-tag">{{ m }}</span>
+          </div>
+        </template>
+
+        <!-- Edit mode -->
+        <template v-else>
+          <div class="edit-form">
+            <div class="form-group">
+              <label class="form-label">NAME</label>
+              <input v-model="editForm.name" class="form-input" placeholder="Provider name" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">ENDPOINT</label>
+              <input v-model="editForm.endpoint" class="form-input" placeholder="https://api.example.com" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">API KEY</label>
+              <input v-model="editForm.apiKey" type="password" class="form-input" :placeholder="provider.apiKey || 'Leave empty to keep current'" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">MODELS</label>
+              <div class="model-tags-input">
+                <span v-for="(m, i) in editForm.models" :key="i" class="model-tag editable">
+                  {{ m }}
+                  <button class="tag-remove" @click="removeModelTag(editForm.models, i)">&times;</button>
+                </span>
+                <input
+                  v-model="editModelInput"
+                  class="tag-input"
+                  placeholder="Add model..."
+                  @keydown.enter.prevent="addModelTag(editForm.models, { value: editModelInput }); editModelInput = ''"
+                />
+              </div>
+            </div>
+
+            <!-- Test Result -->
+            <div v-if="testResult" class="test-result" :class="testResult.success ? 'test-success' : 'test-fail'">
+              <span class="test-icon">&#9679;</span>
+              <span>{{ testResult.message }}</span>
+              <span v-if="testResult.latencyMs" class="test-latency">{{ testResult.latencyMs }}ms</span>
+            </div>
+
+            <div v-if="editError" class="save-error">{{ editError }}</div>
+
+            <div class="form-actions">
+              <button class="test-btn" :disabled="!editForm.endpoint.trim() || !editForm.apiKey.trim() || editForm.models.length === 0 || testing" @click="handleTest">
+                {{ testing ? 'Testing...' : 'Test' }}
+              </button>
+              <button class="cancel-btn" @click="cancelEdit">Cancel</button>
+              <button class="save-btn" :disabled="!editForm.endpoint.trim() || editing" @click="handleUpdate">
+                {{ editing ? 'Saving...' : 'Save' }}
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Add Provider -->
+    <div class="add-provider">
+      <div v-if="!showAddForm" class="presets">
+        <span class="presets-label">添加 Provider：</span>
+        <button
+          v-for="preset in providerPresets"
+          :key="preset.id"
+          class="preset-btn"
+          @click="applyPreset(preset.id)"
+        >
+          {{ preset.name }}
+        </button>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">API Key</label>
-        <div class="input-with-toggle">
-          <input
-            v-model="apiKey"
-            :type="apiKeyVisible ? 'text' : 'password'"
-            class="form-input"
-            :placeholder="config?.apiKey || 'sk-xxxxxxxxxxxxxxx'"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button
-            type="button"
-            class="visibility-toggle"
-            @click="apiKeyVisible = !apiKeyVisible"
-          >
-            {{ apiKeyVisible ? '隐藏' : '显示' }}
+      <div v-else class="add-form">
+        <div class="add-form-header">
+          <span class="add-form-title">Add Provider</span>
+          <button class="icon-btn" @click="showAddForm = false">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <span class="form-hint">留空则保持当前 Key 不变</span>
-      </div>
 
-      <div class="form-group">
-        <label class="form-label">Model</label>
-        <input
-          v-model="model"
-          class="form-input"
-          placeholder="deepseek-chat"
-          spellcheck="false"
-        />
-      </div>
+        <div class="form-group">
+          <label class="form-label">NAME</label>
+          <input v-model="addForm.name" class="form-input" placeholder="Provider name" spellcheck="false" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">ENDPOINT</label>
+          <input v-model="addForm.endpoint" class="form-input" placeholder="https://api.example.com" spellcheck="false" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">API KEY</label>
+          <input v-model="addForm.apiKey" type="password" class="form-input" placeholder="sk-xxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">MODELS</label>
+          <div class="model-tags-input">
+            <span v-for="(m, i) in addForm.models" :key="i" class="model-tag editable">
+              {{ m }}
+              <button class="tag-remove" @click="removeModelTag(addForm.models, i)">&times;</button>
+            </span>
+            <input
+              v-model="newModelInput"
+              class="tag-input"
+              placeholder="Add model name, press Enter"
+              @keydown.enter.prevent="addModelTag(addForm.models, { value: newModelInput }); newModelInput = ''"
+            />
+          </div>
+        </div>
 
-      <!-- Test Result -->
-      <div v-if="testResult" class="test-result" :class="testResult.success ? 'test-success' : 'test-fail'">
-        <span class="test-icon">●</span>
-        <span>{{ testResult.message }}</span>
-        <span v-if="testResult.latencyMs" class="test-latency">{{ testResult.latencyMs }}ms</span>
-      </div>
+        <!-- Test Result -->
+        <div v-if="testResult" class="test-result" :class="testResult.success ? 'test-success' : 'test-fail'">
+          <span class="test-icon">&#9679;</span>
+          <span>{{ testResult.message }}</span>
+          <span v-if="testResult.latencyMs" class="test-latency">{{ testResult.latencyMs }}ms</span>
+        </div>
 
-      <!-- Save Success -->
-      <div v-if="saveSuccess" class="save-success">Configuration saved successfully</div>
+        <div v-if="addError" class="save-error">{{ addError }}</div>
 
-      <!-- Save Error -->
-      <div v-if="saveError" class="save-error">{{ saveError }}</div>
-
-      <!-- Actions -->
-      <div class="form-actions">
-        <button
-          class="test-btn"
-          :disabled="!endpoint.trim() || !apiKey.trim() || !model.trim() || testing"
-          @click="handleTest"
-        >
-          {{ testing ? 'Testing...' : 'Test Connection' }}
-        </button>
-        <button
-          class="save-btn"
-          :disabled="!endpoint.trim() || !model.trim() || saving"
-          @click="handleSave"
-        >
-          {{ saving ? 'Saving...' : 'Save' }}
-        </button>
+        <div class="form-actions">
+          <button class="test-btn" :disabled="!addForm.endpoint.trim() || !addForm.apiKey.trim() || addForm.models.length === 0 || testing" @click="handleTest">
+            {{ testing ? 'Testing...' : 'Test Connection' }}
+          </button>
+          <button class="save-btn" :disabled="!addForm.endpoint.trim() || !addForm.apiKey.trim() || adding" @click="handleAdd">
+            {{ adding ? 'Adding...' : 'Add Provider' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -259,12 +447,189 @@ onMounted(async () => {
 
 .status-unconfigured .status-dot { color: #eab308; }
 
-/* Presets */
+/* Default Model */
+.default-model {
+  margin-bottom: 20px;
+  max-width: 400px;
+}
+
+.form-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
+}
+
+/* Provider List */
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.provider-card {
+  border: var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--color-white);
+}
+
+.provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.provider-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provider-name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-black);
+}
+
+.provider-endpoint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-dark);
+}
+
+.provider-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-gray-dark);
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-gray-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--color-gray-bg);
+  color: var(--color-black);
+}
+
+.icon-btn.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.provider-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--color-gray-bg);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--color-gray-dark);
+}
+
+.model-tag.editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-remove {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-gray-dark);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+
+/* Model Tags Input */
+.model-tags-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  border: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  min-height: 36px;
+  align-items: center;
+}
+
+.model-tags-input:focus-within {
+  border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
+}
+
+.tag-input {
+  flex: 1;
+  min-width: 120px;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 0;
+  background: transparent;
+}
+
+/* Edit Form */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Add Provider */
+.add-provider {
+  margin-top: 8px;
+}
+
 .presets {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -289,14 +654,30 @@ onMounted(async () => {
   background: var(--color-gray-bg);
 }
 
-/* Config Form */
-.config-form {
+.add-form {
+  border: var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--color-white);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   max-width: 520px;
 }
 
+.add-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.add-form-title {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Form */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -326,38 +707,6 @@ onMounted(async () => {
   outline: none;
   border-color: var(--color-black);
   box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
-}
-
-.form-hint {
-  font-size: 11px;
-  color: var(--color-gray-dark);
-}
-
-.input-with-toggle {
-  display: flex;
-  gap: 0;
-}
-
-.input-with-toggle .form-input {
-  flex: 1;
-  border-right: none;
-}
-
-.visibility-toggle {
-  padding: 8px 12px;
-  border: var(--border);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: var(--color-gray-bg);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  color: var(--color-gray-dark);
-}
-
-.visibility-toggle:hover {
-  background: var(--color-white);
-  color: var(--color-black);
 }
 
 /* Test Result */
@@ -393,15 +742,6 @@ onMounted(async () => {
 }
 
 /* Save states */
-.save-success {
-  padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius-md);
-  color: #166534;
-  font-size: 13px;
-}
-
 .save-error {
   padding: 10px 14px;
   background: #fef2f2;
@@ -418,7 +758,8 @@ onMounted(async () => {
   margin-top: 4px;
 }
 
-.test-btn {
+.test-btn,
+.cancel-btn {
   padding: 8px 16px;
   border: var(--border);
   border-radius: var(--radius-md);
@@ -428,11 +769,13 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.test-btn:hover:not(:disabled) {
+.test-btn:hover:not(:disabled),
+.cancel-btn:hover:not(:disabled) {
   background: var(--color-gray-bg);
 }
 
-.test-btn:disabled {
+.test-btn:disabled,
+.cancel-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

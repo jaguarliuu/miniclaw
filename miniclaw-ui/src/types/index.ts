@@ -410,6 +410,37 @@ export interface LlmTestResult {
   latencyMs?: number
 }
 
+// ==================== Multi-Provider LLM Config Types ====================
+
+export interface LlmProviderConfig {
+  id: string
+  name: string
+  endpoint: string
+  apiKey: string       // 脱敏值
+  models: string[]
+}
+
+export interface LlmMultiConfig {
+  version: number
+  defaultModel: string
+  providers: LlmProviderConfig[]
+  configured: boolean
+}
+
+export interface ModelOption {
+  providerId: string
+  providerName: string
+  modelName: string
+}
+
+export interface LlmProviderInput {
+  id?: string
+  name: string
+  endpoint: string
+  apiKey: string
+  models: string[]
+}
+
 export interface AppStatus {
   llmConfigured: boolean
 }

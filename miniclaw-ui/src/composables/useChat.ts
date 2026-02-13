@@ -283,7 +283,8 @@ async function sendMessage(
   filePaths?: string[],
   attachedFiles?: AttachedFile[],
   dataSourceId?: string,
-  dataSourceName?: string
+  dataSourceName?: string,
+  modelSelection?: string
 ) {
   if (!prompt.trim()) return
 
@@ -339,6 +340,11 @@ async function sendMessage(
     // 添加数据源 ID
     if (dataSourceId) {
       payload.dataSourceId = dataSourceId
+    }
+
+    // 添加模型选择
+    if (modelSelection) {
+      payload.model = modelSelection
     }
 
     const result = await request<{ runId: string; sessionId: string; status: string }>(
