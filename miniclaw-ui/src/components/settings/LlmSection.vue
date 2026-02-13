@@ -136,7 +136,7 @@ async function handleAdd() {
   }
 }
 
-function startEdit(provider: Readonly<LlmProviderConfig>) {
+function startEdit(provider: { id: string; name: string; endpoint: string; apiKey: string; models?: readonly string[] }) {
   editingProviderId.value = provider.id
   editForm.value = {
     name: provider.name,
