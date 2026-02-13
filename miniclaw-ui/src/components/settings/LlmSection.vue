@@ -105,7 +105,7 @@ async function handleTest() {
     testResult.value = await testConfig({
       endpoint: form.endpoint.trim(),
       apiKey: form.apiKey.trim(),
-      model: form.models[0]
+      model: form.models[0] ?? ''
     })
   } catch {
     testResult.value = { success: false, message: 'Request failed' }
@@ -136,7 +136,7 @@ async function handleAdd() {
   }
 }
 
-function startEdit(provider: LlmProviderConfig) {
+function startEdit(provider: Readonly<LlmProviderConfig>) {
   editingProviderId.value = provider.id
   editForm.value = {
     name: provider.name,
