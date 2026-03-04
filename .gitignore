@@ -11,8 +11,12 @@ target/
 
 # Frontend (Vue/Node)
 frontend/
-node_modules/
-dist/
+**/node_modules/
+**/dist/
+.vitepress/cache/
+.vitepress/dist/
+*.lock
+package-lock.json
 
 # IDE
 .idea/
