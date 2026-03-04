@@ -9,6 +9,14 @@ export default defineConfig({
   // 如果仓库名是 miniclaw，则 base 为 '/miniclaw/'
   base: '/miniclaw/',
   
+  // 忽略死链接检查（localhost 是本地开发地址）
+  ignoreDeadLinks: [
+    // 忽略所有 localhost 链接
+    /^http:\/\/localhost/,
+    // 忽略所有 127.0.0.1 链接
+    /^http:\/\/127\.0\.0\.1/,
+  ],
+  
   themeConfig: {
     nav: [
       { text: '首页', link: '/' },
