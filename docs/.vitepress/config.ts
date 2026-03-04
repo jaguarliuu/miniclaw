@@ -5,6 +5,10 @@ export default defineConfig({
   description: '从零构建生产级 AI Agent 框架',
   lang: 'zh-CN',
   
+  // GitHub Pages 部署需要配置 base
+  // 如果仓库名是 miniclaw，则 base 为 '/miniclaw/'
+  base: '/miniclaw/',
+  
   themeConfig: {
     nav: [
       { text: '首页', link: '/' },
