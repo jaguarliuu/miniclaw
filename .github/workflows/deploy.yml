@@ -33,7 +33,7 @@ jobs:
         uses: actions/configure-pages@v4
       
       - name: Install dependencies
-        run: cd docs && npm ci
+        run: cd docs && npm install
       
       - name: Build with VitePress
         run: cd docs && npm run docs:build
