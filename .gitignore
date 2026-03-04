@@ -1,0 +1,33 @@
+# .gitignore for MiniClaw course repository
+
+# Backend (Java/Spring Boot)
+backend/
+*.class
+*.jar
+*.war
+*.ear
+target/
+.mvn/
+
+# Frontend (Vue/Node)
+frontend/
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
