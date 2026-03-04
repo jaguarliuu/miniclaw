@@ -20,12 +20,11 @@ export default defineConfig({
         text: '课程章节',
         items: [
           { text: '第0章 课程导学', link: '/chapters/00-intro' },
-          { text: '第1章 AI Agent全景', link: '/chapters/01-overview' },
+          { text: '第1章 AI Agent全景', link: '/chapters/01-agent-landscape' },
           { text: '第2章 实战应用', link: '/chapters/02-quick-start' },
           { 
             text: '第3章 开发环境', 
             items: [
-              { text: '章节导航', link: '/chapters/03-00-chapter-index' },
               { text: '3.1 开发环境准备', link: '/chapters/03-01-dev-env' },
               { text: '3.2 Docker Compose', link: '/chapters/03-02-docker-compose' },
               { text: '3.3 Flyway 迁移', link: '/chapters/03-03-flyway' },
@@ -56,7 +55,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '第0章 课程导学', link: '/chapters/00-intro' },
-            { text: '第1章 AI Agent全景', link: '/chapters/01-overview' },
+            { text: '第1章 AI Agent全景', link: '/chapters/01-agent-landscape' },
           ]
         },
         {
@@ -70,10 +69,9 @@ export default defineConfig({
           text: '⚙️ 第3章 开发环境与基础底座',
           collapsed: false,
           items: [
-            { text: '章节导航', link: '/chapters/03-00-chapter-index' },
             { text: '3.1 开发环境准备', link: '/chapters/03-01-dev-env' },
-            { text: '3.2 一键启动：Docker Compose', link: '/chapters/03-02-docker-compose' },
-            { text: '3.3 数据库版本控制：Flyway', link: '/chapters/03-03-flyway' },
+            { text: '3.2 Docker Compose 编排基础设施', link: '/chapters/03-02-docker-compose' },
+            { text: '3.3 Flyway 迁移脚本', link: '/chapters/03-03-flyway' },
             { text: '3.4 Spring Boot 项目骨架', link: '/chapters/03-04-spring-boot' },
             { text: '3.5 配置管理', link: '/chapters/03-05-config' },
           ]
@@ -88,7 +86,7 @@ export default defineConfig({
           ]
         },
         {
-          text: '🛠️ Agent能力',
+          text: '🔧 Agent能力',
           collapsed: true,
           items: [
             { text: '第7章 工具系统', link: '/chapters/07-tools' },
@@ -98,7 +96,7 @@ export default defineConfig({
           ]
         },
         {
-          text: '🔧 高级特性',
+          text: '⚙️ 高级特性',
           collapsed: true,
           items: [
             { text: '第11章 Cron自动化', link: '/chapters/11-cron' },
