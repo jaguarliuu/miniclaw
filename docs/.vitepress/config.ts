@@ -32,7 +32,18 @@ export default defineConfig({
               { text: '3.5 配置管理', link: '/chapters/03-05-config' },
             ]
           },
-          { text: '第4章 LLM对接', link: '/chapters/04-llm-client' },
+          { 
+            text: '第4章 LLM对接', 
+            items: [
+              { text: '4.1 架构选型', link: '/chapters/04-01-llm-architecture' },
+              { text: '4.2 数据模型', link: '/chapters/04-02-llm-models' },
+              { text: '4.3 同步调用', link: '/chapters/04-03-llm-sync' },
+              { text: '4.4 SSE 协议', link: '/chapters/04-04-sse-protocol' },
+              { text: '4.5 流式实现', link: '/chapters/04-05-llm-stream' },
+              { text: '4.6 错误处理', link: '/chapters/04-06-error-handling' },
+              { text: '4.7 多模型适配', link: '/chapters/04-07-multi-provider' },
+            ]
+          },
           { text: '第5章 WebSocket网关', link: '/chapters/05-websocket-gateway' },
           { text: '第6章 前端界面', link: '/chapters/06-frontend' },
           { text: '第7章 工具系统', link: '/chapters/07-tools' },
@@ -66,27 +77,39 @@ export default defineConfig({
           ]
         },
         {
-          text: '⚙️ 第3章 开发环境与基础底座',
-          collapsed: false,
+          text: '⚙️ 第3章 开发环境',
+          collapsed: true,
           items: [
             { text: '3.1 开发环境准备', link: '/chapters/03-01-dev-env' },
-            { text: '3.2 Docker Compose 编排基础设施', link: '/chapters/03-02-docker-compose' },
-            { text: '3.3 Flyway 迁移脚本', link: '/chapters/03-03-flyway' },
-            { text: '3.4 Spring Boot 项目骨架', link: '/chapters/03-04-spring-boot' },
+            { text: '3.2 Docker Compose', link: '/chapters/03-02-docker-compose' },
+            { text: '3.3 Flyway 迁移', link: '/chapters/03-03-flyway' },
+            { text: '3.4 Spring Boot 骨架', link: '/chapters/03-04-spring-boot' },
             { text: '3.5 配置管理', link: '/chapters/03-05-config' },
           ]
         },
         {
-          text: '🤖 核心开发',
+          text: '🤖 第4章 LLM对接与流式输出',
+          collapsed: false,
+          items: [
+            { text: '4.1 架构选型', link: '/chapters/04-01-llm-architecture' },
+            { text: '4.2 数据模型（待开发）', link: '/chapters/04-02-llm-models' },
+            { text: '4.3 同步调用（待开发）', link: '/chapters/04-03-llm-sync' },
+            { text: '4.4 SSE 协议（待开发）', link: '/chapters/04-04-sse-protocol' },
+            { text: '4.5 流式实现（待开发）', link: '/chapters/04-05-llm-stream' },
+            { text: '4.6 错误处理（待开发）', link: '/chapters/04-06-error-handling' },
+            { text: '4.7 多模型适配（待开发）', link: '/chapters/04-07-multi-provider' },
+          ]
+        },
+        {
+          text: '🔧 核心开发',
           collapsed: true,
           items: [
-            { text: '第4章 LLM对接', link: '/chapters/04-llm-client' },
             { text: '第5章 WebSocket网关', link: '/chapters/05-websocket-gateway' },
             { text: '第6章 前端界面', link: '/chapters/06-frontend' },
           ]
         },
         {
-          text: '🔧 Agent能力',
+          text: '🛠️ Agent能力',
           collapsed: true,
           items: [
             { text: '第7章 工具系统', link: '/chapters/07-tools' },
