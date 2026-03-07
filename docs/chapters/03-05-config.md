@@ -1,6 +1,6 @@
-# 第3.5节：配置管理 - application.yml 与环境变量
+# 第3.5节：配置管理 - 从单一配置到多环境
 
-> **学习目标**：掌握配置管理最佳实践，实现多环境配置和敏感信息保护
+> **学习目标**：从零开始管理配置，从单文件到多环境，保护敏感信息
 > **预计时长**：15 分钟
 > **难度**：入门
 
@@ -11,12 +11,7 @@
 - [ ] YAML 基本语法
 
 **如果你不确定**：
-- YAML 不熟 → 本节会详细讲解语法
-- 没用过多环境配置 → 本节从零开始
-
-**学习路径**：
-- **路径A（有基础）**：直接跳到「多环境配置」
-- **路径B（从零开始）**：按顺序阅读全部内容
+- YAML 不熟 → 本节会边写边讲
 
 ---
 
@@ -24,7 +19,7 @@
 
 #### 真实场景
 
-假设你开发 MiniClaw，需要连接数据库和 LLM API。
+假设你在开发 MiniClaw，需要连接数据库和 LLM API。
 
 **硬编码配置（错误做法）**：
 ```java
@@ -40,95 +35,71 @@ public class LlmClient {
 1. 换环境（开发/测试/生产）需要改代码
 2. API Key 泄露到 Git 仓库
 3. 团队成员配置不一致
-4. 无法动态调整配置
+4. 无法动态调整
 
 **外部化配置（正确做法）**：
 ```yaml
 # application.yml
 llm:
-  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
+  endpoint: https://api.deepseek.com
   api-key: ${LLM_API_KEY}  # 从环境变量读取
-  model: ${LLM_MODEL:deepseek-chat}
+  model: deepseek-chat
 ```
 
 **好处**：
 - 不同环境使用不同配置，不改代码
-- 敏感信息通过环境变量注入，不进代码仓库
-- 团队成员可以使用各自的配置
-- 运行时可以动态调整
-
-#### 直觉理解
-
-**配置管理就像"餐厅菜单"**：
-- 菜单（配置文件）写在墙上，所有人都能看到
-- 菜品（应用）根据菜单做菜
-- 换菜单（改配置）不需要换厨师（改代码）
-- VIP 客户（环境变量）可以有特殊待遇
-
-#### 技术定义
-
-**外部化配置**：将配置从代码中分离出来，存储在外部文件或环境变量中。
-
-**Spring Boot 配置加载顺序**（优先级从高到低）：
-1. 命令行参数
-2. 环境变量
-3. `application-{profile}.yml`（环境特定配置）
-4. `application.yml`（默认配置）
+- 敏感信息通过环境变量注入
+- 团队配置统一
+- 运行时可调整
 
 ---
 
-### 第一步：理解 YAML 语法
+### 第一步：创建基础配置文件
 
-YAML（YAML Ain't Markup Language）是 Spring Boot 推荐的配置格式。
+**1.1 创建 application.yml**
 
-#### 基本语法
-
-```yaml
-# 注释
-key: value              # 键值对
-nested:                 # 嵌套对象
-  key: value
-list:                   # 列表
-  - item1
-  - item2
-```
-
-#### 对比 Properties
+在 `src/main/resources/` 下创建 `application.yml`：
 
 ```yaml
-# YAML 格式
+# 应用名称
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/miniclaw
-    username: miniclaw
+  application:
+    name: miniclaw
+
+# 服务端口
+server:
+  port: 8080
 ```
 
-```properties
-# Properties 格式
-spring.datasource.url=jdbc:postgresql://localhost:5432/miniclaw
-spring.datasource.username=miniclaw
-```
+**验证一下**：启动应用，看到端口 8080。
 
-**YAML 的优势**：
-- 层级更清晰
-- 支持复杂结构（列表、嵌套对象）
-- 更易读
-
----
-
-### 第二步：创建基础配置
-
-在 `src/main/resources/` 创建 `application.yml`：
+**1.2 添加数据源配置**
 
 ```yaml
-# MiniClaw 应用配置
-# 这个文件定义了应用运行时的所有可配置参数
-
 spring:
   application:
     name: miniclaw
   
   # 数据源配置
+  datasource:
+    url: jdbc:postgresql://localhost:5432/miniclaw
+    driver-class-name: org.postgresql.Driver
+    username: miniclaw
+    password: miniclaw123
+
+server:
+  port: 8080
+```
+
+**验证一下**：启动应用，应该能连接数据库。
+
+**1.3 添加 JPA 配置**
+
+```yaml
+spring:
+  application:
+    name: miniclaw
+  
   datasource:
     url: jdbc:postgresql://localhost:5432/miniclaw
     driver-class-name: org.postgresql.Driver
@@ -143,146 +114,49 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-  
-  # Flyway 配置
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    validate-on-migrate: true
 
-# 服务端口
 server:
   port: 8080
-
-# LLM 配置
-llm:
-  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
-  api-key: ${LLM_API_KEY:your-api-key-here}
-  model: ${LLM_MODEL:deepseek-chat}
-
-# 日志配置
-logging:
-  level:
-    root: INFO
-    com.miniclaw: DEBUG
-    org.hibernate.SQL: DEBUG
-```
-
-#### 环境变量注入语法
-
-```yaml
-${VAR_NAME}           # 必须存在，否则启动失败
-${VAR_NAME:default}   # 如果不存在，使用默认值
-```
-
-**示例**：
-```yaml
-llm:
-  api-key: ${LLM_API_KEY}                    # 必须提供
-  model: ${LLM_MODEL:deepseek-chat}          # 默认使用 deepseek-chat
 ```
 
 ---
 
-### 第三步：多环境配置
+### 第二步：添加 LLM 配置
 
-创建不同环境的配置文件：
+**2.1 添加自定义配置**
 
-**开发环境** `application-dev.yml`：
 ```yaml
 spring:
+  application:
+    name: miniclaw
+  
   datasource:
     url: jdbc:postgresql://localhost:5432/miniclaw
+    driver-class-name: org.postgresql.Driver
     username: miniclaw
     password: miniclaw123
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 server:
   port: 8080
 
-logging:
-  level:
-    com.miniclaw: DEBUG
-
+# LLM 配置（自定义配置）
 llm:
   endpoint: https://api.deepseek.com
+  api-key: your-api-key-here  # 临时硬编码，稍后会改
   model: deepseek-chat
 ```
 
-**生产环境** `application-prod.yml`：
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:miniclaw}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+**2.2 创建配置类**
 
-server:
-  port: ${SERVER_PORT:8080}
-
-logging:
-  level:
-    com.miniclaw: INFO
-
-llm:
-  endpoint: ${LLM_ENDPOINT}
-  api-key: ${LLM_API_KEY}
-  model: ${LLM_MODEL}
-```
-
-#### 激活环境
-
-```bash
-# 方式一：命令行参数
-java -jar miniclaw.jar --spring.profiles.active=prod
-
-# 方式二：环境变量
-export SPRING_PROFILES_ACTIVE=prod
-java -jar miniclaw.jar
-
-# 方式三：application.yml 中配置
-spring:
-  profiles:
-    active: dev
-```
-
----
-
-### 第四步：敏感信息管理
-
-**永远不要把敏感信息提交到 Git！**
-
-创建 `.gitignore`：
-```
-# 敏感配置文件
-application-local.yml
-.env
-
-# IDE 配置
-.idea/
-*.iml
-```
-
-使用 `.env` 文件（本地开发）：
-```bash
-# .env
-LLM_API_KEY=sk-your-real-api-key
-DB_PASSWORD=your-db-password
-```
-
-加载 `.env` 文件：
-```bash
-# 使用 dotenv 加载环境变量
-export $(cat .env | xargs)
-java -jar miniclaw.jar
-```
-
----
-
-### 第五步：配置类绑定
-
-创建配置类，类型安全地读取配置：
+创建 `config/LlmProperties.java`：
 
 ```java
 package com.miniclaw.config;
@@ -301,46 +175,210 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "llm")
 public class LlmProperties {
-    
+
     /**
      * LLM API 端点
      */
     private String endpoint;
-    
+
     /**
      * API 密钥
      */
     private String apiKey;
-    
+
     /**
      * 模型名称
      */
-    private String model;
-    
+    private String model = "deepseek-chat";  // 默认值
+
     /**
-     * 请求超时（毫秒）
+     * 请求超时（秒）
      */
-    private int timeout = 60000;
+    private int timeout = 60;
+
+    /**
+     * 最大重试次数
+     */
+    private int maxRetries = 3;
 }
 ```
 
-**使用配置**：
-```java
-@Service
-public class LlmClient {
-    
-    private final LlmProperties properties;
-    
-    public LlmClient(LlmProperties properties) {
-        this.properties = properties;
-    }
-    
-    public String chat(String message) {
-        String endpoint = properties.getEndpoint();
-        String apiKey = properties.getApiKey();
-        // 使用配置...
-    }
-}
+**验证一下**：编译通过。
+
+---
+
+### 第三步：环境变量注入
+
+**3.1 修改配置文件**
+
+```yaml
+llm:
+  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
+  api-key: ${LLM_API_KEY}  # 从环境变量读取
+  model: ${LLM_MODEL:deepseek-chat}
+```
+
+**语法解释**：
+- `${LLM_API_KEY}`：必须存在，否则启动失败
+- `${LLM_MODEL:deepseek-chat}`：如果不存在，使用默认值
+
+**3.2 设置环境变量**
+
+```bash
+# 临时设置（当前终端）
+export LLM_API_KEY=your-real-api-key
+
+# 永久设置（添加到 ~/.bashrc 或 ~/.zshrc）
+echo 'export LLM_API_KEY=your-real-api-key' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**3.3 验证**
+
+启动应用，如果报错 `Could not resolve placeholder 'LLM_API_KEY'`，说明环境变量没设置。
+
+---
+
+### 第四步：多环境配置
+
+**4.1 创建开发环境配置**
+
+创建 `application-dev.yml`：
+
+```yaml
+# 开发环境配置
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/miniclaw
+    username: miniclaw
+    password: miniclaw123
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.miniclaw: DEBUG
+    org.hibernate.SQL: DEBUG
+
+llm:
+  endpoint: https://api.deepseek.com
+  api-key: ${LLM_API_KEY}
+  model: deepseek-chat
+```
+
+**4.2 创建生产环境配置**
+
+创建 `application-prod.yml`：
+
+```yaml
+# 生产环境配置
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:miniclaw}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    com.miniclaw: INFO
+    org.hibernate.SQL: WARN
+
+llm:
+  endpoint: ${LLM_ENDPOINT}
+  api-key: ${LLM_API_KEY}
+  model: ${LLM_MODEL}
+```
+
+**4.3 激活环境**
+
+**方式一：配置文件**（在 `application.yml` 中）：
+```yaml
+spring:
+  profiles:
+    active: dev  # 激活开发环境
+```
+
+**方式二：命令行参数**：
+```bash
+java -jar miniclaw.jar --spring.profiles.active=prod
+```
+
+**方式三：环境变量**：
+```bash
+export SPRING_PROFILES_ACTIVE=prod
+java -jar miniclaw.jar
+```
+
+---
+
+### 第五步：敏感信息保护
+
+**5.1 创建 .gitignore**
+
+在项目根目录添加：
+
+```
+# 敏感配置文件
+application-local.yml
+.env
+
+# IDE 配置
+.idea/
+*.iml
+
+# 日志
+logs/
+*.log
+```
+
+**5.2 使用 .env 文件（本地开发）**
+
+创建 `.env`（不要提交到 Git！）：
+```bash
+LLM_API_KEY=your-real-api-key
+DB_PASSWORD=your-db-password
+```
+
+加载环境变量：
+```bash
+# Linux/Mac
+export $(cat .env | xargs)
+
+# 或使用 source
+set -a; source .env; set +a
+```
+
+**5.3 最佳实践**
+
+| 配置项 | 开发环境 | 生产环境 |
+|--------|----------|----------|
+| `api-key` | 环境变量 | 密钥管理服务 |
+| `db.password` | 硬编码（临时） | 环境变量 |
+| `show-sql` | true | false |
+| `log.level` | DEBUG | INFO |
+
+---
+
+### 配置加载优先级
+
+Spring Boot 配置加载顺序（优先级从高到低）：
+
+1. 命令行参数
+2. 环境变量
+3. `application-{profile}.yml`
+4. `application.yml`
+
+**示例**：
+```bash
+# 命令行参数优先级最高
+java -jar miniclaw.jar --server.port=9090
+
+# 即使 application.yml 配置了 port=8080
+# 最终也是 9090
 ```
 
 ---
@@ -351,22 +389,34 @@ public class LlmClient {
 
 **步骤**：
 1. 创建 `application.yml`
-2. 创建 `application-dev.yml` 和 `application-prod.yml`
-3. 配置环境变量 `LLM_API_KEY`
-4. 创建 `LlmProperties` 配置类
-5. 验证配置加载
+2. 创建 `application-dev.yml`
+3. 创建 `application-prod.yml`
+4. 设置环境变量 `LLM_API_KEY`
+5. 创建 `LlmProperties.java`
+6. 验证配置加载
 
-**预期结果**：
-- 开发环境使用 `application-dev.yml`
-- 敏感信息通过环境变量注入
-- 配置类正确读取配置
+**验证方法**：
+```java
+@SpringBootTest
+class ConfigTest {
+    
+    @Autowired
+    private LlmProperties properties;
+    
+    @Test
+    void testConfig() {
+        System.out.println("Endpoint: " + properties.getEndpoint());
+        System.out.println("Model: " + properties.getModel());
+        // 不要打印 API Key！
+    }
+}
+```
 
 ---
 
 ### 自检：你真的掌握了吗？
 
 **问题 1**：`${LLM_API_KEY:default-key}` 是什么意思？
-> 如果答不上来，重读「环境变量注入语法」
 
 你的答案：
 ```
@@ -378,20 +428,23 @@ public class LlmClient {
 <details>
 <summary>点击展开</summary>
 
-这是 Spring Boot 的环境变量注入语法：
+这是 Spring Boot 的**环境变量注入语法**：
 - `${LLM_API_KEY}`：尝试读取环境变量 `LLM_API_KEY`
-- `:default-key`：如果环境变量不存在，使用默认值 `default-key`
+- `:default-key`：如果环境变量不存在，使用默认值
 
-**使用场景**：
-- 必须提供的配置：`${LLM_API_KEY}`（不提供默认值，启动时报错）
-- 可选配置：`${LLM_MODEL:deepseek-chat}`（有合理的默认值）
+**两种写法对比**：
+- `${LLM_API_KEY}`：必须存在，否则启动失败
+- `${LLM_API_KEY:default}`：可选，不存在时用默认值
+
+**使用建议**：
+- 敏感信息（API Key、密码）：不提供默认值，强制设置
+- 可选配置（超时、模型）：提供合理的默认值
 
 </details>
 
 ---
 
 **问题 2**：为什么要用 `application-{profile}.yml` 而不是一个文件？
-> 如果卡住，说明需要更多练习
 
 你的答案：
 ```
@@ -413,11 +466,14 @@ public class LlmClient {
 - 开发环境：本地数据库、DEBUG 日志
 - 生产环境：云数据库、INFO 日志、更高的超时
 
+**配置复用**：
+`application.yml` 配置公共部分，`application-{profile}.yml` 只配置差异部分。
+
 </details>
 
 ---
 
-**问题 3**（选做）：如何在不重新打包的情况下修改配置？
+**问题 3**：如何在不重新打包的情况下修改配置？
 
 你的答案：
 ```
@@ -454,19 +510,9 @@ java -jar miniclaw.jar --spring.config.location=/path/to/application.yml
 
 ---
 
-### 掌握度自评
-
-| 状态 | 标准 | 建议 |
-|------|------|------|
-| 🟢 已掌握 | 3题全对，实践任务完成 | 进入下一章 |
-| 🟡 基本掌握 | 2题正确，实践任务部分完成 | 再复习一遍，重做实践 |
-| 🔴 需要加强 | 1题及以下 | 重读本节，务必动手实践 |
-
----
-
 ### 本节小结
 
-- 我们学习了 Spring Boot 配置管理
+- 我们学习了配置管理的最佳实践
 - 关键要点：
   - `application.yml` 集中管理配置
   - 环境变量注入敏感信息：`${VAR:default}`
@@ -477,8 +523,73 @@ java -jar miniclaw.jar --spring.config.location=/path/to/application.yml
 
 ---
 
-### 扩展阅读（可选）
+### 完整代码
 
-- [Spring Boot 配置文档](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config)
-- [YAML 语法教程](https://yaml.org/spec/1.2/spec.html)
-- [12-Factor App - 配置](https://12factor.net/zh_cn/config)
+**application.yml**：
+```yaml
+spring:
+  application:
+    name: miniclaw
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+```
+
+**application-dev.yml**：
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/miniclaw
+    username: miniclaw
+    password: miniclaw123
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.miniclaw: DEBUG
+
+llm:
+  endpoint: https://api.deepseek.com
+  api-key: ${LLM_API_KEY}
+  model: deepseek-chat
+```
+
+**application-prod.yml**：
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    show-sql: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    com.miniclaw: INFO
+
+llm:
+  endpoint: ${LLM_ENDPOINT}
+  api-key: ${LLM_API_KEY}
+  model: ${LLM_MODEL}
+```
+
+**LlmProperties.java**：
+```java
+@Data
+@Component
+@ConfigurationProperties(prefix = "llm")
+public class LlmProperties {
+    private String endpoint;
+    private String apiKey;
+    private String model = "deepseek-chat";
+    private int timeout = 60;
+    private int maxRetries = 3;
+}
+```
