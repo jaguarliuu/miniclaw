@@ -1,23 +1,17 @@
-# 第3.3节：数据库版本控制 - Flyway 迁移脚本
+# 第3.3节：Flyway 迁移脚本 - 从零管理数据库版本
 
-> **学习目标**：使用 Flyway 管理数据库版本，编写迁移脚本定义表结构
+> **学习目标**：循序渐进地使用 Flyway 管理数据库，从最简单的表开始
 > **预计时长**：25 分钟
 > **难度**：入门
 
 ### 前置知识检查
 
 **你应该已经掌握**：
-- [x] 3.1 开发环境准备
-- [x] 3.2 Docker Compose 已配置 PostgreSQL
-- [ ] 基本的 SQL 语法
+- [x] 3.1-3.2 环境和 Docker Compose 已配置
+- [ ] 基本 SQL 语法
 
 **如果你不确定**：
-- SQL 不熟 → 本节会详细讲解每个语句
-- 没用过 Flyway → 本节从零开始讲
-
-**学习路径**：
-- **路径A（有基础）**：直接跳到「编写迁移脚本」
-- **路径B（从零开始）**：按顺序阅读全部内容
+- SQL 不熟 → 本节会边写边讲
 
 ---
 
@@ -28,248 +22,119 @@
 假设你和队友小王一起开发 MiniClaw。
 
 **没有版本控制**：
-1. 你在本地创建了 `sessions` 表
-2. 小王也创建了 `sessions` 表，但字段不一样
-3. 你加了 `user_id` 索引，小王忘了加
-4. 上线时，你不知道执行了哪些 SQL，哪些没执行
-5. 生产环境表结构和开发环境不一致，程序崩溃
+```
+你（周一）：创建了 sessions 表
+你（周二）：加了 user_id 字段
+小王（周三）：也加了 user_id 字段，但类型不一样
+你（周四）：加了索引，但忘了告诉小王
+小王（周五）：代码跑不起来，因为表结构不一致
+```
 
 **有了 Flyway**：
 ```
-db/migration/
-├── V1__create_sessions_table.sql   # 你提交的
-├── V2__create_messages_table.sql   # 小王提交的
-└── V3__add_user_index.sql          # 你后来加的索引
+V1__create_sessions_table.sql   ← 你提交
+V2__add_user_id_index.sql       ← 你提交
+V3__create_messages_table.sql   ← 小王提交
 ```
 
-每个人 pull 代码后，Flyway 自动执行**还没执行过**的迁移脚本，所有人数据库结构**完全一致**。
+每个人 pull 代码后，Flyway 自动执行**还没执行过**的脚本，所有人表结构**完全一致**。
 
 #### 直觉理解
 
-**Flyway 就像是"数据库的 Git"**：
-- Git 管理代码版本，Flyway 管理数据库版本
-- 每个 SQL 文件就是一个"commit"
-- Flyway 记录哪些 SQL 已执行，哪些还没执行
-
-**对应关系**：
-- Git 仓库 = 数据库
-- Git commit = Flyway 迁移脚本
-- `git log` = `flyway_schema_history` 表
-- `git pull` = `flyway migrate`
-
-#### 技术定义
-
-**Flyway**：数据库迁移管理工具，核心功能：
-1. **版本控制**：追踪哪些 SQL 已执行
-2. **自动迁移**：启动时自动执行未执行的 SQL
-3. **团队协作**：所有人使用相同的数据库结构
-4. **回滚支持**：可以撤销错误的迁移（付费版）
+**Flyway = 数据库的 Git**
+- 每个 SQL 文件 = 一个 commit
+- `flyway_schema_history` 表 = `git log`
+- Flyway 自动追踪已执行的脚本
 
 ---
 
-### 第一步：创建迁移目录
+### 第一步：添加 Flyway 依赖
 
-在 Spring Boot 项目中，Flyway 迁移脚本放在：
+**1.1 打开 pom.xml**
 
+确认 `flyway-core` 和 `flyway-database-postgresql` 依赖已添加：
+
+```xml
+<!-- Flyway：数据库版本控制 -->
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-core</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
 ```
-backend/src/main/resources/db/migration/
-```
+
+**1.2 刷新 Maven**
 
 ```bash
-# 创建迁移目录
-mkdir -p backend/src/main/resources/db/migration
+cd backend
+./mvnw clean compile
 ```
+
+看到 `BUILD SUCCESS` 就对了。
 
 ---
 
-### 第二步：编写第一个迁移脚本
+### 第二步：创建迁移目录
 
-创建 `V1__create_sessions_table.sql`：
+**2.1 创建目录结构**
+
+```bash
+# 在 backend/src/main/resources 下创建
+mkdir -p db/migration
+```
+
+最终结构：
+```
+backend/src/main/resources/
+├── application.yml
+└── db/
+    └── migration/
+        └── （SQL 脚本将放在这里）
+```
+
+**2.2 为什么是这个路径？**
+
+Flyway 默认扫描 `classpath:db/migration` 目录下的 SQL 文件。
+
+---
+
+### 第三步：编写第一个迁移脚本
+
+**3.1 创建 V1__create_sessions_table.sql**
+
+**注意文件命名**：
+- `V1`：版本号
+- `__`：**双下划线**（必须是两个下划线！）
+- `create_sessions_table`：描述
+- `.sql`：文件后缀
+
+**3.2 写入基础结构**
+
+创建文件 `db/migration/V1__create_sessions_table.sql`：
 
 ```sql
--- Flyway 迁移脚本：创建 sessions 表
--- 
--- 文件命名规则：V{版本号}__{描述}.sql
--- - V：固定前缀
--- - 1：版本号（数字，递增）
--- - __：双下划线分隔
--- - create_sessions_table：描述（下划线分隔）
--- - .sql：文件后缀
---
--- Flyway 会按照版本号顺序执行迁移脚本
-
 -- 创建 sessions 表
 -- 存储 AI Agent 的会话信息
+
 CREATE TABLE sessions (
     id VARCHAR(36) PRIMARY KEY,
-    title VARCHAR(255),
     user_id VARCHAR(255) NOT NULL,
-    agent_id VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted BOOLEAN NOT NULL DEFAULT FALSE,
-    metadata TEXT
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建索引
--- user_id 是高频查询字段，需要索引
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_status ON sessions(status);
-CREATE INDEX idx_sessions_created_at ON sessions(created_at);
-
--- 添加注释
-COMMENT ON TABLE sessions IS 'AI Agent 会话表';
-COMMENT ON COLUMN sessions.id IS '会话唯一标识（UUID）';
-COMMENT ON COLUMN sessions.title IS '会话标题';
-COMMENT ON COLUMN sessions.user_id IS '用户标识';
-COMMENT ON COLUMN sessions.agent_id IS 'Agent 标识';
-COMMENT ON COLUMN sessions.status IS '会话状态：ACTIVE/ARCHIVED/ENDED';
-COMMENT ON COLUMN sessions.created_at IS '创建时间';
-COMMENT ON COLUMN sessions.updated_at IS '更新时间';
-COMMENT ON COLUMN sessions.deleted IS '软删除标记';
-COMMENT ON COLUMN sessions.metadata IS '扩展元数据（JSON）';
 ```
 
-#### 文件命名规则
+**3.3 验证语法**
 
-**必须严格遵守**：
-
-```
-V{版本号}__{描述}.sql
-│    │       │      │
-│    │       │      └── 文件后缀
-│    │       └──────── 描述（用下划线分隔单词）
-│    └──────────────── 双下划线（必须是两个下划线！）
-└───────────────────── 版本号（数字，按顺序递增）
-```
-
-**正确示例**：
-- `V1__create_sessions_table.sql` ✅
-- `V2__create_messages_table.sql` ✅
-- `V3__add_user_index.sql` ✅
-
-**错误示例**：
-- `v1__create_sessions.sql` ❌（V 必须大写）
-- `V1_create_sessions.sql` ❌（必须是双下划线）
-- `01_create_sessions.sql` ❌（必须以 V 开头）
+这只是最简单的表，我们先验证 Flyway 能正常工作。
 
 ---
 
-### 第三步：编写第二个迁移脚本
+### 第四步：配置 Flyway
 
-创建 `V2__create_messages_table.sql`：
-
-```sql
--- Flyway 迁移脚本：创建 messages 表
--- 
--- 版本号：2（在 V1 之后执行）
-
--- 创建 messages 表
--- 存储 AI Agent 对话中的每条消息
-CREATE TABLE messages (
-    id VARCHAR(36) PRIMARY KEY,
-    session_id VARCHAR(36) NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    content TEXT NOT NULL,
-    token_count INTEGER,
-    model VARCHAR(100),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    metadata TEXT,
-    
-    -- 外键约束：消息必须属于有效的会话
-    CONSTRAINT fk_messages_session 
-        FOREIGN KEY (session_id) 
-        REFERENCES sessions(id) 
-        ON DELETE CASCADE
-);
-
--- 创建索引
--- session_id 是高频查询字段，需要索引
-CREATE INDEX idx_messages_session_id ON messages(session_id);
-CREATE INDEX idx_messages_role ON messages(role);
-CREATE INDEX idx_messages_created_at ON messages(created_at);
-
--- 添加注释
-COMMENT ON TABLE messages IS 'AI Agent 消息表';
-COMMENT ON COLUMN messages.id IS '消息唯一标识（UUID）';
-COMMENT ON COLUMN messages.session_id IS '所属会话ID';
-COMMENT ON COLUMN messages.role IS '消息角色：USER/ASSISTANT/SYSTEM/TOOL';
-COMMENT ON COLUMN messages.content IS '消息内容';
-COMMENT ON COLUMN messages.token_count IS 'Token 数量（用于成本计算）';
-COMMENT ON COLUMN messages.model IS '生成该消息的模型名称';
-COMMENT ON COLUMN messages.created_at IS '创建时间';
-COMMENT ON COLUMN messages.metadata IS '扩展元数据（JSON）';
-```
-
-#### 外键约束
-
-```sql
-CONSTRAINT fk_messages_session 
-    FOREIGN KEY (session_id) 
-    REFERENCES sessions(id) 
-    ON DELETE CASCADE
-```
-
-**含义**：
-- `session_id` 必须引用有效的 `sessions.id`
-- `ON DELETE CASCADE`：删除会话时，自动删除所有关联消息
-
----
-
-### 第四步：创建向量索引表
-
-创建 `V3__create_memory_chunks_table.sql`：
-
-```sql
--- Flyway 迁移脚本：创建 memory_chunks 表（向量检索）
--- 
--- 版本号：3（在 V2 之后执行）
--- 这个表用于 Memory 系统的语义检索
-
--- 创建 memory_chunks 表
--- 存储分块后的记忆向量和原始文本
-CREATE TABLE memory_chunks (
-    id VARCHAR(36) PRIMARY KEY,
-    source_type VARCHAR(50) NOT NULL,
-    source_path VARCHAR(500) NOT NULL,
-    chunk_index INTEGER NOT NULL,
-    content TEXT NOT NULL,
-    embedding vector(1536),  -- OpenAI embedding 维度是 1536
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    -- 唯一约束：同一来源的同一块只能存在一次
-    CONSTRAINT uk_memory_chunks_source UNIQUE (source_type, source_path, chunk_index)
-);
-
--- 创建向量索引（使用 pgvector 的 IVFFlat 索引）
--- vector_cosine_ops：余弦相似度
--- lists = 100：聚类中心数量（数据量大时可以增加）
-CREATE INDEX idx_memory_chunks_embedding ON memory_chunks 
-    USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
-
--- 创建普通索引
-CREATE INDEX idx_memory_chunks_source ON memory_chunks(source_type, source_path);
-
--- 添加注释
-COMMENT ON TABLE memory_chunks IS 'Memory 分块向量索引表';
-COMMENT ON COLUMN memory_chunks.id IS '分块唯一标识（UUID）';
-COMMENT ON COLUMN memory_chunks.source_type IS '来源类型：MEMORY/DIARY/SKILL';
-COMMENT ON COLUMN memory_chunks.source_path IS '来源路径（文件路径）';
-COMMENT ON COLUMN memory_chunks.chunk_index IS '分块序号';
-COMMENT ON COLUMN memory_chunks.content IS '分块文本内容';
-COMMENT ON COLUMN memory_chunks.embedding IS '向量嵌入（1536维）';
-COMMENT ON COLUMN memory_chunks.created_at IS '创建时间';
-```
-
-**注意**：`vector(1536)` 是 pgvector 提供的向量类型，用于存储 1536 维向量（OpenAI embedding 的维度）。
-
----
-
-### 第五步：配置 Flyway
-
-在 `application.yml` 中添加 Flyway 配置：
+**4.1 修改 application.yml**
 
 ```yaml
 spring:
@@ -280,77 +145,247 @@ spring:
     username: miniclaw
     password: miniclaw123
   
-  # JPA 配置
-  jpa:
-    hibernate:
-      ddl-auto: validate  # 使用 Flyway 管理表结构，JPA 只验证
-    show-sql: true
-  
   # Flyway 配置
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-    validate-on-migrate: true
+  
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: validate  # 重要：使用 Flyway 管理表结构
 ```
 
-#### 配置项解释
-
-| 配置 | 作用 | 为什么这样配置 |
-|------|------|----------------|
-| `flyway.enabled: true` | 启用 Flyway | 必须开启 |
-| `flyway.locations` | 迁移脚本位置 | 默认就是 `db/migration` |
-| `baseline-on-migrate: true` | 允许在非空数据库上执行 | 已有数据库时需要 |
-| `ddl-auto: validate` | JPA 只验证，不自动创建表 | 避免和 Flyway 冲突 |
-
-#### 常见误区
-
-> ❌ **误区**：同时用 `ddl-auto: update` 和 Flyway
-> 
-> ✅ **正确理解**：Flyway 管理表结构，JPA 只负责 ORM 映射。`ddl-auto` 应设为 `validate` 或 `none`。
+**关键配置解释**：
+- `flyway.enabled: true`：启用 Flyway
+- `ddl-auto: validate`：JPA 只验证，不自动创建表（让 Flyway 管理）
 
 ---
 
-### 第六步：验证迁移
+### 第五步：启动并验证
 
-启动应用后，Flyway 会自动执行迁移。查看 `flyway_schema_history` 表：
+**5.1 启动数据库**
+
+```bash
+cd ~/clawd/miniclaw
+docker compose up -d
+```
+
+**5.2 启动应用**
+
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+
+**5.3 查看日志**
+
+应该看到类似输出：
+```
+Flyway: Successfully applied 1 migration to schema "public"
+```
+
+**5.4 连接数据库验证**
+
+```bash
+docker exec -it miniclaw-postgres psql -U miniclaw -d miniclaw
+
+# 查看表
+\dt
+
+# 查看 Flyway 历史
+SELECT * FROM flyway_schema_history;
+
+# 退出
+\q
+```
+
+**预期结果**：
+```
+miniclaw=# \dt
+            List of relations
+ Schema |     Name      | Type  |   Owner   
+--------+---------------+-------+-----------
+ public | flyway_schema_history | table | miniclaw
+ public | sessions      | table | miniclaw
+```
+
+---
+
+### 第六步：添加第二个迁移脚本
+
+现在我们有了一个能工作的基础表。**循序渐进**地添加字段。
+
+**6.1 创建 V2__add_sessions_fields.sql**
 
 ```sql
-SELECT * FROM flyway_schema_history ORDER BY installed_rank;
+-- 添加更多字段到 sessions 表
+
+ALTER TABLE sessions 
+ADD COLUMN title VARCHAR(255),
+ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 添加索引（高频查询字段）
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
 ```
 
-**预期输出**：
+**6.2 重启应用**
+
+```bash
+./mvnw spring-boot:run
 ```
- installed_rank | version | description              | type | script                              | success
-----------------+---------+--------------------------+------+-------------------------------------+---------
-              1 | 1       | create sessions table    | SQL  | V1__create_sessions_table.sql       | t
-              2 | 2       | create messages table    | SQL  | V2__create_messages_table.sql       | t
-              3 | 3       | create memory chunks tab | SQL  | V3__create_memory_chunks_table.sql  | t
+
+**6.3 验证**
+
+```sql
+-- 连接数据库
+\d sessions
+
+-- 查看 Flyway 历史
+SELECT version, description, success FROM flyway_schema_history;
 ```
+
+**预期结果**：
+```
+ version |      description       | success 
+---------+------------------------+---------
+ 1       | create sessions table  | t
+ 2       | add sessions fields    | t
+```
+
+---
+
+### 第七步：创建 messages 表
+
+**7.1 创建 V3__create_messages_table.sql**
+
+```sql
+-- 创建 messages 表
+-- 存储对话中的每条消息
+
+CREATE TABLE messages (
+    id VARCHAR(36) PRIMARY KEY,
+    session_id VARCHAR(36) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 外键：消息属于某个会话
+    CONSTRAINT fk_messages_session 
+        FOREIGN KEY (session_id) 
+        REFERENCES sessions(id) 
+        ON DELETE CASCADE
+);
+
+-- 索引
+CREATE INDEX idx_messages_session_id ON messages(session_id);
+```
+
+**7.2 重启并验证**
+
+```bash
+./mvnw spring-boot:run
+```
+
+---
+
+### 迁移脚本命名规则
+
+**必须严格遵守**：
+
+```
+V{版本号}__{描述}.sql
+│    │       │      │
+│    │       │      └── 文件后缀
+│    │       └──────── 描述（下划线分隔）
+│    └──────────────── 双下划线（必须是两个！）
+└───────────────────── 版本号（递增数字）
+```
+
+**正确示例**：
+- `V1__create_sessions_table.sql` ✅
+- `V2__add_sessions_fields.sql` ✅
+- `V3__create_messages_table.sql` ✅
+
+**错误示例**：
+- `v1__create_sessions.sql` ❌（V 必须大写）
+- `V1_create_sessions.sql` ❌（必须是双下划线）
+- `create_sessions.sql` ❌（缺少版本号）
+
+---
+
+### 常见问题
+
+#### Q: 迁移脚本执行失败怎么办？
+
+**场景**：V2 脚本有语法错误，执行失败。
+
+**解决步骤**：
+
+1. **查看错误**：检查日志中的错误信息
+2. **修复脚本**：修正 SQL 语法
+3. **清理失败记录**：
+   ```sql
+   DELETE FROM flyway_schema_history WHERE success = false;
+   ```
+4. **重新启动**：`./mvnw spring-boot:run`
+
+#### Q: 如何回滚已执行的迁移？
+
+**Flyway 社区版不支持回滚**。解决方案：
+
+1. **创建新的迁移脚本**（推荐）：
+   ```sql
+   -- V4__drop_sessions_title.sql
+   ALTER TABLE sessions DROP COLUMN title;
+   ```
+
+2. **手动修改数据库**（不推荐）
+
+#### Q: 团队协作时版本号冲突怎么办？
+
+**场景**：你和小王都创建了 V3。
+
+**解决方案**：
+1. 沟通协调，改用不同版本号
+2. 使用时间戳作为版本号（不推荐，可读性差）
+
+**最佳实践**：
+- 小团队：口头协调
+- 大团队：Pull Request 审查
 
 ---
 
 ### 动手实践
 
-**任务**：创建 MiniClaw 数据库表结构
+**任务**：创建 MiniClaw 的前三个迁移脚本
 
 **步骤**：
-1. 创建迁移目录 `db/migration`
-2. 编写 V1、V2、V3 迁移脚本
-3. 配置 Flyway
-4. 启动应用，验证表已创建
+1. 添加 Flyway 依赖
+2. 创建 `db/migration` 目录
+3. 创建 `V1__create_sessions_table.sql`（只有基础字段）
+4. 启动应用，验证表创建成功
+5. 创建 `V2__add_sessions_fields.sql`（添加更多字段）
+6. 重启应用，验证字段添加成功
+7. 创建 `V3__create_messages_table.sql`
 
-**预期结果**：
-- `flyway_schema_history` 表有 3 条记录
-- `sessions`、`messages`、`memory_chunks` 表已创建
-- 所有索引和约束都正确
+**检查清单**：
+- [ ] Flyway 依赖已添加
+- [ ] 迁移目录已创建
+- [ ] V1 脚本执行成功
+- [ ] V2 脚本执行成功
+- [ ] V3 脚本执行成功
+- [ ] `flyway_schema_history` 表有 3 条记录
 
 ---
 
 ### 自检：你真的掌握了吗？
 
-**问题 1**：Flyway 迁移脚本的命名规则是什么？为什么必须严格遵守？
-> 如果答不上来，重读「文件命名规则」
+**问题 1**：为什么用 Flyway 而不是手动执行 SQL？
 
 你的答案：
 ```
@@ -362,26 +397,20 @@ SELECT * FROM flyway_schema_history ORDER BY installed_rank;
 <details>
 <summary>点击展开</summary>
 
-命名规则：`V{版本号}__{描述}.sql`
+1. **版本控制**：每次修改都有记录，可以追溯
+2. **团队协作**：所有人执行相同的脚本，表结构一致
+3. **自动化**：启动时自动执行，不需要手动运行 SQL
+4. **可重复**：新环境一键部署，不需要记住执行了哪些 SQL
 
-**各部分含义**：
-- `V`：固定前缀，必须大写
-- 版本号：数字，按顺序递增（1, 2, 3...）
-- `__`：双下划线分隔符
-- 描述：用下划线分隔单词
-- `.sql`：文件后缀
-
-**为什么必须严格遵守**：
-- Flyway 根据文件名判断执行顺序
-- 命名错误会导致迁移失败
-- 版本号不连续会导致中间的脚本被跳过
+**类比**：
+- 手动执行 SQL = 手动备份文件
+- Flyway = Git 自动同步
 
 </details>
 
 ---
 
-**问题 2**：为什么要用 `ddl-auto: validate` 而不是 `update`？
-> 如果卡住，说明需要更多练习
+**问题 2**：迁移脚本命名 `V2__add_fields.sql` 为什么有两个下划线？
 
 你的答案：
 ```
@@ -393,20 +422,21 @@ SELECT * FROM flyway_schema_history ORDER BY installed_rank;
 <details>
 <summary>点击展开</summary>
 
-- `ddl-auto: update`：Hibernate 自动更新表结构
-- `ddl-auto: validate`：Hibernate 只验证表结构是否匹配实体
+**双下划线分隔版本号和描述**，这是 Flyway 的规范。
 
-**为什么用 validate**：
-1. **避免冲突**：Flyway 和 Hibernate 同时管理表结构会冲突
-2. **版本控制**：Flyway 提供完整的迁移历史记录
-3. **团队协作**：迁移脚本可以 code review，自动生成的表结构无法审查
-4. **生产安全**：`update` 在生产环境可能导致意外修改
+**为什么是双下划线**：
+- 单下划线可能出现在描述中（如 `add_user_id`）
+- 双下划线明确分隔，避免歧义
+
+**解析示例**：
+- `V2__add_user_id.sql` → 版本=2, 描述=add_user_id
+- `V2_add_user_id.sql` → Flyway 无法正确解析
 
 </details>
 
 ---
 
-**问题 3**（选做）：如果迁移脚本执行失败，如何处理？
+**问题 3**：如果 V2 脚本执行失败，如何修复？
 
 你的答案：
 ```
@@ -419,49 +449,73 @@ SELECT * FROM flyway_schema_history ORDER BY installed_rank;
 <summary>点击展开</summary>
 
 **步骤**：
-1. **查看错误日志**：Flyway 会记录失败原因
-2. **修复 SQL 脚本**：修正错误
-3. **手动清理**（如果部分执行）：
+
+1. **查看错误日志**：找到失败原因
+2. **修复 SQL 脚本**：修正语法错误
+3. **删除失败记录**：
    ```sql
-   -- 删除失败的记录
    DELETE FROM flyway_schema_history WHERE success = false;
    ```
-4. **重新执行**：`flyway migrate`
+4. **重新启动应用**：Flyway 会重新执行修复后的脚本
 
-**预防措施**：
-- 在开发环境充分测试迁移脚本
-- 使用事务（部分数据库支持）
-- 重要变更先在测试环境验证
+**注意**：
+- 如果脚本部分执行（如创建了部分字段），需要手动清理
+- 生产环境建议先在测试环境验证脚本
 
 </details>
 
 ---
 
-### 掌握度自评
-
-| 状态 | 标准 | 建议 |
-|------|------|------|
-| 🟢 已掌握 | 3题全对，实践任务完成 | 进入下一节 |
-| 🟡 基本掌握 | 2题正确，实践任务部分完成 | 再复习一遍，重做实践 |
-| 🔴 需要加强 | 1题及以下 | 重读本节，务必动手实践 |
-
----
-
 ### 本节小结
 
-- 我们学习了 Flyway 数据库版本控制
-- 创建了 sessions、messages、memory_chunks 三张表
+- 我们循序渐进地学习了 Flyway
 - 关键要点：
-  - 迁移脚本命名规则：`V{版本号}__{描述}.sql`
-  - Flyway 自动追踪已执行的脚本
-  - `flyway_schema_history` 记录迁移历史
-  - JPA 的 `ddl-auto` 应设为 `validate`
+  - Flyway 依赖必须添加
+  - 迁移脚本放在 `db/migration`
+  - 命名规则：`V{版本号}__{描述}.sql`
+  - 每次只添加少量修改，逐步完善
+  - `flyway_schema_history` 记录执行历史
 - 下一节我们将搭建 Spring Boot 项目骨架
 
 ---
 
-### 扩展阅读（可选）
+### 完整代码
 
-- [Flyway 官方文档](https://flywaydb.org/documentation/)
-- [Spring Boot 集成 Flyway](https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.data-initialization.migration-tool.flyway)
-- [pgvector 文档](https://github.com/pgvector/pgvector)
+**V1__create_sessions_table.sql**：
+```sql
+CREATE TABLE sessions (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**V2__add_sessions_fields.sql**：
+```sql
+ALTER TABLE sessions 
+ADD COLUMN title VARCHAR(255),
+ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
+```
+
+**V3__create_messages_table.sql**：
+```sql
+CREATE TABLE messages (
+    id VARCHAR(36) PRIMARY KEY,
+    session_id VARCHAR(36) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_messages_session 
+        FOREIGN KEY (session_id) 
+        REFERENCES sessions(id) 
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_messages_session_id ON messages(session_id);
+```
