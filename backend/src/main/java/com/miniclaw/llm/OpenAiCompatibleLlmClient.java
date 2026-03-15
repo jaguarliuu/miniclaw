@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.miniclaw.config.LlmProviderConfig;
 import com.miniclaw.config.LlmProperties;
 import com.miniclaw.llm.model.LlmChunk;
 import com.miniclaw.llm.model.LlmRequest;
@@ -29,6 +30,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -36,28 +38,47 @@ import java.util.concurrent.TimeoutException;
 public class OpenAiCompatibleLlmClient implements LlmClient {
 
     private static final double RETRY_JITTER = 0.2d;
+    private static final String LEGACY_CLIENT_KEY = "__legacy__";
 
     private final LlmProperties properties;
-    private final WebClient webClient;
+    private final Map<String, WebClient> clientCache;
     private final ObjectMapper objectMapper;
 
     public OpenAiCompatibleLlmClient(LlmProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.webClient = buildWebClient();
-
-        log.info("LLM Client initialized: endpoint={}, model={}",
-                properties.getEndpoint(), properties.getModel());
+        this.clientCache = new ConcurrentHashMap<>();
+        initializeClients();
     }
 
-    private WebClient buildWebClient() {
-        String endpoint = normalizeEndpoint(properties.getEndpoint());
+    private void initializeClients() {
+        if (properties.getProviders() != null && !properties.getProviders().isEmpty()) {
+            for (LlmProviderConfig provider : properties.getProviders()) {
+                if (provider.getId() == null || provider.getId().isBlank()) {
+                    continue;
+                }
+                String endpoint = normalizeEndpoint(provider.getEndpoint());
+                clientCache.put(provider.getId(), buildWebClient(endpoint, provider.getApiKey()));
+                log.info("LLM provider initialized: id={}, endpoint={}", provider.getId(), endpoint);
+            }
+            return;
+        }
 
-        return WebClient.builder()
+        String endpoint = normalizeEndpoint(properties.getEndpoint());
+        clientCache.put(LEGACY_CLIENT_KEY, buildWebClient(endpoint, properties.getApiKey()));
+        log.info("LLM Client initialized: endpoint={}, model={}", endpoint, properties.getModel());
+    }
+
+    private WebClient buildWebClient(String endpoint, String apiKey) {
+        WebClient.Builder builder = WebClient.builder()
                 .baseUrl(endpoint)
-                .defaultHeader("Authorization", "Bearer " + properties.getApiKey())
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+                .defaultHeader("Content-Type", "application/json");
+
+        if (apiKey != null && !apiKey.isBlank()) {
+            builder.defaultHeader("Authorization", "Bearer " + apiKey);
+        }
+
+        return builder.build();
     }
 
     private String normalizeEndpoint(String endpoint) {
@@ -93,7 +114,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     public Flux<LlmChunk> stream(LlmRequest request) {
         ChatCompletionRequest apiRequest = buildApiRequest(request, true);
 
-        Flux<LlmChunk> pipeline = webClient.post()
+        Flux<LlmChunk> pipeline = resolveClient(request).post()
                 .uri("/chat/completions")
                 .bodyValue(apiRequest)
                 .accept(MediaType.TEXT_EVENT_STREAM)
@@ -114,7 +135,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     private Mono<LlmResponse> executeChat(LlmRequest request) {
         ChatCompletionRequest apiRequest = buildApiRequest(request, false);
 
-        Mono<LlmResponse> pipeline = webClient.post()
+        Mono<LlmResponse> pipeline = resolveClient(request).post()
                 .uri("/chat/completions")
                 .bodyValue(apiRequest)
                 .exchangeToMono(this::readChatBody)
@@ -199,9 +220,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 .map(this::convertMessage)
                 .toList();
 
-        String model = request.getModel() != null
-                ? request.getModel()
-                : properties.getModel();
+        String model = resolveModel(request);
 
         ChatCompletionRequest.ChatCompletionRequestBuilder builder = ChatCompletionRequest.builder()
                 .model(model)
@@ -222,6 +241,43 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         }
 
         return builder.build();
+    }
+
+    private WebClient resolveClient(LlmRequest request) {
+        if (clientCache.containsKey(LEGACY_CLIENT_KEY)) {
+            return clientCache.get(LEGACY_CLIENT_KEY);
+        }
+
+        String providerId = properties.getDefaultProviderId();
+        if (request.getProviderId() != null && !request.getProviderId().isBlank()) {
+            providerId = request.getProviderId();
+        }
+
+        if (providerId == null || providerId.isBlank()) {
+            throw new IllegalStateException("No default LLM provider configured");
+        }
+
+        WebClient client = clientCache.get(providerId);
+        if (client == null) {
+            throw new IllegalArgumentException("Unknown LLM provider: " + providerId);
+        }
+
+        return client;
+    }
+
+    private String resolveModel(LlmRequest request) {
+        if (request.getModel() != null && !request.getModel().isBlank()) {
+            return request.getModel();
+        }
+
+        if (request.getProviderId() != null && !request.getProviderId().isBlank()) {
+            LlmProviderConfig provider = properties.getProvider(request.getProviderId());
+            if (provider != null && provider.getModels() != null && !provider.getModels().isEmpty()) {
+                return provider.getModels().get(0);
+            }
+        }
+
+        return properties.getDefaultModelName();
     }
 
     private ChatMessage convertMessage(LlmRequest.Message message) {

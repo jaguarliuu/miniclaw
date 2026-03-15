@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * LLM 配置属性
  * 
@@ -94,4 +97,33 @@ public class LlmProperties {
     private Long retryMinBackoffMillis = 200L;
 
     private Long retryMaxBackoffMillis = 2000L;
+
+    private String defaultModel;
+
+    private List<LlmProviderConfig> providers = new ArrayList<>();
+
+    public String getDefaultProviderId() {
+        if (defaultModel == null || !defaultModel.contains(":")) {
+            return null;
+        }
+        return defaultModel.split(":", 2)[0];
+    }
+
+    public String getDefaultModelName() {
+        if (defaultModel == null || !defaultModel.contains(":")) {
+            return model;
+        }
+        return defaultModel.split(":", 2)[1];
+    }
+
+    public LlmProviderConfig getProvider(String providerId) {
+        if (providerId == null || providerId.isBlank() || providers == null) {
+            return null;
+        }
+
+        return providers.stream()
+                .filter(provider -> providerId.equals(provider.getId()))
+                .findFirst()
+                .orElse(null);
+    }
 }

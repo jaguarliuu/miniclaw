@@ -24,5 +24,17 @@ logging:
     org.hibernate.SQL: DEBUG
 
 llm:
-  endpoint: https://api.deepseek.com
-  model: deepseek-chat
+  default-model: deepseek:deepseek-chat
+  providers:
+    - id: deepseek
+      endpoint: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY:your-deepseek-key}
+      models:
+        - deepseek-chat
+        - deepseek-coder
+    - id: openai
+      endpoint: https://api.openai.com
+      api-key: ${OPENAI_API_KEY:your-openai-key}
+      models:
+        - gpt-4o-mini
+        - gpt-4.1

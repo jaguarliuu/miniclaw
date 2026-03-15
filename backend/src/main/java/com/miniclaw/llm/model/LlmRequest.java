@@ -74,6 +74,11 @@ public class LlmRequest {
     private Integer maxTokens;
 
     /**
+     * 指定使用的 Provider ID（可选）
+     */
+    private String providerId;
+
+    /**
      * 工具定义列表（可选）
      * 
      * OpenAI Function Calling 格式

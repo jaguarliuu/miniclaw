@@ -21,6 +21,17 @@ logging:
     org.hibernate.SQL: WARN
 
 llm:
-  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
-  api-key: ${LLM_API_KEY}
-  model: ${LLM_MODEL:deepseek-chat}
+  default-model: ${LLM_DEFAULT_MODEL:deepseek:deepseek-chat}
+  providers:
+    - id: deepseek
+      endpoint: ${DEEPSEEK_ENDPOINT:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      models:
+        - ${DEEPSEEK_PRIMARY_MODEL:deepseek-chat}
+        - ${DEEPSEEK_SECONDARY_MODEL:deepseek-coder}
+    - id: openai
+      endpoint: ${OPENAI_ENDPOINT:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:}
+      models:
+        - ${OPENAI_PRIMARY_MODEL:gpt-4o-mini}
+        - ${OPENAI_SECONDARY_MODEL:gpt-4.1}

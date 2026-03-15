@@ -32,6 +32,19 @@ server:
 
 # LLM 配置
 llm:
-  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
-  api-key: ${LLM_API_KEY:your-api-key-here}
-  model: ${LLM_MODEL:deepseek-chat}
+  # 从 4.9 开始，主线配置切换为多 Provider 结构
+  # default-model 的格式是 providerId:modelName
+  default-model: ${LLM_DEFAULT_MODEL:deepseek:deepseek-chat}
+  providers:
+    - id: deepseek
+      endpoint: ${DEEPSEEK_ENDPOINT:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:your-deepseek-key}
+      models:
+        - deepseek-chat
+        - deepseek-coder
+    - id: openai
+      endpoint: ${OPENAI_ENDPOINT:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:your-openai-key}
+      models:
+        - gpt-4o-mini
+        - gpt-4.1
