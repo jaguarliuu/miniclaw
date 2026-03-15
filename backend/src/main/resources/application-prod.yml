@@ -1,0 +1,26 @@
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:miniclaw}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    show-sql: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    com.miniclaw: INFO
+    org.hibernate.SQL: WARN
+
+llm:
+  endpoint: ${LLM_ENDPOINT:https://api.deepseek.com}
+  api-key: ${LLM_API_KEY}
+  model: ${LLM_MODEL:deepseek-chat}

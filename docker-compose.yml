@@ -1,0 +1,54 @@
+# MiniClaw 开发环境基础设施
+# 
+# 这个文件定义了 MiniClaw 开发所需的所有服务：
+# - PostgreSQL：关系型数据库
+# - pgvector：向量扩展，用于 Memory 语义检索
+#
+# 使用方法：
+#   docker compose up -d     # 后台启动
+#   docker compose down      # 停止并删除
+#   docker compose logs -f   # 查看日志
+
+services:
+  # PostgreSQL 数据库 + pgvector 扩展
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: miniclaw-postgres
+    restart: unless-stopped
+    
+    environment:
+      # 数据库配置
+      POSTGRES_DB: miniclaw
+      POSTGRES_USER: miniclaw
+      POSTGRES_PASSWORD: miniclaw123
+      
+      # PostgreSQL 性能调优（开发环境）
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    
+    ports:
+      # 映射端口：主机5432 → 容器5432
+      - "5432:5432"
+    
+    volumes:
+      # 数据持久化：即使容器删除，数据也不会丢失
+      - postgres_data:/var/lib/postgresql/data
+      
+      # 初始化脚本：首次启动时自动创建 pgvector 扩展
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    
+    healthcheck:
+      # 健康检查：确保数据库真正可用
+      test: ["CMD-SHELL", "pg_isready -U miniclaw -d miniclaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# 数据卷定义
+volumes:
+  postgres_data:
+    name: miniclaw_postgres_data
+
+# 网络定义（可选，用于与其他项目隔离）
+networks:
+  default:
+    name: miniclaw-network

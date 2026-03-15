@@ -1,0 +1,28 @@
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/miniclaw
+    username: miniclaw
+    password: miniclaw123
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.miniclaw: DEBUG
+    org.hibernate.SQL: DEBUG
+
+llm:
+  endpoint: https://api.deepseek.com
+  model: deepseek-chat
