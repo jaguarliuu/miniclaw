@@ -1,10 +1,13 @@
 package com.miniclaw.llm.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -141,6 +144,14 @@ public class LlmRequest {
         private String content;
 
         /**
+         * 多模态内容块（文本 + 图片）
+         *
+         * 只有当消息需要发送图片时才使用这个字段。
+         * 纯文本消息仍然继续使用 content，保证前面章节代码不需要一起改。
+         */
+        private List<ContentPart> contentParts;
+
+        /**
          * 工具调用列表（仅 assistant 角色有）
          * 
          * 当 LLM 决定调用工具时，返回这个字段
@@ -178,6 +189,34 @@ public class LlmRequest {
         }
 
         /**
+         * 创建文本 + 单张图片消息
+         */
+        public static Message userWithImage(String text, String imageUrl) {
+            List<ContentPart> parts = new ArrayList<>();
+            if (text != null && !text.isBlank()) {
+                parts.add(ContentPart.text(text));
+            }
+            parts.add(ContentPart.image(imageUrl));
+
+            return Message.builder()
+                    .role("user")
+                    .contentParts(parts)
+                    .build();
+        }
+
+        public boolean hasContentParts() {
+            return contentParts != null && !contentParts.isEmpty();
+        }
+
+        public boolean hasImageContent() {
+            if (!hasContentParts()) {
+                return false;
+            }
+
+            return contentParts.stream().anyMatch(ContentPart::isImageUrl);
+        }
+
+        /**
          * 创建助手消息
          */
         public static Message assistant(String content) {
@@ -206,6 +245,50 @@ public class LlmRequest {
                     .toolCallId(toolCallId)
                     .content(content)
                     .build();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class ContentPart {
+
+            private String type;
+
+            private String text;
+
+            @JsonProperty("image_url")
+            private ImageUrl imageUrl;
+
+            public static ContentPart text(String text) {
+                return ContentPart.builder()
+                        .type("text")
+                        .text(text)
+                        .build();
+            }
+
+            public static ContentPart image(String url) {
+                return ContentPart.builder()
+                        .type("image_url")
+                        .imageUrl(new ImageUrl(url))
+                        .build();
+            }
+
+            public boolean isImageUrl() {
+                return "image_url".equals(type)
+                        && imageUrl != null
+                        && imageUrl.getUrl() != null
+                        && !imageUrl.getUrl().isBlank();
+            }
+
+            @Data
+            @NoArgsConstructor
+            @AllArgsConstructor
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            public static class ImageUrl {
+                private String url;
+            }
         }
     }
 }

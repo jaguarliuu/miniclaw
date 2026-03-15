@@ -42,9 +42,12 @@ llm:
       models:
         - deepseek-chat
         - deepseek-reasoner
+      multimodal-models: []
     - id: qwen
       endpoint: ${QWEN_ENDPOINT:https://dashscope.aliyuncs.com/compatible-mode/v1}
       api-key: ${QWEN_API_KEY:your-openai-key}
       models:
         - qwen3.5-plus
         - qwen3.5-flash
+      multimodal-models:
+        - qwen3-vl-plus

@@ -216,11 +216,12 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     }
 
     private ChatCompletionRequest buildApiRequest(LlmRequest request, boolean stream) {
+        LlmProviderConfig provider = resolveProviderConfig(request);
         List<ChatMessage> messages = request.getMessages().stream()
                 .map(this::convertMessage)
                 .toList();
 
-        String model = resolveModel(request);
+        String model = resolveModel(request, provider);
 
         ChatCompletionRequest.ChatCompletionRequestBuilder builder = ChatCompletionRequest.builder()
                 .model(model)
@@ -248,10 +249,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             return clientCache.get(LEGACY_CLIENT_KEY);
         }
 
-        String providerId = properties.getDefaultProviderId();
-        if (request.getProviderId() != null && !request.getProviderId().isBlank()) {
-            providerId = request.getProviderId();
-        }
+        String providerId = resolveProviderId(request);
 
         if (providerId == null || providerId.isBlank()) {
             throw new IllegalStateException("No default LLM provider configured");
@@ -265,25 +263,90 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         return client;
     }
 
-    private String resolveModel(LlmRequest request) {
+    private String resolveModel(LlmRequest request, LlmProviderConfig provider) {
+        boolean multimodalRequest = isMultimodalRequest(request);
+
         if (request.getModel() != null && !request.getModel().isBlank()) {
+            if (multimodalRequest) {
+                ensureMultimodalModel(provider, request.getProviderId(), request.getModel());
+            }
             return request.getModel();
         }
 
-        if (request.getProviderId() != null && !request.getProviderId().isBlank()) {
-            LlmProviderConfig provider = properties.getProvider(request.getProviderId());
-            if (provider != null && provider.getModels() != null && !provider.getModels().isEmpty()) {
-                return provider.getModels().get(0);
+        if (multimodalRequest) {
+            if (provider == null) {
+                throw new LlmException(LlmErrorType.BAD_REQUEST, false, null,
+                        "Multimodal requests require provider-based multimodal model configuration");
+            }
+
+            String multimodalModel = provider.getDefaultMultimodalModel();
+            if (multimodalModel == null || multimodalModel.isBlank()) {
+                throw new LlmException(LlmErrorType.BAD_REQUEST, false, null,
+                        "Provider " + provider.getId() + " does not have a multimodal model configured");
+            }
+            return multimodalModel;
+        }
+
+        if (provider != null) {
+            String defaultModel = provider.getDefaultModel();
+            if (defaultModel != null && !defaultModel.isBlank()) {
+                return defaultModel;
             }
         }
 
         return properties.getDefaultModelName();
     }
 
+    private String resolveProviderId(LlmRequest request) {
+        if (request.getProviderId() != null && !request.getProviderId().isBlank()) {
+            return request.getProviderId();
+        }
+        return properties.getDefaultProviderId();
+    }
+
+    private LlmProviderConfig resolveProviderConfig(LlmRequest request) {
+        if (clientCache.containsKey(LEGACY_CLIENT_KEY)) {
+            return null;
+        }
+
+        String providerId = resolveProviderId(request);
+        if (providerId == null || providerId.isBlank()) {
+            return null;
+        }
+        return properties.getProvider(providerId);
+    }
+
+    private boolean isMultimodalRequest(LlmRequest request) {
+        if (request.getMessages() == null || request.getMessages().isEmpty()) {
+            return false;
+        }
+
+        return request.getMessages().stream().anyMatch(LlmRequest.Message::hasImageContent);
+    }
+
+    private void ensureMultimodalModel(LlmProviderConfig provider, String requestProviderId, String model) {
+        if (provider == null) {
+            throw new LlmException(LlmErrorType.BAD_REQUEST, false, null,
+                    "Multimodal requests require provider-based multimodal model configuration");
+        }
+
+        if (!provider.supportsMultimodal(model)) {
+            String providerId = requestProviderId != null && !requestProviderId.isBlank()
+                    ? requestProviderId
+                    : provider.getId();
+            throw new LlmException(LlmErrorType.BAD_REQUEST, false, null,
+                    "Provider " + providerId + " does not support multimodal model " + model);
+        }
+    }
+
     private ChatMessage convertMessage(LlmRequest.Message message) {
         ChatMessage chatMessage = new ChatMessage();
         chatMessage.setRole(message.getRole());
-        chatMessage.setContent(message.getContent());
+        if (message.hasContentParts()) {
+            chatMessage.setContent(message.getContentParts());
+        } else {
+            chatMessage.setContent(message.getContent());
+        }
 
         if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
             List<ChatToolCall> chatToolCalls = message.getToolCalls().stream()
@@ -532,7 +595,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     static class ChatMessage {
         private String role;
-        private String content;
+        private Object content;
         @JsonProperty("tool_calls")
         private List<ChatToolCall> toolCalls;
         @JsonProperty("tool_call_id")
