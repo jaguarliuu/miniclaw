@@ -4,10 +4,10 @@ spring:
   
   # 数据源配置
   datasource:
-    url: jdbc:postgresql://localhost:5432/miniclaw
+    url: jdbc:postgresql://localhost:5432/imoocclaw
     driver-class-name: org.postgresql.Driver
-    username: miniclaw
-    password: miniclaw123
+    username: imoocclaw
+    password: imoocclaw
   
   # JPA 配置
   jpa:
