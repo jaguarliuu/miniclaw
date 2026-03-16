@@ -2,6 +2,7 @@ package com.miniclaw.gateway.ws;
 
 import com.miniclaw.gateway.connection.ConnectionContext;
 import com.miniclaw.gateway.connection.ConnectionRegistry;
+import com.miniclaw.gateway.session.InMemorySessionRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketHandler;
@@ -19,9 +20,12 @@ import reactor.core.publisher.Mono;
 public class GatewayWebSocketHandler implements WebSocketHandler {
 
     private final ConnectionRegistry connectionRegistry;
+    private final InMemorySessionRegistry sessionRegistry;
 
-    public GatewayWebSocketHandler(ConnectionRegistry connectionRegistry) {
+    public GatewayWebSocketHandler(ConnectionRegistry connectionRegistry,
+                                   InMemorySessionRegistry sessionRegistry) {
         this.connectionRegistry = connectionRegistry;
+        this.sessionRegistry = sessionRegistry;
     }
 
     @Override
@@ -38,6 +42,7 @@ public class GatewayWebSocketHandler implements WebSocketHandler {
                 ))
                 .then()
                 .doFinally(signalType -> {
+                    sessionRegistry.removeAllByConnection(connection.getConnectionId());
                     connectionRegistry.remove(connection.getConnectionId());
                     log.info("Gateway websocket disconnected: connectionId={}, signal={}",
                             connection.getConnectionId(), signalType);
