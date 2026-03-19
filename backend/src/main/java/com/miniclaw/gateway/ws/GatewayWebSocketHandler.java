@@ -2,6 +2,7 @@ package com.miniclaw.gateway.ws;
 
 import com.miniclaw.gateway.connection.ConnectionContext;
 import com.miniclaw.gateway.connection.ConnectionRegistry;
+import com.miniclaw.gateway.event.OutboundDispatcher;
 import com.miniclaw.gateway.session.InMemorySessionRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,11 +22,14 @@ public class GatewayWebSocketHandler implements WebSocketHandler {
 
     private final ConnectionRegistry connectionRegistry;
     private final InMemorySessionRegistry sessionRegistry;
+    private final OutboundDispatcher outboundDispatcher;
 
     public GatewayWebSocketHandler(ConnectionRegistry connectionRegistry,
-                                   InMemorySessionRegistry sessionRegistry) {
+                                   InMemorySessionRegistry sessionRegistry,
+                                   OutboundDispatcher outboundDispatcher) {
         this.connectionRegistry = connectionRegistry;
         this.sessionRegistry = sessionRegistry;
+        this.outboundDispatcher = outboundDispatcher;
     }
 
     @Override
@@ -33,14 +37,21 @@ public class GatewayWebSocketHandler implements WebSocketHandler {
         ConnectionContext connection = connectionRegistry.register(session);
         log.info("Gateway websocket connected: connectionId={}", connection.getConnectionId());
 
-        return session.receive()
+        Mono<Void> inbound = session.receive()
                 .filter(message -> message.getType() == WebSocketMessage.Type.TEXT)
                 .doOnNext(message -> log.debug(
                         "Gateway received inbound text frame before router is ready: connectionId={}, payload={}",
                         connection.getConnectionId(),
                         message.getPayloadAsText()
                 ))
-                .then()
+                .then();
+
+        Mono<Void> outbound = session.send(
+                outboundDispatcher.outboundJson(connection.getConnectionId())
+                        .map(session::textMessage)
+        );
+
+        return Mono.when(inbound, outbound)
                 .doFinally(signalType -> {
                     sessionRegistry.removeAllByConnection(connection.getConnectionId());
                     connectionRegistry.remove(connection.getConnectionId());
