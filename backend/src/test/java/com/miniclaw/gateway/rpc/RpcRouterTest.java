@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import reactor.core.publisher.Mono;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RpcRouterTest {
@@ -31,7 +33,7 @@ class RpcRouterTest {
                 .payload(objectMapper.createObjectNode())
                 .build();
 
-        Object result = router.route("connection-1", request);
+        Object result = router.route("connection-1", request).block();
 
         assertEquals(1, sessionHandler.invocations);
         assertEquals(0, chatHandler.invocations);
@@ -53,7 +55,7 @@ class RpcRouterTest {
                 .payload(payload("message", "hello"))
                 .build();
 
-        Object result = router.route("connection-2", request);
+        Object result = router.route("connection-2", request).block();
 
         assertEquals(0, sessionHandler.invocations);
         assertEquals(1, chatHandler.invocations);
@@ -73,7 +75,7 @@ class RpcRouterTest {
                 .payload(objectMapper.createObjectNode())
                 .build();
 
-        RpcErrorFrame result = (RpcErrorFrame) router.route("connection-3", request);
+        RpcErrorFrame result = (RpcErrorFrame) router.route("connection-3", request).block();
 
         assertEquals("error", result.getType());
         assertEquals("req-missing", result.getRequestId());
@@ -99,15 +101,15 @@ class RpcRouterTest {
         }
 
         @Override
-        public Object handle(String connectionId, RpcRequestFrame request) {
+        public Mono<Object> handle(String connectionId, RpcRequestFrame request) {
             this.invocations++;
             this.lastConnectionId = connectionId;
             this.lastRequest = request;
-            return RpcCompletedFrame.of(
+            return Mono.just(RpcCompletedFrame.of(
                     request.getRequestId(),
                     request.getSessionId(),
                     null
-            );
+            ));
         }
     }
 
@@ -123,15 +125,15 @@ class RpcRouterTest {
         }
 
         @Override
-        public Object handle(String connectionId, RpcRequestFrame request) {
+        public Mono<Object> handle(String connectionId, RpcRequestFrame request) {
             this.invocations++;
             this.lastConnectionId = connectionId;
             this.lastRequest = request;
-            return RpcCompletedFrame.of(
+            return Mono.just(RpcCompletedFrame.of(
                     request.getRequestId(),
                     request.getSessionId(),
                     null
-            );
+            ));
         }
     }
 }

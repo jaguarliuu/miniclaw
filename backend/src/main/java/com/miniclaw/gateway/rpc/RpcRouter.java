@@ -1,13 +1,13 @@
 package com.miniclaw.gateway.rpc;
 
-import com.miniclaw.gateway.rpc.handler.RpcHandler;
+
 import com.miniclaw.gateway.rpc.model.RpcErrorFrame;
 import com.miniclaw.gateway.rpc.model.RpcRequestFrame;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -25,15 +25,15 @@ public class RpcRouter {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public Object route(String connectionId, RpcRequestFrame request) {
+    public Mono<Object> route(String connectionId, RpcRequestFrame request) {
         RpcHandler handler = handlersByMethod.get(request.getMethod());
         if (handler == null) {
-            return RpcErrorFrame.of(
+            return Mono.just(RpcErrorFrame.of(
                     request.getRequestId(),
                     request.getSessionId(),
                     "METHOD_NOT_FOUND",
                     "Unknown method: " + request.getMethod()
-            );
+            ));
         }
 
         return handler.handle(connectionId, request);
