@@ -11,11 +11,13 @@ public class GatewaySession {
     private final String sessionId;
     private final String connectionId;
     private final Instant createdAt;
+    private SessionState state;
 
-    public GatewaySession(String sessionId, String connectionId, Instant createdAt) {
+    public GatewaySession(String sessionId, String connectionId, Instant createdAt, SessionState state) {
         this.sessionId = sessionId;
         this.connectionId = connectionId;
         this.createdAt = createdAt;
+        this.state = state;
     }
 
     public String getSessionId() {
@@ -28,5 +30,13 @@ public class GatewaySession {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public SessionState getState() {
+        return state;
+    }
+
+    public void setState(SessionState state) {
+        this.state = state;
     }
 }

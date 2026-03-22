@@ -30,7 +30,7 @@ public class InMemorySessionRegistry {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown connection: " + connectionId));
 
         String sessionId = UUID.randomUUID().toString();
-        GatewaySession session = new GatewaySession(sessionId, connectionId, Instant.now());
+        GatewaySession session = new GatewaySession(sessionId, connectionId, Instant.now(), SessionState.IDLE);
         sessions.put(sessionId, session);
         connectionRegistry.bindSession(connectionId, sessionId);
         return session;
