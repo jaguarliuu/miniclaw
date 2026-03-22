@@ -1,6 +1,8 @@
 package com.miniclaw.gateway.ws;
 
 import com.miniclaw.gateway.connection.ConnectionRegistry;
+import com.miniclaw.gateway.event.GatewayEventBus;
+import com.miniclaw.gateway.event.OutboundDispatcher;
 import com.miniclaw.gateway.session.InMemorySessionRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
