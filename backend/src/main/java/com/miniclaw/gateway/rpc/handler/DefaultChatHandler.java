@@ -9,7 +9,7 @@ import com.miniclaw.gateway.rpc.model.RpcErrorFrame;
 import com.miniclaw.gateway.rpc.model.RpcEventFrame;
 import com.miniclaw.gateway.rpc.model.RpcRequestFrame;
 import com.miniclaw.gateway.session.GatewaySession;
-import com.miniclaw.gateway.session.InMemorySessionRegistry;
+import com.miniclaw.gateway.session.PersistentSessionService;
 import com.miniclaw.gateway.session.SessionLane;
 import com.miniclaw.gateway.session.SessionState;
 import com.miniclaw.gateway.session.SessionStateMachine;
@@ -23,20 +23,20 @@ import java.util.List;
 @Component
 public class DefaultChatHandler implements ChatHandler {
 
-    private final InMemorySessionRegistry sessionRegistry;
+    private final PersistentSessionService sessionService;
     private final SessionStateMachine stateMachine;
     private final SessionLane sessionLane;
     private final GatewayEventBus eventBus;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
 
-    public DefaultChatHandler(InMemorySessionRegistry sessionRegistry,
+    public DefaultChatHandler(PersistentSessionService sessionService,
                               SessionStateMachine stateMachine,
                               SessionLane sessionLane,
                               GatewayEventBus eventBus,
                               LlmClient llmClient,
                               ObjectMapper objectMapper) {
-        this.sessionRegistry = sessionRegistry;
+        this.sessionService = sessionService;
         this.stateMachine = stateMachine;
         this.sessionLane = sessionLane;
         this.eventBus = eventBus;
@@ -51,7 +51,7 @@ public class DefaultChatHandler implements ChatHandler {
 
     @Override
     public Mono<Object> handle(String connectionId, RpcRequestFrame request) {
-        GatewaySession session = sessionRegistry.find(request.getSessionId()).orElse(null);
+        GatewaySession session = sessionService.find(request.getSessionId()).orElse(null);
         if (session == null) {
             return Mono.just(RpcErrorFrame.of(
                     request.getRequestId(),
@@ -91,6 +91,7 @@ public class DefaultChatHandler implements ChatHandler {
                                      String message) {
         return Mono.defer(() -> {
             stateMachine.transition(session, SessionState.RUNNING);
+            sessionService.save(session);
 
             return llmClient.stream(LlmRequest.builder()
                             .messages(List.of(LlmRequest.Message.user(message)))
@@ -129,6 +130,7 @@ public class DefaultChatHandler implements ChatHandler {
     private void resetToIdle(GatewaySession session) {
         if (session.getState() == SessionState.RUNNING) {
             stateMachine.transition(session, SessionState.IDLE);
+            sessionService.save(session);
         }
     }
 }

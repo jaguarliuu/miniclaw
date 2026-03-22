@@ -12,9 +12,12 @@ import com.miniclaw.gateway.rpc.model.RpcEventFrame;
 import com.miniclaw.gateway.rpc.model.RpcRequestFrame;
 import com.miniclaw.gateway.session.GatewaySession;
 import com.miniclaw.gateway.session.InMemorySessionRegistry;
+import com.miniclaw.gateway.session.PersistentSessionService;
 import com.miniclaw.gateway.session.SessionLane;
 import com.miniclaw.gateway.session.SessionState;
 import com.miniclaw.gateway.session.SessionStateMachine;
+import com.miniclaw.gateway.session.persistence.SessionEntity;
+import com.miniclaw.gateway.session.persistence.SessionEntityRepository;
 import com.miniclaw.llm.LlmClient;
 import com.miniclaw.llm.model.LlmChunk;
 import com.miniclaw.llm.model.LlmRequest;
@@ -28,7 +31,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DefaultChatHandlerTest {
 
@@ -39,7 +45,10 @@ class DefaultChatHandlerTest {
         ConnectionRegistry connectionRegistry = new ConnectionRegistry();
         ConnectionContext connection = connectionRegistry.register(mock(WebSocketSession.class));
         InMemorySessionRegistry sessionRegistry = new InMemorySessionRegistry(connectionRegistry);
-        GatewaySession session = sessionRegistry.create(connection.getConnectionId());
+        SessionEntityRepository repository = mock(SessionEntityRepository.class);
+        when(repository.save(any(SessionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PersistentSessionService sessionService = new PersistentSessionService(sessionRegistry, repository);
+        GatewaySession session = sessionService.create(connection.getConnectionId());
         GatewayEventBus eventBus = new GatewayEventBus();
         RecordingLlmClient llmClient = new RecordingLlmClient(Flux.just(
                 LlmChunk.builder().delta("hel").done(false).build(),
@@ -47,7 +56,7 @@ class DefaultChatHandlerTest {
         ));
 
         DefaultChatHandler handler = new DefaultChatHandler(
-                sessionRegistry,
+                sessionService,
                 new SessionStateMachine(),
                 new SessionLane(),
                 eventBus,
@@ -78,8 +87,9 @@ class DefaultChatHandlerTest {
         assertEquals("chat.delta", ((RpcEventFrame) events.get(0).getFrame()).getName());
         assertEquals("hel", ((RpcEventFrame) events.get(0).getFrame()).getPayload().get("delta").asText());
         assertEquals("lo", ((RpcEventFrame) events.get(1).getFrame()).getPayload().get("delta").asText());
-        assertEquals(SessionState.IDLE, sessionRegistry.find(session.getSessionId()).orElseThrow().getState());
+        assertEquals(SessionState.IDLE, sessionService.find(session.getSessionId()).orElseThrow().getState());
         assertEquals("hello", llmClient.lastRequest.getMessages().getFirst().getContent());
+        verify(repository, org.mockito.Mockito.atLeast(3)).save(any(SessionEntity.class));
     }
 
     @Test
@@ -87,11 +97,15 @@ class DefaultChatHandlerTest {
         ConnectionRegistry connectionRegistry = new ConnectionRegistry();
         ConnectionContext connection = connectionRegistry.register(mock(WebSocketSession.class));
         InMemorySessionRegistry sessionRegistry = new InMemorySessionRegistry(connectionRegistry);
-        GatewaySession session = sessionRegistry.create(connection.getConnectionId());
+        SessionEntityRepository repository = mock(SessionEntityRepository.class);
+        when(repository.save(any(SessionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PersistentSessionService sessionService = new PersistentSessionService(sessionRegistry, repository);
+        GatewaySession session = sessionService.create(connection.getConnectionId());
         session.setState(SessionState.CLOSED);
+        sessionService.save(session);
 
         DefaultChatHandler handler = new DefaultChatHandler(
-                sessionRegistry,
+                sessionService,
                 new SessionStateMachine(),
                 new SessionLane(),
                 new GatewayEventBus(),

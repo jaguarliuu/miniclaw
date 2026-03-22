@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.miniclaw.gateway.rpc.model.RpcCompletedFrame;
 import com.miniclaw.gateway.rpc.model.RpcRequestFrame;
 import com.miniclaw.gateway.session.GatewaySession;
-import com.miniclaw.gateway.session.InMemorySessionRegistry;
+import com.miniclaw.gateway.session.PersistentSessionService;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -14,11 +14,11 @@ import java.util.List;
 @Component
 public class DefaultSessionHandler implements SessionHandler {
 
-    private final InMemorySessionRegistry sessionRegistry;
+    private final PersistentSessionService sessionService;
     private final ObjectMapper objectMapper;
 
-    public DefaultSessionHandler(InMemorySessionRegistry sessionRegistry, ObjectMapper objectMapper) {
-        this.sessionRegistry = sessionRegistry;
+    public DefaultSessionHandler(PersistentSessionService sessionService, ObjectMapper objectMapper) {
+        this.sessionService = sessionService;
         this.objectMapper = objectMapper;
     }
 
@@ -29,7 +29,7 @@ public class DefaultSessionHandler implements SessionHandler {
 
     @Override
     public Mono<Object> handle(String connectionId, RpcRequestFrame request) {
-        GatewaySession session = sessionRegistry.create(connectionId);
+        GatewaySession session = sessionService.create(connectionId);
         return Mono.just(RpcCompletedFrame.of(
                 request.getRequestId(),
                 session.getSessionId(),
